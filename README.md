@@ -1,4 +1,4 @@
-# Aura  The AI Wealth Layer for Robinhood Chain
+# Aura -- The AI Wealth Layer for Robinhood Chain
 
 > **A Robinhood-grade trading experience powered by Multi-Agent AI, Account Abstraction, and a Stylus-native Order Book.**
 > Built for the Arbitrum Open House London Buildathon 2026.
@@ -12,7 +12,7 @@ DeFi onboarding is broken. Users face three barriers:
 2. **Gas friction**  every interaction requires the user to hold ETH
 3. **Trust**  no safety net if a strategy is risky or a swap is bad
 
-Aura solves all three by making DeFi feel like a fintech app  but with full self-custody.
+Aura solves all three by making DeFi feel like a fintech app -- but with full self-custody.
 
 ---
 
@@ -20,14 +20,14 @@ Aura solves all three by making DeFi feel like a fintech app  but with full self
 
 ### Three pillars
 
-#### 1. Agentic Intelligence  Multi-Agent Committee
+#### 1. Agentic Intelligence -- Multi-Agent Committee
 A **dual-agent safety architecture** that no other hackathon project has:
 
 - **Executor Agent** translates natural language into precise on-chain plans (LangChain + NVIDIA Llama 3.1 70B)
-- **Risk Auditor Agent** independently audits the proposal  checks balances, allowances, slippage, macro context  before signing
+- **Risk Auditor Agent** independently audits the proposal -- checks balances, allowances, slippage, macro context -- before signing
 - **Macro Analyzer** integrates Pyth Network prices + correlation matrix + NewsAPI sentiment to add market context to every decision
 
-Result: a user types *"DCA 0.001 ETH into AMZN every day for a week"*  both agents collaborate  user gets a single signature prompt with full reasoning visible.
+Result: a user types *"DCA 0.001 ETH into AMZN every day for a week"*  both agents collaborate -- user gets a single signature prompt with full reasoning visible.
 
 #### 2. Stylus-Native Order Book
 The first hackathon project to combine a **Rust/WASM perpetual order book** (Arbitrum Stylus) with a **Solidity Vault LP** (Robinhood Chain) for hybrid execution:
@@ -38,7 +38,7 @@ The first hackathon project to combine a **Rust/WASM perpetual order book** (Arb
 
 Benchmarked **34% gas savings** on `get_active_orders_sorted` (the hot path) vs pure Solidity at scale (see [bench results](#-stylus-vs-solidity-benchmark)).
 
-#### 3. Retail UX  Gasless & Intent-Based
+#### 3. Retail UX -- Gasless & Intent-Based
 - **Account Abstraction (EIP-4337)** via custom `AuraAccount` + `AuraPaymaster`
 - **Natural language chat** for swaps and DCA
 - **Live order book widget** updating every 5s on the trade page
@@ -49,42 +49,44 @@ Benchmarked **34% gas savings** on `get_active_orders_sorted` (the hot path) vs 
 ## Live Architecture
 
 ```
-                           USER (one signature) 
-                                                                 
-                  /chat (NLP intent)                       /trade (manual)
-                                                                 
-                 
-           Multi-Agent Committee                    Order Panel                
-            Executor (Llama 3.1)                     Market     AuraPerps   
-            Risk Auditor                             Limit      Stylus LOB  
-            Macro Analyzer (Pyth+News)           
-                                
-                                                                 
-                                                                 
-                  Synthra V3 Router                 
-                  (Robinhood Chain)                   Hybrid execution            
-                                                       walks Stylus LOB         
-                                                       falls back to Vault LP   
-                                                    
-                                                                  
-                            
-                                                                                 
-                                       
-                   Stylus LOB (WASM)                              AuraPerps + Vault LP       
-                   Arbitrum Sepolia                               Robinhood Chain Testnet    
-                                                                                             
-                   store_order                                    openPosition                
-                   match_orders            AI Keeper        liquidatePosition           
-                   consume_order               (Pyth feed)        closePosition               
-                   get_active_orders                                                        
-                                       
++------------------------------- USER (one signature) --------------------------------+
+|                                                                                     |
+|         /chat (NLP intent)                              /trade (manual)             |
+|              |                                               |                      |
+|              v                                               v                      |
+|  +---------------------------+              +-------------------------------+       |
+|  | Multi-Agent Committee     |              | Order Panel                   |       |
+|  |  - Executor (Llama 3.1)  |              |  - Market  -> AuraPerps       |       |
+|  |  - Risk Auditor          |              |  - Limit   -> Stylus LOB      |       |
+|  |  - Macro Analyzer        |              +---------------+---------------+       |
+|  +-----------+---------------+                             |                        |
+|              |                                             v                        |
+|              v                              +-------------------------------+       |
+|    Synthra V3 Router                        | Hybrid Execution Engine       |       |
+|    (Robinhood Chain)                        |  1. Walk Stylus LOB           |       |
+|                                             |  2. Fallback -> Vault LP      |       |
+|                                             +---------------+---------------+       |
++---------------------------------------------|--------------------------------------|+
+                                              |
+              +-------------------------------+-------------------------------+
+              |                                                               |
+              v                                                               v
++---------------------------+                          +-----------------------------+
+| Stylus LOB (WASM)         |                          | AuraPerps + Vault LP        |
+| Arbitrum Sepolia (421614) |                          | Robinhood Chain (46630)     |
+|                           |                          |                             |
+| - store_order             |                          | - openPosition              |
+| - match_orders            |<--- AI Keeper --->       | - closePosition             |
+| - consume_order           |     (Pyth feed)          | - liquidatePosition         |
+| - get_active_orders_sorted|                          | - Pyth MockOracle           |
++---------------------------+                          +-----------------------------+
 
-                                   AI Market Maker 
-                                     marketMaker.js              
-                                     places bid/ask quotes        
-                                     around Pyth mid              
-                                     funded by AuraMMFund         
-                                  
+                        +-----------------------------+
+                        | AI Market Maker             |
+                        |  - marketMaker.js           |
+                        |  - places bid/ask quotes    |
+                        |  - around Pyth mid          |
+                        +-----------------------------+
 ```
 
 ---
@@ -113,7 +115,7 @@ Real numbers from `scripts/bench-large-scale.js` on Arbitrum Sepolia (60 resting
 | `match_orders` (full scan, 0 hits) | 788 052 | 792 359 | ~0% | Break-even |
 | `match_orders` (full scan, 16 hits) | 529 860 | 526 694 | ~0% | Break-even |
 
-**Insight**: Stylus wins on compute-heavy hot paths (sort, scan large arrays). For storage-only operations the runtime overhead breaks even. We use Stylus exactly where it matters  the order book viewer hit on every page render.
+**Insight**: Stylus wins on compute-heavy hot paths (sort, scan large arrays). For storage-only operations the runtime overhead breaks even. We use Stylus exactly where it matters -- the order book viewer hit on every page render.
 
 ---
 
@@ -143,7 +145,7 @@ Real numbers from `scripts/bench-large-scale.js` on Arbitrum Sepolia (60 resting
 **31 passing tests** across the security-critical paths:
 
 ```
-AuraIntelligenceVault  Full ERC-4626 vault security suite (25 tests)
+AuraIntelligenceVault -- Full ERC-4626 vault security suite (25 tests)
    Deposit / Withdraw / Approve flows
    Risk Score Ceiling enforcement
    Function Selector whitelist
@@ -165,14 +167,14 @@ Run with: `npx hardhat test`
 
 ---
 
-## Hackathon Criteria  How We Score
+## Hackathon Criteria
 
 | Criterion | Aura's Edge |
 |---|---|
 | **Smart Contract Quality** | 31 tests, OZ standards, ERC-4626 vault, EIP-4337 accounts, Stylus snake_case selector compatibility, gas-benched against Solidity |
 | **Product-Market Fit** | Targets Robinhood Chain's massive retail audience. Gasless UX + chat = the same UX pattern as Robinhood, but with full self-custody and DeFi yields |
 | **Innovation & Creativity** | First project to combine Multi-Agent safety + Stylus LOB + EIP-4337. Cross-chain hybrid (Stylus = compute, Robinhood = settlement) is novel |
-| **Real Problem Solving** | Answers DeFi's three real barriers  complexity, gas, trust  without compromising self-custody |
+| **Real Problem Solving** | Answers DeFi's three real barriers -- complexity, gas, trust -- without compromising self-custody |
 
 ---
 
@@ -194,11 +196,11 @@ npx hardhat run scripts/bench-large-scale.js --network arbitrumSepolia
 # 4. Run the full demo
 cd backend && node index.js          # Multi-Agent committee + APIs
 cd backend && node marketMaker.js    # AI MM on Arbitrum Sepolia
-cd backend && node lobKeeper.js      # AI Keeper (Pyth  match_orders)
+cd backend && node lobKeeper.js      # AI Keeper (Pyth -- match_orders)
 cd frontend && npm run dev           # Next.js UI on :3000
 ```
 
-Open http://localhost:3000  connect MetaMask  trade.
+Open http://localhost:3000 -- connect MetaMask -- trade.
 
 ---
 
@@ -212,7 +214,7 @@ arbitrum_hackathon/
     agent.js            Executor + Risk Auditor
     macroAnalyzer.js    Pyth + news + correlations
     marketMaker.js      AI Market Maker (Stylus LOB)
-    lobKeeper.js        AI Keeper (Pyth  match_orders)
+    lobKeeper.js        AI Keeper (Pyth -- match_orders)
     index.js            Express API
  frontend/               Next.js 15 trading UI
     app/trade/          Perpetual trading page (LOB + market orders)
@@ -230,10 +232,10 @@ arbitrum_hackathon/
 > *"Aura: where AI meets safe, retail-first DeFi on Arbitrum + Robinhood Chain."*
 
 A typical user flow:
-1. Connect wallet (no email, no Apple/Google  pure self-custody)
-2. Type *"Swap 0.001 ETH for AMZN"*  Multi-Agent Committee analyzes  SignModal appears
-3. Sign with one click  confirmation in 8 seconds
-4. Or go to `/trade`  see the **Live Stylus Order Book** populated by the AI Market Maker  place a limit order  watch the keeper match it in real time
+1. Connect wallet
+2. Type *"Swap 0.001 ETH for AMZN"*  Multi-Agent Committee analyzes -- SignModal appears
+3. Sign with one click
+4. Or go to `/trade`  see the **Live Stylus Order Book** populated by the AI Market Maker -- place a limit order -- watch the keeper match it in real time
 
 ---
 

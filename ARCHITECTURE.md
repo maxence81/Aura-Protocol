@@ -1,4 +1,4 @@
-# Aura  Architecture Reference
+# Aura -- Architecture Reference
 
 > Full technical reference for the Aura platform: contracts, agents, chains, and data flows.
 
@@ -7,63 +7,61 @@
 ## System Overview
 
 ```
++===============================================================================+
+|                         USER (single signature)                                |
++==================================+============================================+
+|         /chat (NLP)              |              /trade (manual)                |
+|                                  |                                            |
+|  +----------------------------+  |  +--------------------------------------+  |
+|  | Multi-Agent Committee      |  |  | Order Panel                          |  |
+|  |  - Executor (Llama 3.1)   |  |  |  - Market -> AuraPerps (Robinhood)   |  |
+|  |  - Risk Auditor           |  |  |  - Limit  -> Stylus LOB (Arb Sepolia)|  |
+|  |  - Macro Analyzer         |  |  +------------------+-------------------+  |
+|  +-----------+----------------+  |                     |                      |
+|              |                   |                     v                      |
+|              v                   |  +--------------------------------------+  |
+|    Synthra V3 Router             |  | Hybrid Execution Engine              |  |
+|    (Robinhood Chain)             |  |  routedMarketOpen():                 |  |
+|    ETH<->Token swaps             |  |    1. Walk Stylus LOB                |  |
+|    DCA automation                |  |    2. Fallback -> Vault LP           |  |
+|                                  |  +------------------+-------------------+  |
++==================================+===========================================+
+                                                     |
+              +--------------------------------------+---------------------------+
+              |                                                                  |
+              v                                                                  v
++-----------------------------+                     +------------------------------+
+| Stylus LOB (WASM)           |                     | AuraPerps + AuraVault (LP)   |
+| Arbitrum Sepolia            |                     | Robinhood Chain Testnet      |
+| Chain ID: 421614            |                     | Chain ID: 46630              |
+|                             |                     |                              |
+| - store_order               |                     | - openPosition(For)          |
+| - match_orders              |<--- AI Keeper --->  | - closePosition              |
+| - consume_order             |     (Pyth feed)     | - liquidatePosition          |
+| - cancel_order              |                     | - Pyth MockOracle            |
+| - get_active_orders_sorted  |                     | - ERC-4626 Vault (LP)        |
+|   (-34% gas vs Solidity)    |                     |                              |
++-----------------------------+                     +------------------------------+
 
-                              USER (single signature)                             
++-----------------------------------------------------------------------+
+|                    AI AGENTS (off-chain)                               |
+|                                                                       |
+|  +------------------------+    +-----------------------------------+  |
+|  | AI Market Maker        |    | AI Keeper (lobKeeper.js)          |  |
+|  | (marketMaker.js)       |    |                                   |  |
+|  |                        |    | - Polls Pyth Hermes every 10s     |  |
+|  | - Pyth mid price       |    | - Calls match_orders(hash, px)   |  |
+|  | - Spread calc          |    | - Fills triggered limits          |  |
+|  | - store_order bid+ask  |    | - Settles on Robinhood Chain      |  |
+|  +------------------------+    +-----------------------------------+  |
++-----------------------------------------------------------------------+
 
-         /chat (NLP)                        /trade (manual)                      
-                                                                                
-          
-   Multi-Agent Committee        Order Panel                                 
-     Executor (Llama 3.1)       Market  AuraPerps (Robinhood Chain)      
-     Risk Auditor               Limit   Stylus LOB (Arb Sepolia)        
-     Macro Analyzer              
-                                                     
-                                                                              
-                                                                              
-    Synthra V3 Router                            
-    (Robinhood Chain)                  Hybrid Execution Engine                
-    ETHToken swaps                    routedMarketOpen():                    
-    DCA automation                       1. Walk Stylus LOB                   
-                                         2. Fallback  Vault LP               
-                                                 
-
-                                                     
-                    
-                                                                                
-                   
-           Stylus LOB (WASM)              AuraPerps + AuraVault (LP)         
-           Arbitrum Sepolia               Robinhood Chain Testnet            
-           Chain ID: 421614               Chain ID: 46630                    
-                                                                             
-           store_order                    openPosition / openPositionFor     
-           match_orders                   closePosition                      
-           consume_order                  liquidatePosition                  
-           cancel_order                   Pyth MockOracle                    
-           get_active_orders_             ERC-4626 Vault (LP)                
-             sorted (34% gas)                                               
-                   
-                                                                                 
-             
-                            AI AGENTS (off-chain)                               
-                                                                               
-                       
-            AI Market Maker       AI Keeper (lobKeeper.js)                  
-            (marketMaker.js)                                                
-                                   Polls Pyth Hermes every 10s             
-             Pyth mid price       Calls match_orders(hash, px)            
-             Spread calc          Fills triggered limits                  
-             store_order          Updates oracle (Robinhood)              
-              bid + ask                                                     
-                       
-             
-                                                                                 
-        
-        
-          Account Abstraction Layer (Robinhood Chain)
-          
-            AuraAccount (EIP-4337 Smart Wallet)     
-            AuraFactory (deterministic deploy)      
-            AuraPaymaster (gas sponsorship)         
++-----------------------------------------------------------------------+
+| Account Abstraction Layer (Robinhood Chain)                           |
+|  - AuraAccount (EIP-4337 Smart Wallet)                                |
+|  - AuraFactory (deterministic deploy)                                 |
+|  - AuraPaymaster (gas sponsorship)                                    |
++-----------------------------------------------------------------------+         
           
 ```
 
@@ -79,7 +77,7 @@
 **Why two chains?**
 - Robinhood Chain = retail settlement layer (where positions and funds live)
 - Arbitrum Sepolia = Stylus-enabled compute layer (where the sort-heavy LOB runs 34% cheaper)
-- The AI Keeper bridges them: matches on Stylus  settles on Robinhood
+- The AI Keeper bridges them: matches on Stylus -- settles on Robinhood
 
 ---
 
@@ -113,28 +111,28 @@ User  "Swap 0.001 ETH to AMZN"
    Executor Agent (Llama 3.1 70B) parses intent
    Risk Auditor checks balance + macro sentiment
    Calldata: Synthra V3 Router (Robinhood Chain)
-   User signs  confirmed in ~8s
+   User signs -- confirmed in ~8s
 ```
 
 ### Path 2: Perp Market Order (via `/trade`)
 ```
-User  clicks LONG BTC 50x
+User -- clicks LONG BTC 50x
    Oracle update (fire-and-forget)
    aUSD approve (MAX_UINT, one-time)
    routedMarketOpen(asset, isLong, collateral, leverage)
      walks Stylus LOB for resting asks
-     unfilled remainder  AuraPerps.openPositionFor (Vault LP)
+     unfilled remainder -- AuraPerps.openPositionFor (Vault LP)
    Position opened at Pyth-fresh entry price
 ```
 
 ### Path 3: Perp Limit Order (via `/trade`)
 ```
-User  switches to LIMIT mode, enters price
+User -- switches to LIMIT mode, enters price
    MetaMask auto-switches to Arbitrum Sepolia (421614)
    store_order(owner, asset_hash, is_long, collateral, leverage, limit_price)
    Order rests in Stylus LOB
    AI Keeper polls Pyth every 10s
-   When price crosses limit  match_orders fills it
+   When price crosses limit -- match_orders fills it
    Order appears/disappears in live OrderBook widget
 ```
 
@@ -149,10 +147,10 @@ User  switches to LIMIT mode, enters price
                                                          
   1. Intent Classification                               
       isLimitOrderRequest?  LIMIT_ORDER pipeline      
-      else  SWAP pipeline                             
+      else -- SWAP pipeline                             
                                                          
   2. Executor Agent (NVIDIA Llama 3.1 70B)               
-      Parses NL  structured JSON                      
+      Parses NL -- structured JSON                      
       Builds calldata (swap routing / DCA scheduling)  
                                                          
   3. Macro Analyzer                                      
@@ -199,7 +197,7 @@ Measured on Arbitrum Sepolia with 60 resting orders (30 bids + 30 asks):
 | `match_orders` (16 hits) | 529,860 | 526,694 | ~0% |
 | `store_order` (60 cumul) | 13,740,458 | 12,662,016 | +8% |
 
-**Conclusion**: Stylus wins on compute-heavy hot paths (sort, bounded insertion). Storage-only ops break even. We deploy Stylus exactly where it matters  the order book depth query hit on every frontend render.
+**Conclusion**: Stylus wins on compute-heavy hot paths (sort, bounded insertion). Storage-only ops break even. We deploy Stylus exactly where it matters -- the order book depth query hit on every frontend render.
 
 ---
 
@@ -226,7 +224,7 @@ arbitrum_hackathon/
     AuraPerps.sol          Perpetuals engine (oracle + vault LP)
     AuraPerpsRouter.sol    Hybrid LOB+AMM router
     AuraOrderBook.sol      Solidity LOB (bench reference)
-    AuraIntelligenceVault.sol  ERC-4626 AI-managed vault
+    AuraIntelligenceVault.sol -- ERC-4626 AI-managed vault
     AuraAccount.sol        EIP-4337 smart wallet
     aUSD.sol               Stablecoin with faucet
  stylus-orderbook/          Rust/WASM order book (Stylus SDK 0.10.6)
@@ -235,8 +233,8 @@ arbitrum_hackathon/
     rust-toolchain.toml    Rust 1.91 + wasm32
  backend/                   Node.js multi-agent backend
     agent.js               Executor + Risk Auditor + Macro Analyzer
-    marketMaker.js         AI MM  Stylus LOB (Arb Sepolia)
-    lobKeeper.js           AI Keeper  match_orders (Arb Sepolia)
+    marketMaker.js         AI MM -- Stylus LOB (Arb Sepolia)
+    lobKeeper.js           AI Keeper -- match_orders (Arb Sepolia)
     index.js               Express API (chat, orderbook, vault, oracle)
     macroAnalyzer.js       Pyth + NewsAPI + correlations
  frontend/                  Next.js 15 + React 19
@@ -279,4 +277,4 @@ cd backend && node lobKeeper.js
 cd frontend && npm run dev
 ```
 
-Open http://localhost:3000  Connect MetaMask  Trade.
+Open http://localhost:3000 -- Connect MetaMask -- Trade.
