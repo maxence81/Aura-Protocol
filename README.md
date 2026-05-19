@@ -142,7 +142,7 @@ Real numbers from `scripts/bench-large-scale.js` on Arbitrum Sepolia (60 resting
 
 ## Test Coverage
 
-**31 passing tests** across the security-critical paths:
+**55 passing tests** across the security-critical paths:
 
 ```
 AuraIntelligenceVault -- Full ERC-4626 vault security suite (25 tests)
@@ -152,6 +152,14 @@ AuraIntelligenceVault -- Full ERC-4626 vault security suite (25 tests)
    Emergency Pause / Unpause
    Stylus Guardrail integration
    Protocol whitelist add/remove
+
+AuraOrderBook -- Full lifecycle (24 tests)
+   store_order (access control, params validation, counters)
+   cancel_order (owner check, status flip, depth decrement)
+   match_orders (bid/ask fill logic, cross-asset isolation)
+   consume_order (atomic Active->Executed)
+   get_active_orders_sorted (insertion sort, cap, empty)
+   Stats tracking
 
 Hybrid LOB+AMM Router (4 tests)
    Walks book first, falls back to Vault LP
@@ -178,29 +186,82 @@ Run with: `npx hardhat test`
 
 ---
 
-## Quickstart
+## Setup & Quickstart
+
+### Prerequisites
+
+- Node.js >= 18
+- MetaMask (or any EVM wallet)
+- ETH on Arbitrum Sepolia (for limit orders) -- faucet: https://faucet.arbitrum.io/
+- ETH on Robinhood Chain Testnet (for market orders) -- faucet available in-app
+
+### 1. Clone & Install
 
 ```bash
-# 1. Install
+git clone https://github.com/YOUR_USERNAME/Aura-Protocol.git
+cd Aura-Protocol
 npm install
-cd backend && npm install
-cd ../frontend && npm install
-
-# 2. Compile + test
-npx hardhat compile
-npx hardhat test                    # 31 tests, all passing
-
-# 3. Bench Stylus vs Solidity
-npx hardhat run scripts/bench-large-scale.js --network arbitrumSepolia
-
-# 4. Run the full demo
-cd backend && node index.js          # Multi-Agent committee + APIs
-cd backend && node marketMaker.js    # AI MM on Arbitrum Sepolia
-cd backend && node lobKeeper.js      # AI Keeper (Pyth -- match_orders)
-cd frontend && npm run dev           # Next.js UI on :3000
+cd backend && npm install && cd ..
+cd frontend && npm install && cd ..
 ```
 
-Open http://localhost:3000 -- connect MetaMask -- trade.
+### 2. Configure Environment
+
+```bash
+# Root (for Hardhat scripts & tests)
+cp .env.example .env
+# Edit .env and add your PRIVATE_KEY + API keys
+
+# Backend
+cp backend/.env.example backend/.env
+# Edit backend/.env with the same values
+```
+
+Required keys:
+- `PRIVATE_KEY` -- deployer wallet (must have ETH on both chains)
+- `NVIDIA_API_KEY` -- get one free at https://build.nvidia.com (Llama 3.1 70B)
+- `NEWSAPI` -- free at https://newsapi.org
+
+All contract addresses are pre-filled with our live testnet deployments.
+
+### 3. Compile & Test
+
+```bash
+npx hardhat compile
+npx hardhat test                    # 55 tests, all passing
+```
+
+### 4. Run the Stylus vs Solidity Benchmark
+
+```bash
+npx hardhat run scripts/bench-large-scale.js --network arbitrumSepolia
+```
+
+### 5. Run the Full Demo (4 terminals)
+
+```bash
+# Terminal 1 -- Backend API (port 3001)
+cd backend && node index.js
+
+# Terminal 2 -- AI Market Maker (populates the Stylus LOB with quotes)
+cd backend && node marketMaker.js
+
+# Terminal 3 -- AI Keeper (matches orders + cross-chain settlement)
+cd backend && node lobKeeper.js
+
+# Terminal 4 -- Frontend (port 3000)
+cd frontend && npm run dev
+```
+
+### 6. Use the App
+
+1. Open http://localhost:3000
+2. Connect MetaMask
+3. `/chat` -- type "Swap 0.001 ETH to AMZN" to see the Multi-Agent Committee in action
+4. `/trade` -- place market or limit orders on the live Stylus Order Book
+5. `/vault` -- deposit aUSD into the AI-managed ERC-4626 vault
+
+The AI Market Maker will populate the order book within 30 seconds. The Keeper matches orders every 10 seconds and settles positions cross-chain on Robinhood Chain.
 
 ---
 
