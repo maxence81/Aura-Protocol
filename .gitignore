@@ -1,0 +1,55 @@
+# Dependencies
+node_modules/
+backend/node_modules/
+frontend/node_modules/
+
+# Build artifacts
+artifacts/
+cache/
+frontend/.next/
+frontend/tsconfig.tsbuildinfo
+stylus-orderbook/target/
+
+# Environment & secrets
+.env
+backend/.env
+frontend/.env
+frontend/.env.local
+backend/.aura_agent_key
+
+# Logs
+*.log
+*.out.log
+*.err.log
+
+# Runtime data
+backend/executions.json
+backend/strategies.json
+backend/server-test.log
+backend/server-test-err.log
+
+# IDE
+.claude/
+.vscode/
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Misc debug/test files (root level)
+test-swap.js
+test-tx.js
+coins_test.json
+models.json
+
+# Old/unused projects
+Kimi_Agent_DCA AI Chatbot Landing/
+stylus-module/
+
+# Stylus build logs
+stylus-orderbook/stylus-check.err
+stylus-orderbook/stylus-check.log
+
+# Package locks (keep only root + backend + frontend)
+# package-lock.json  ← keep these
