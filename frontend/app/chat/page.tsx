@@ -524,6 +524,64 @@ export default function Home() {
 
     // --- AUTOMATION: Approval de l'EOA vers Aura Account si nécessaire ---
     const executeSwap = async () => {
+        // ─── Gasless Mode ─────────────────────────────────────────────
+        // If the user has an AuraAccount with the backend agent registered,
+        // we can execute via the backend relay (zero gas for the user).
+        // The backend calls executeBatchByAgent on the AuraAccount.
+        const useGasless = txParams.kind !== 'LIMIT_ORDER' && !txParams.automation?.isAutomated && auraAccountAddress;
+        if (useGasless) {
+            setShowSignModal(false);
+            const pendingId = pendingTxId;
+            setPendingTxId(null);
+
+            addMessage({
+                id: generateId(),
+                type: 'system',
+                content: `Executing gasless via AI Agent relay (you pay zero gas)...`,
+                timestamp: new Date()
+            });
+
+            try {
+                const resp = await axios.post("http://localhost:3001/api/gasless-execute", {
+                    accountAddress: auraAccountAddress,
+                    targets: txParams.targets,
+                    values: txParams.values,
+                    datas: txParams.datas,
+                });
+
+                setMessages((prev) => prev.map((msg) => {
+                    if (msg.transaction?.id === pendingId) {
+                        return {
+                            ...msg,
+                            transaction: {
+                                ...msg.transaction,
+                                status: 'confirmed' as const,
+                                txHash: resp.data.txHash,
+                                confirmedAt: new Date().toISOString()
+                            }
+                        };
+                    }
+                    return msg;
+                }));
+                addMessage({
+                    id: generateId(),
+                    type: 'system',
+                    content: `Gasless execution confirmed! Block ${resp.data.blockNumber}. TX: ${resp.data.txHash}. You paid $0 in gas.`,
+                    timestamp: new Date()
+                });
+            } catch (err: any) {
+                const errMsg = err.response?.data?.error || err.message;
+                setMessages((prev) => prev.map((msg) => {
+                    if (msg.transaction?.id === pendingId) {
+                        return { ...msg, transaction: { ...msg.transaction, status: 'rejected' as const } };
+                    }
+                    return msg;
+                }));
+                addMessage({ id: generateId(), type: 'system', content: `Gasless execution failed: ${errMsg}`, timestamp: new Date() });
+            }
+            return;
+        }
+
         // ─── Wave 4: Limit Order bypass ───────────────────────────────
         // LIMIT_ORDER tx lands directly on the Stylus LOB on Arbitrum Sepolia
         // — no Aura Account, no batch, no funding step. The user signs with

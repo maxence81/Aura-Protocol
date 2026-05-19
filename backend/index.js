@@ -541,6 +541,43 @@ app.get("/api/my-orders/:address", async (req, res) => {
   }
 });
 
+// -- Gasless Execution (Meta-Transaction Relay) ────────────────────────
+// The backend agent EOA is registered as `aiAgent` on the user's AuraAccount.
+// When the user opts for gasless mode, the frontend sends the signed intent
+// (txParams) here, and the backend executes it on-chain via executeBatchByAgent.
+// The user pays ZERO gas -- the agent EOA sponsors it.
+app.post("/api/gasless-execute", async (req, res) => {
+  try {
+    const { accountAddress, targets, values, datas } = req.body;
+    if (!accountAddress || !targets || !values || !datas) {
+      return res.status(400).json({ error: "Missing accountAddress, targets, values, or datas" });
+    }
+
+    const provider = new ethers.JsonRpcProvider(process.env.RPC_URL || "https://rpc.testnet.chain.robinhood.com");
+    const signer = agentWallet.connect(provider);
+
+    const ACCOUNT_ABI = [
+      "function executeBatchByAgent(address[] dest, uint256[] value, bytes[] func) external"
+    ];
+    const auraAccount = new ethers.Contract(accountAddress, ACCOUNT_ABI, signer);
+
+    console.log(`[Gasless] Executing batch on behalf of ${accountAddress} (${targets.length} calls)...`);
+    const tx = await auraAccount.executeBatchByAgent(targets, values, datas);
+    const receipt = await tx.wait();
+
+    console.log(`[Gasless] Success! TX: ${receipt.hash} | Gas: ${receipt.gasUsed}`);
+    res.json({
+      status: "success",
+      txHash: receipt.hash,
+      gasUsed: receipt.gasUsed.toString(),
+      blockNumber: receipt.blockNumber,
+    });
+  } catch (error) {
+    console.error("[Gasless] Execution failed:", error.shortMessage || error.message);
+    res.status(500).json({ error: error.shortMessage || error.message });
+  }
+});
+
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
   console.log(`Aura Backend (Non-Custodial) running on port ${PORT}`);

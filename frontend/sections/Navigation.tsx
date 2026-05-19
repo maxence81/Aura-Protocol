@@ -80,13 +80,6 @@ export default function Navigation({ onNavigate }: NavigationProps) {
               onClick={() => onNavigate('#hero')}
               className="flex items-center gap-3 cursor-pointer group"
             >
-              <div className="w-10 h-10 rounded-xl bg-white/10 flex items-center justify-center group-hover:bg-green transition-colors duration-300">
-                <img
-                  src="/assets/ai-mascot-hero.png"
-                  alt="Aura Agent"
-                  className="w-7 h-7 object-contain"
-                />
-              </div>
               <span className="font-display font-bold text-2xl text-white tracking-tight">Aura</span>
             </button>
           </Magnetic>
