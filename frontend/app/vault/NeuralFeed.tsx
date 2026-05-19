@@ -9,7 +9,7 @@ type NeuralLog = {
   time: string;
   agent: string;
   message: string;
-  type: "analyst" | "risk" | "execution" | "guardrail" | "system";
+  type: "analyst" | "risk" | "execution" | "guardrail" | "system" | "alert";
   txHash?: string;
 };
 

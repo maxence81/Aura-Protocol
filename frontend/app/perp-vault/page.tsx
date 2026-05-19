@@ -45,12 +45,9 @@ export default function PerpVaultPage() {
         }
 
         if (account?.address) {
-          const [shares, bal, previewAssets] = await Promise.all([
+          const [shares, bal] = await Promise.all([
             publicClient.readContract({ address: addr, abi: AURA_VAULT_ABI as any, functionName: "balanceOf", args: [account.address as `0x${string}`] }),
             publicClient.readContract({ address: CONTRACT_ADDRESSES.AUSD as `0x${string}`, abi: AUSD_ABI as any, functionName: "balanceOf", args: [account.address as `0x${string}`] }),
-            // To get accurate assets, we can use previewWithdraw or just use shares directly since it's 1:1 if no profit/loss.
-            // Actually, we'll calculate it safely by fetching previewWithdraw(shares) if shares > 0.
-            // For simplicity, AURA_VAULT has `previewWithdraw(assets)`. We can read `previewDeposit` to see ratio.
           ]);
           
           if (active) {
