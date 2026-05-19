@@ -6,6 +6,7 @@ import { useActiveAccount, useActiveWallet, useDisconnect, useWalletBalance, use
 import { createWallet } from "thirdweb/wallets";
 import { client } from "@/app/client";
 import { defineChain, getContract, prepareContractCall, prepareTransaction, toWei, waitForReceipt, readContract, eth_getBalance, getRpcClient } from "thirdweb";
+import { API_URL } from "../../lib/config";
 
 // UI Components from Kimi Template
 import AnimatedGrid from '@/components/AnimatedGrid';
@@ -103,7 +104,7 @@ export default function Home() {
 
   // Load Agent address from backend
   useEffect(() => {
-    axios.get("http://localhost:3001/agent-address")
+    axios.get(`${API_URL}/agent-address`)
       .then(res => setAgentOperatorAddress(res.data.address))
       .catch(err => console.error("Failed to fetch agent address:", err));
   }, []);
@@ -203,7 +204,7 @@ export default function Home() {
   useEffect(() => {
     const fetchExecutions = async () => {
       try {
-        const res = await axios.get("http://localhost:3001/api/executions");
+        const res = await axios.get(`${API_URL}/api/executions`);
         setBackendExecutions(res.data);
       } catch (err) {
         console.error("Failed to fetch executions:", err);
@@ -222,8 +223,8 @@ export default function Home() {
     const fetchStrategies = async () => {
       try {
         const url = auraAccountAddress
-          ? `http://localhost:3001/api/strategies?account=${auraAccountAddress}`
-          : "http://localhost:3001/api/strategies";
+          ? `${API_URL}/api/strategies?account=${auraAccountAddress}`
+          : `${API_URL}/api/strategies`;
         const res = await axios.get(url);
         setBackendStrategies(Array.isArray(res.data) ? res.data : []);
       } catch (err) {
@@ -419,7 +420,7 @@ export default function Home() {
 
 
     try {
-      const response = await axios.post("http://localhost:3001/chat", {
+      const response = await axios.post(`${API_URL}/chat`, {
         message: finalPrompt,
         account: auraAccountAddress,
         eoa: account.address
@@ -542,7 +543,7 @@ export default function Home() {
             });
 
             try {
-                const resp = await axios.post("http://localhost:3001/api/gasless-execute", {
+                const resp = await axios.post(`${API_URL}/api/gasless-execute`, {
                     accountAddress: auraAccountAddress,
                     targets: txParams.targets,
                     values: txParams.values,
@@ -666,7 +667,7 @@ export default function Home() {
             try {
                 addMessage({ id: generateId(), type: 'system', content: `Scheduling strategy...`, timestamp: new Date() });
                 
-                await axios.post("http://localhost:3001/approve-strategy", {
+                await axios.post(`${API_URL}/approve-strategy`, {
                     strategyId: pendingId,
                     txParams: txParams,
                     accountAddress: auraAccountAddress
@@ -931,7 +932,7 @@ export default function Home() {
     setPausedStrategies((prev) => ({ ...prev, [id]: isActive }));
 
     try {
-      const res = await axios.post(`http://localhost:3001/api/strategies/${id}/${action}`);
+      const res = await axios.post(`${API_URL}/api/strategies/${id}/${action}`);
       if (res.data?.strategy) {
         setBackendStrategies((prev) =>
           prev.map((s) => (s.id === id ? res.data.strategy : s))
@@ -952,7 +953,7 @@ export default function Home() {
 
   const handleCancelStrategy = useCallback(async (id: string) => {
     try {
-      const res = await axios.post(`http://localhost:3001/api/strategies/${id}/cancel`);
+      const res = await axios.post(`${API_URL}/api/strategies/${id}/cancel`);
       if (res.data?.strategy) {
         setBackendStrategies((prev) =>
           prev.map((s) => (s.id === id ? res.data.strategy : s))

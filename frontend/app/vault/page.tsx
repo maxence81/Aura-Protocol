@@ -16,6 +16,7 @@ import VaultStats from "./VaultStats";
 import AllocationChart, { AllocationData } from "./AllocationChart";
 import DepositWithdraw from "./DepositWithdraw";
 import NeuralFeed from "./NeuralFeed";
+import { API_URL } from "../../lib/config";
 
 const publicClient = createPublicClient({ transport: http("https://rpc.testnet.chain.robinhood.com") });
 
@@ -90,7 +91,7 @@ export default function VaultPage() {
         // Fetch dynamic allocations and real TVL
         try {
           // 1. Fetch prices
-          const coinsRes = await fetch("http://localhost:3001/api/coins").then(r => r.json()).catch(() => ({}));
+          const coinsRes = await fetch(`${API_URL}/api/coins`).then(r => r.json()).catch(() => ({}));
           const getPrice = (sym: string, fb: number) => (coinsRes[sym]?.currentPrice) || fb;
           const prices = {
             WETH: getPrice("ETH", 3100),
@@ -257,7 +258,7 @@ export default function VaultPage() {
     setIsAnalyzing(true);
     addLog("System", "Triggering multi-agent strategy analysis...", "system");
     try {
-      const res = await fetch("http://localhost:3001/api/vault/analyze", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ vaultAddress: CONTRACT_ADDRESSES.INTELLIGENCE_VAULT }) });
+      const res = await fetch(`${API_URL}/api/vault/analyze`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ vaultAddress: CONTRACT_ADDRESSES.INTELLIGENCE_VAULT }) });
       const data = await res.json();
       if (data.proposal) addLog("Analyst Agent", `Strategy: ${data.proposal.action}. ${data.proposal.reasoning}`, "analyst");
       if (data.riskAssessment) addLog("Risk Officer", `${data.riskAssessment.approved ? "APPROVED" : "REJECTED"} - Risk: ${data.riskAssessment.riskScore}/100. ${data.riskAssessment.rationale}`, "risk");
@@ -265,7 +266,7 @@ export default function VaultPage() {
         data.encodedStrategies.forEach((s: any) => addLog("Execution", `Ready: ${s.description}`, "execution"));
         addLog("System", "Executing strategies on-chain via Agent Wallet...", "system");
         try {
-          const execRes = await fetch("http://localhost:3001/api/vault/execute", {
+          const execRes = await fetch(`${API_URL}/api/vault/execute`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ vaultAddress: CONTRACT_ADDRESSES.INTELLIGENCE_VAULT, strategies: data.encodedStrategies })

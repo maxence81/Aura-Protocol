@@ -6,6 +6,7 @@ import {
   ArrowUpRight, ArrowDownRight, Newspaper, RefreshCw, ExternalLink,
   Activity, DollarSign, Layers, Zap, Shield,
 } from 'lucide-react';
+import { API_URL } from "../lib/config";
 
 interface CoinDetail {
   symbol: string;
@@ -81,9 +82,9 @@ export default function MarketArea() {
     setLoading(true);
     try {
       const [coinsRes, corrRes, newsRes] = await Promise.all([
-        fetch('http://localhost:3001/api/coins').then(r => r.json()).catch(() => ({})),
-        fetch('http://localhost:3001/api/correlations').then(r => r.json()).catch(() => ({ pairs: [] })),
-        fetch('http://localhost:3001/api/news').then(r => r.json()).catch(() => []),
+        fetch(`${API_URL}/api/coins`).then(r => r.json()).catch(() => ({})),
+        fetch(`${API_URL}/api/correlations`).then(r => r.json()).catch(() => ({ pairs: [] })),
+        fetch(`${API_URL}/api/news`).then(r => r.json()).catch(() => []),
       ]);
       setCoins(coinsRes);
       setCorrelations(corrRes.pairs || []);

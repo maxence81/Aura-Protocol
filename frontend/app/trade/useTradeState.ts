@@ -5,6 +5,7 @@ import { ConnectButton, useActiveAccount } from "thirdweb/react";
 import { client } from "../client";
 import { createPublicClient, http, formatUnits, createWalletClient, custom, keccak256, toBytes } from "viem";
 import { CONTRACT_ADDRESSES, AUSD_ABI, AURA_PERPS_ABI, AURA_ROUTER_ABI, STYLUS_LOB_ABI } from "../../lib/contracts";
+import { API_URL } from "../../lib/config";
 
 const publicClient = createPublicClient({
   transport: http("https://rpc.testnet.chain.robinhood.com"),
@@ -79,7 +80,7 @@ export function useTradeState() {
     const fetchData = async () => {
       if (account?.address) {
         try {
-          const priceRes = await fetch("http://localhost:3001/api/prices");
+          const priceRes = await fetch(`${API_URL}/api/prices`);
           if (priceRes.ok) {
             const priceData = await priceRes.json();
             if (active) {
@@ -142,7 +143,7 @@ export function useTradeState() {
         // via the backend endpoint which scans get_order() for ACTIVE orders owned
         // by the connected wallet.
         try {
-          const ordersRes = await fetch(`http://localhost:3001/api/my-orders/${account.address}`);
+          const ordersRes = await fetch(`${API_URL}/api/my-orders/${account.address}`);
           if (ordersRes.ok) {
             const data = await ordersRes.json();
             if (active) setOpenOrders(data.orders || []);
@@ -316,7 +317,7 @@ export function useTradeState() {
           const currentPrice = prices[assetName] || prices[assetName.split('-')[0]] || 0;
           if (currentPrice > 0) {
             addLog(`Updating Oracle (${assetName} @ $${currentPrice})...`, "info");
-            try { await fetch("http://localhost:3001/api/update-oracle", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ asset: assetName, price: currentPrice }) }); } catch {}
+            try { await fetch(`${API_URL}/api/update-oracle`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ asset: assetName, price: currentPrice }) }); } catch {}
           }
           addLog("Requesting signature...", "info");
           const wc = createWalletClient({ chain: { id: 46630, name: "Robinhood Testnet", nativeCurrency: { name: "ETH", symbol: "ETH", decimals: 18 }, rpcUrls: { default: { http: ["https://rpc.testnet.chain.robinhood.com"] } } } as any, account: account.address as `0x${string}`, transport: custom(window.ethereum as any) });
@@ -332,7 +333,7 @@ export function useTradeState() {
         }
       } else {
         addLog("Forwarding to Strategy Engine...", "info");
-        const backendRes = await fetch("http://localhost:3001/chat", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ message: prompt, account: account?.address, eoa: account?.address }) });
+        const backendRes = await fetch(`${API_URL}/chat`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ message: prompt, account: account?.address, eoa: account?.address }) });
         const backendData = await backendRes.json();
         if (backendData.status === "awaiting_signature") {
           addLog(`Strategy: ${backendData.intent.description}`, "action");
@@ -345,7 +346,7 @@ export function useTradeState() {
               addLog(`Step ${i+1} sent: ${txHash.slice(0,6)}...`, "action");
             }
             if (backendData.txParams.automation?.isAutomated) {
-              await fetch("http://localhost:3001/approve-strategy", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ strategyId: Date.now().toString(), txParams: backendData.txParams, accountAddress: account.address }) });
+              await fetch(`${API_URL}/approve-strategy`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ strategyId: Date.now().toString(), txParams: backendData.txParams, accountAddress: account.address }) });
               addLog("DCA Strategy activated!", "action");
             }
           }
@@ -447,7 +448,7 @@ export function useTradeState() {
       const currentPrice = prices[assetName] || prices[assetName.split('-')[0]] || 0;
       if (currentPrice > 0) {
         addLog(`Syncing oracle ($${currentPrice.toFixed(2)})...`, "info");
-        try { await fetch("http://localhost:3001/api/update-oracle", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ asset: assetName, price: currentPrice }) }); } catch {}
+        try { await fetch(`${API_URL}/api/update-oracle`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ asset: assetName, price: currentPrice }) }); } catch {}
       }
 
       addLog("Requesting signature...", "info");

@@ -1,5 +1,6 @@
 "use client";
 import { useState, useEffect, useMemo } from "react";
+import { API_URL } from "../../lib/config";
 
 interface OrderBookProps {
   currentPrice: number;
@@ -39,7 +40,7 @@ export default function OrderBook({ currentPrice, selectedMarket }: OrderBookPro
       // Wave 4: read directly from the Stylus LOB on Arbitrum Sepolia.
       // The backend endpoint translates this into get_active_orders_sorted()
       // calls on the deployed Stylus contract.
-      const res = await fetch(`http://localhost:3001/api/orderbook/${asset}?source=stylus&depth=12`);
+      const res = await fetch(`${API_URL}/api/orderbook/${asset}?source=stylus&depth=12`);
       if (!res.ok) {
         setBookSource("offline");
         setBook({ asks: [], bids: [] });

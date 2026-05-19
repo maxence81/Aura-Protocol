@@ -14,6 +14,7 @@ import {
   ChevronUp,
   Zap,
 } from 'lucide-react';
+import { API_URL } from "../lib/config";
 
 interface SentimentData {
   sentiment: string;
@@ -53,8 +54,8 @@ export default function MarketSentiment() {
     setLoading(true);
     try {
       const [sentimentRes, contextRes] = await Promise.all([
-        fetch('http://localhost:3001/api/sentiment').then(r => r.json()).catch(() => null),
-        fetch('http://localhost:3001/api/market-context').then(r => r.json()).catch(() => null),
+        fetch(`${API_URL}/api/sentiment`).then(r => r.json()).catch(() => null),
+        fetch(`${API_URL}/api/market-context`).then(r => r.json()).catch(() => null),
       ]);
 
       if (sentimentRes) setSentiment(sentimentRes);

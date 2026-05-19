@@ -7,6 +7,7 @@ import { ScrollTrigger } from "gsap/ScrollTrigger";
 import Navigation from "@/sections/Navigation";
 import Footer from "@/sections/Footer";
 import Magnetic from "@/components/Magnetic";
+import { API_URL } from "../lib/config";
 
 gsap.registerPlugin(ScrollTrigger);
 
@@ -71,7 +72,7 @@ export default function LandingPage() {
     let active = true;
     const fetchCoins = async () => {
       try {
-        const res = await fetch("http://localhost:3001/api/coins");
+        const res = await fetch(`${API_URL}/api/coins`);
         const data = await res.json();
         if (active) setCoins(data);
       } catch (e) {

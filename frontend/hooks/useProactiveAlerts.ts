@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from 'react';
+import { API_URL } from "../lib/config";
 
 export interface ProactiveAlert {
   id: string;
@@ -38,7 +39,7 @@ export function useProactiveAlerts(isConnected: boolean) {
 
       try {
         // Fetch sentiment
-        const sentRes = await fetch('http://localhost:3001/api/sentiment');
+        const sentRes = await fetch(`${API_URL}/api/sentiment`);
         if (sentRes.ok) {
           const sentiment: SentimentState = await sentRes.json();
           const prev = lastSentimentRef.current;
@@ -68,7 +69,7 @@ export function useProactiveAlerts(isConnected: boolean) {
         }
 
         // Fetch prices for volatility check
-        const priceRes = await fetch('http://localhost:3001/api/prices');
+        const priceRes = await fetch(`${API_URL}/api/prices`);
         if (priceRes.ok) {
           const prices: Record<string, number> = await priceRes.json();
           const watchList = ['ETH', 'BTC', 'TSLA', 'AMZN'];

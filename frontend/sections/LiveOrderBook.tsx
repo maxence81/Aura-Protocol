@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { Activity, Zap } from 'lucide-react';
+import { API_URL } from "../lib/config";
 
 interface OrderBookLevel {
   price: number;
@@ -47,7 +48,7 @@ export default function LiveOrderBook({
   asset = 'ETH',
   pollMs = 5000,
   depth = 10,
-  apiBase = 'http://localhost:3001',
+  apiBase = `${API_URL}`,
 }: LiveOrderBookProps) {
   const [data, setData] = useState<OrderBookResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
