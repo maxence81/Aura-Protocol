@@ -62,7 +62,7 @@ export default function PerpVaultPage() {
                 // Approximate 1:1 for MVP if no complex math, or call a preview function.
                 // Assuming 1 share = 1 aUSD for simplicity if no PnL applied yet.
                 setUserAssets(sharesNum.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
-                setUserRawAssets(shares.toString());
+                setUserRawAssets((shares as bigint).toString());
             } else {
                 setUserAssets("0.00");
                 setUserRawAssets("0");
