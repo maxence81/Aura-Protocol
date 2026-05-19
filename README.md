@@ -192,13 +192,13 @@ Run with: `npx hardhat test`
 
 - Node.js >= 18
 - MetaMask (or any EVM wallet)
-- ETH on Arbitrum Sepolia (for limit orders) -- faucet: https://faucet.arbitrum.io/
-- ETH on Robinhood Chain Testnet (for market orders) -- faucet available in-app
+- ETH on Arbitrum Sepolia (for limit orders)
+- ETH on Robinhood Chain Testnet (for market orders)
 
 ### 1. Clone & Install
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/Aura-Protocol.git
+git clone https://github.com/maxence81/Aura-Protocol.git
 cd Aura-Protocol
 npm install
 cd backend && npm install && cd ..
