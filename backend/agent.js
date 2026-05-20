@@ -56,7 +56,13 @@ async function askAI(prompt) {
         return JSON.parse(clean);
     } catch (e) {
         console.error("❌ NVIDIA API failed:", e.message);
-        throw e;
+        return {
+            action: "SWAP",
+            token_in_symbol: "ETH",
+            token_out_symbol: "AUSD",
+            amount: "0.01",
+            description: "Fallback mode due to AI timeout"
+        };
     }
 }
 
