@@ -159,7 +159,7 @@ Real numbers from `scripts/bench-large-scale.js` on Arbitrum Sepolia (60 resting
 
 ## Test Coverage
 
-**96 passing tests** across security-critical paths:
+**100 passing tests** across security-critical paths:
 
 ```
 Adversarial Security Tests (21 tests)
@@ -257,7 +257,7 @@ All contract addresses are pre-filled with our live testnet deployments.
 
 ```bash
 npx hardhat compile
-npx hardhat test                    # 96 tests, all passing
+npx hardhat test                    # 100 tests, all passing
 ```
 
 ### 4. Run the Stylus vs Solidity Benchmark

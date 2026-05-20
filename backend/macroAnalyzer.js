@@ -5,16 +5,19 @@
  * and provide sentiment scoring + strategic recommendations.
  */
 
-const { ChatGoogleGenerativeAI } = require("@langchain/google-genai");
+const { ChatOpenAI } = require("@langchain/openai");
 const dotenv = require("dotenv");
 dotenv.config();
 
 const { getMarketContext, getAllPrices } = require("./market");
 
-const analyzerModel = new ChatGoogleGenerativeAI({
-    apiKey: process.env.GEMINI_API_KEY,
-    model: "gemini-2.5-flash",
+const analyzerModel = new ChatOpenAI({
+    apiKey: process.env.PIONEER_API_KEY,
+    modelName: "qwen/Qwen3-8B",
     temperature: 0.1,
+    configuration: {
+        baseURL: "https://api.pioneer.ai/v1",
+    },
 });
 
 /**

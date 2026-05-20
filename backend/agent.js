@@ -1,4 +1,4 @@
-const { ChatGoogleGenerativeAI } = require("@langchain/google-genai");
+const { ChatOpenAI } = require("@langchain/openai");
 const dotenv = require("dotenv");
 const { ethers } = require("ethers");
 const { analyzeMacroSentiment } = require("./macroAnalyzer");
@@ -36,10 +36,13 @@ const ERC20_ABI = [
     "function transferFrom(address from, address to, uint256 amount) external returns (bool)"
 ];
 
-const agentModel = new ChatGoogleGenerativeAI({
-    apiKey: process.env.GEMINI_API_KEY,
-    model: "gemini-2.5-flash",
+const agentModel = new ChatOpenAI({
+    apiKey: process.env.PIONEER_API_KEY,
+    modelName: "qwen/Qwen3-8B",
     temperature: 0,
+    configuration: {
+        baseURL: "https://api.pioneer.ai/v1",
+    },
 });
 
 async function askAI(prompt) {
