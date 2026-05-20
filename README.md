@@ -124,7 +124,7 @@ Real numbers from `scripts/bench-large-scale.js` on Arbitrum Sepolia (60 resting
 ### Arbitrum Sepolia (Stylus LOB layer)
 | Contract | Address |
 |---|---|
-| **Stylus LOB v2** | [`0x13454e38bebf907589fce0d49cc01cf899212745`](https://sepolia.arbiscan.io/address/0x13454e38bebf907589fce0d49cc01cf899212745) |
+| **Stylus LOB v2** | [`0x3346abe000118b25aca953f48deb1978a069e7de`](https://sepolia.arbiscan.io/address/0x3346abe000118b25aca953f48deb1978a069e7de) |
 | Solidity LOB (bench reference) | [`0x030839d7AC5Df159dB38ACa99CF8258BF9EC447E`](https://sepolia.arbiscan.io/address/0x030839d7AC5Df159dB38ACa99CF8258BF9EC447E) |
 
 ### Robinhood Chain Testnet (Settlement layer)

@@ -23,7 +23,7 @@ export const CONTRACT_ADDRESSES = {
 
   STYLUS_LOB:
     (process.env.NEXT_PUBLIC_STYLUS_LOB_ADDRESS as `0x${string}`) ||
-    "0x13454e38bebf907589fce0d49cc01cf899212745",
+    "0x3346abe000118b25aca953f48deb1978a069e7de",
   STYLUS_LOB_CHAIN_ID: 421614, // Arbitrum Sepolia
   STYLUS_LOB_RPC: "https://sepolia-rollup.arbitrum.io/rpc",
   MM_FUND:

@@ -86,7 +86,7 @@
 ### Arbitrum Sepolia
 | Contract | Address | Notes |
 |---|---|---|
-| **Stylus LOB v2** | `0x13454e38bebf907589fce0d49cc01cf899212745` | Rust/WASM, cached in ArbOS, snake_case selectors |
+| **Stylus LOB v2** | `0x3346abe000118b25aca953f48deb1978a069e7de` | Rust/WASM, cached in ArbOS, snake_case selectors |
 | Solidity LOB (bench) | `0x030839d7AC5Df159dB38ACa99CF8258BF9EC447E` | Reference for gas comparison |
 
 ### Robinhood Chain Testnet

@@ -168,7 +168,7 @@ const sections = [
 const contracts = [
   {
     name: "Stylus LOB v2 (Rust/WASM)",
-    address: "0x13454e38bebf907589fce0d49cc01cf899212745",
+    address: "0x3346abe000118b25aca953f48deb1978a069e7de",
     chain: "Arbitrum Sepolia",
     explorer: "https://sepolia.arbiscan.io/address/",
   },

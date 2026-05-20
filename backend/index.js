@@ -616,8 +616,8 @@ async function startAutonomousVaultAgent() {
     console.log("🚀 Starting 24/7 Autonomous Vault Agent...");
     const executorWallet = agentWallet.connect(vaultProvider);
     
-    // Run every 1 minute (60000 ms) for hackathon demo purposes.
-    const INTERVAL_MS = 60 * 1000; 
+    // Run every 30 minutes to stay within Gemini free-tier quota (20 RPD).
+    const INTERVAL_MS = 30 * 60 * 1000; 
     
     const runCycle = async () => {
         try {
