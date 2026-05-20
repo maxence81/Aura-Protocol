@@ -369,38 +369,51 @@ app.get("/api/orderbook/:asset", async (req, res) => {
       //   uint256(keccak256(abi.encodePacked(symbol.toUpperCase())))
       const assetHash = BigInt(ethers.keccak256(ethers.toUtf8Bytes(asset.toUpperCase())));
 
-      const [bidsRaw, asksRaw, depthRaw] = await Promise.all([
-        stylus.get_active_orders_sorted(assetHash, true,  depth),
-        stylus.get_active_orders_sorted(assetHash, false, depth),
-        stylus.get_book_depth(assetHash),
-      ]);
+      try {
+        const [bidsRaw, asksRaw, depthRaw] = await Promise.all([
+          stylus.get_active_orders_sorted(assetHash, true,  depth),
+          stylus.get_active_orders_sorted(assetHash, false, depth),
+          stylus.get_book_depth(assetHash),
+        ]);
 
-      const decode = (sortedTuple) => {
-        const out = [];
-        for (let i = 0; i < sortedTuple[0].length; i++) {
-          out.push({
-            price: Number(ethers.formatUnits(sortedTuple[1][i], 18)),
-            size:  Number(ethers.formatUnits(sortedTuple[2][i], 18)),
-          });
-        }
-        return out;
-      };
+        const decode = (sortedTuple) => {
+          const out = [];
+          for (let i = 0; i < sortedTuple[0].length; i++) {
+            out.push({
+              price: Number(ethers.formatUnits(sortedTuple[1][i], 18)),
+              size:  Number(ethers.formatUnits(sortedTuple[2][i], 18)),
+            });
+          }
+          return out;
+        };
 
-      let bids = decode(bidsRaw);
-      let asks = decode(asksRaw);
+        let bids = decode(bidsRaw);
+        let asks = decode(asksRaw);
 
-      let bCum = 0;
-      bids = bids.map((row) => ({ ...row, total: (bCum += row.size) }));
-      let aCum = 0;
-      for (let i = asks.length - 1; i >= 0; i--) { aCum += asks[i].size; asks[i].total = aCum; }
+        let bCum = 0;
+        bids = bids.map((row) => ({ ...row, total: (bCum += row.size) }));
+        let aCum = 0;
+        for (let i = asks.length - 1; i >= 0; i--) { aCum += asks[i].size; asks[i].total = aCum; }
 
-      return res.json({
-        bids, asks, depth,
-        source: "stylus",
-        chain: "arbitrumSepolia",
-        contract: stylusAddr,
-        bookDepth: { bids: Number(depthRaw[0]), asks: Number(depthRaw[1]) },
-      });
+        return res.json({
+          bids, asks, depth,
+          source: "stylus",
+          chain: "arbitrumSepolia",
+          contract: stylusAddr,
+          bookDepth: { bids: Number(depthRaw[0]), asks: Number(depthRaw[1]) },
+        });
+      } catch (stylusErr) {
+        // Don't 500 the UI — return an empty book and keep the page alive.
+        console.warn(`[orderbook/stylus] RPC error for ${asset}:`, stylusErr.shortMessage || stylusErr.message);
+        return res.json({
+          bids: [], asks: [], depth,
+          source: "stylus",
+          chain: "arbitrumSepolia",
+          contract: stylusAddr,
+          bookDepth: { bids: 0, asks: 0 },
+          warning: "rpc_unavailable",
+        });
+      }
     }
 
     // ── Default: read via the Solidity router (Robinhood Chain) ──
@@ -540,8 +553,9 @@ app.get("/api/my-orders/:address", async (req, res) => {
 
     res.json({ orders, total: nextId, scanned: nextId - start });
   } catch (error) {
-    console.error("My-orders fetch error:", error);
-    res.status(500).json({ error: error.message });
+    console.warn("My-orders fetch error (returning empty):", error.shortMessage || error.message);
+    // Don't 500 the UI — empty list with a warning keeps the page rendering.
+    res.json({ orders: [], total: 0, scanned: 0, warning: "rpc_unavailable" });
   }
 });
 
