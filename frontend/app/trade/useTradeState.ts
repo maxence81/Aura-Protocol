@@ -304,7 +304,7 @@ export function useTradeState() {
     try {
       const perpRes = await fetch("/api/nlp", { method: "POST", body: JSON.stringify({ prompt }) });
       const perpData = await perpRes.json();
-      const actionType = perpData.action?.toLowerCase() || "";
+      const actionType = (typeof perpData.action === "string" ? perpData.action : "").toLowerCase();
       if (actionType.includes("open") || actionType.includes("position") || actionType.includes("long") || actionType.includes("short")) {
         if (perpData.action === "error") {
           addLog(`AI Agent: ${perpData.message}`, "alert");
