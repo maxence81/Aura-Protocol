@@ -46,6 +46,23 @@ Benchmarked **34% gas savings** on `get_active_orders_sorted` (the hot path) vs 
 
 ---
 
+## Stylus vs Solidity -- Why WASM Matters
+
+Real gas measurements from `scripts/bench-large-scale.js` on Arbitrum Sepolia with 60 resting orders:
+
+| Operation | Stylus (WASM) | Solidity | Savings | Notes |
+|---|---|---|---|---|
+| `get_active_orders_sorted` cap=20 | **759 447** | 1 103 053 | **31%** | Sort-heavy, Stylus shines |
+| `get_active_orders_sorted` cap=30 | **761 585** | 1 159 369 | **34%** | The hot path on every page render |
+| `match_orders` (full scan) | 788 052 | 792 359 | ~0% | Break-even on simple iteration |
+| `store_order` (cumulative 60) | 13 740 458 | 12 662 016 | +8% | Storage-bound, slight overhead |
+
+We use Stylus exactly where it matters: the order book viewer called on every frontend render. Storage-only operations stay in Solidity where the runtime overhead is negligible.
+
+Full benchmark details in the [dedicated section below](#stylus-vs-solidity-benchmark).
+
+---
+
 ## Live Architecture
 
 ```
@@ -142,9 +159,20 @@ Real numbers from `scripts/bench-large-scale.js` on Arbitrum Sepolia (60 resting
 
 ## Test Coverage
 
-**55 passing tests** across the security-critical paths:
+**96 passing tests** across security-critical paths:
 
 ```
+Adversarial Security Tests (21 tests)
+   Oracle Manipulation (zero price, front-running, extreme swings, stale oracle)
+   Unauthorized Access (position theft, vault drain, router bypass)
+   Reentrancy & Flash Loan Resistance (share inflation, double-close, double-liquidation)
+   AuraAccount Access Control (agent impersonation, guardrail bypass)
+
+Fuzz & Edge Case Tests (17 tests)
+   Perps Invariants (position size formula, OI tracking, PnL direction)
+   Vault Invariants (totalAssets >= totalSupply, deposit/withdraw roundtrip, share proportionality)
+   Boundary Conditions (1 wei collateral, 50x leverage, partial close, multi-asset isolation)
+
 AuraIntelligenceVault -- Full ERC-4626 vault security suite (25 tests)
    Deposit / Withdraw / Approve flows
    Risk Score Ceiling enforcement
@@ -166,9 +194,10 @@ Hybrid LOB+AMM Router (4 tests)
    placeLimitOrderFor authorization for MMFund
    Rejects unauthorized callers
 
-Aura Account Abstraction (2 tests)
+Aura Account Abstraction (6 tests)
    AuraAccount.executeBatch routing
    Factory deterministic deployments
+   AI Agent guardrail enforcement
 ```
 
 Run with: `npx hardhat test`
@@ -179,7 +208,7 @@ Run with: `npx hardhat test`
 
 | Criterion | Aura's Edge |
 |---|---|
-| **Smart Contract Quality** | 31 tests, OZ standards, ERC-4626 vault, EIP-4337 accounts, Stylus snake_case selector compatibility, gas-benched against Solidity |
+| **Smart Contract Quality** | 96 tests (adversarial, fuzz, invariant), OZ standards, ERC-4626 vault, EIP-4337 accounts, Stylus snake_case selector compatibility, gas-benched against Solidity |
 | **Product-Market Fit** | Targets Robinhood Chain's massive retail audience. Gasless UX + chat = the same UX pattern as Robinhood, but with full self-custody and DeFi yields |
 | **Innovation & Creativity** | First project to combine Multi-Agent safety + Stylus LOB + EIP-4337. Cross-chain hybrid (Stylus = compute, Robinhood = settlement) is novel |
 | **Real Problem Solving** | Answers DeFi's three real barriers -- complexity, gas, trust -- without compromising self-custody |
@@ -228,7 +257,7 @@ All contract addresses are pre-filled with our live testnet deployments.
 
 ```bash
 npx hardhat compile
-npx hardhat test                    # 55 tests, all passing
+npx hardhat test                    # 96 tests, all passing
 ```
 
 ### 4. Run the Stylus vs Solidity Benchmark

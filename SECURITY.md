@@ -1,0 +1,193 @@
+# Security Model
+
+This document describes the trust assumptions, threat model, and security architecture of Aura Protocol.
+
+---
+
+## Trust Architecture
+
+Aura uses a **defense-in-depth** approach with three independent layers of protection between user intent and on-chain execution.
+
+```
+User Intent (NLP)
+       |
+       v
+[Executor Agent] -- proposes a transaction plan
+       |
+       v
+[Risk Auditor Agent] -- independently validates safety
+       |
+       v
+[On-Chain Guardrails] -- enforces hard limits at contract level
+       |
+       v
+User Signature (final approval)
+```
+
+No single component can execute a transaction alone. The user always has final sign-off.
+
+---
+
+## Agent Security
+
+### What the AI Agent CAN do
+
+- Parse natural language into structured transaction parameters
+- Propose swap routes, DCA schedules, and limit orders
+- Query on-chain state (balances, prices, positions)
+- Submit transactions **only** through `AuraAccount.executeBatchByAgent`
+
+### What the AI Agent CANNOT do
+
+- Execute without the user's wallet signature (non-custodial)
+- Call contracts not whitelisted in `AuraGuardrailManager`
+- Call function selectors not explicitly approved
+- Transfer value exceeding the per-transaction cap
+- Bypass the Risk Auditor's veto
+- Modify its own permissions or the guardrail configuration
+- Access the user's private key (key never leaves the browser)
+
+### Dual-Agent Safety
+
+The Executor and Risk Auditor are **independent LLM instances** with different system prompts and objectives:
+
+- **Executor**: optimizes for user intent fulfillment
+- **Risk Auditor**: optimizes for capital preservation and safety
+
+A transaction proceeds only if both agents agree. The Risk Auditor checks:
+
+1. Sufficient balance for the proposed action
+2. Slippage within acceptable bounds
+3. Token allowances are correct
+4. No interaction with unverified contracts
+5. Macro market conditions (via Pyth + NewsAPI sentiment)
+6. Position sizing relative to portfolio
+
+---
+
+## On-Chain Guardrails
+
+### AuraGuardrailManager
+
+Deployed as an immutable policy layer between the AI agent and user funds.
+
+| Control | Description |
+|---------|-------------|
+| Destination whitelist | Only pre-approved contract addresses can be called |
+| Selector whitelist | Only specific function signatures are permitted per destination |
+| Value cap | Maximum ETH/token value per agent-initiated transaction |
+| Owner-only config | Only the wallet owner can modify guardrail rules |
+
+### AuraAccount (EIP-4337)
+
+- `execute` / `executeBatch` -- owner only, unrestricted
+- `executeByAgent` / `executeBatchByAgent` -- AI agent only, guardrail-checked
+- Agent address is set by owner and can be revoked at any time
+- Guardrail contract is set by owner and can be swapped or disabled
+
+### AuraIntelligenceVault (ERC-4626)
+
+| Control | Description |
+|---------|-------------|
+| Role-based access | `AI_EXECUTOR_ROLE` required for strategy execution |
+| Risk score ceiling | Strategies above the threshold are rejected |
+| Protocol whitelist | Only approved DeFi protocols can receive vault funds |
+| Selector whitelist | Only approved function calls per protocol |
+| Emergency pause | Admin can halt all AI execution; user withdrawals remain open |
+| Stylus guardrail hook | Optional external validation before each execution |
+
+---
+
+## Oracle Security
+
+### Price Feeds
+
+- **Primary**: Pyth Network Hermes (sub-second latency, signed price attestations)
+- **On-chain**: MockOracle on testnet (owner-controlled for demo; production would use Pyth push oracle)
+
+### Oracle Failure Modes
+
+| Scenario | Mitigation |
+|----------|------------|
+| Zero price returned | `openPosition` reverts with "Invalid oracle price" |
+| Stale price | Risk Auditor checks price freshness before proposing |
+| Extreme price swing | Vault caps payout to available liquidity; positions cannot extract more than TVL |
+| Oracle front-running | Liquidation bounty is capped at 5% of collateral, limiting MEV incentive |
+
+---
+
+## Perps Security
+
+### Position Lifecycle
+
+- Positions can only be opened by the owner or the authorized router
+- Positions can only be closed by the owner
+- Liquidation is permissionless but requires mathematical proof of insolvency (loss + funding >= collateral)
+- Double-close and double-liquidation are prevented by the `isOpen` flag check
+
+### Invariants (tested)
+
+- `positionSize = effectiveCollateral * leverage` (always)
+- `totalLongOI` and `totalShortOI` are decremented on every close/liquidation
+- Leverage is capped at 50x at the contract level
+- Trading fee (0.1%) is deducted before position sizing
+
+### Vault as Counterparty
+
+- Trader losses flow to the vault (increasing LP share value)
+- Trader profits are paid from vault assets
+- Vault rejects payouts exceeding `totalAssets()` -- no unbacked profit extraction
+- LP depositors benefit from trader losses proportionally to their share
+
+---
+
+## Stylus Order Book Security
+
+### Access Control
+
+- `store_order`: only callable by the registered `router` address
+- `cancel_order`: only callable by the router, and only if the caller matches the order owner
+- `match_orders`: only callable by the router or keeper
+- `consume_order`: only callable by the router
+- `initialize`: one-shot, cannot be called twice
+
+### Cross-Asset Isolation
+
+Orders are keyed by `asset_hash = keccak256(symbol)`. The matching engine only processes orders for the specified asset hash, preventing cross-contamination between order books.
+
+### Overflow Protection
+
+- All counters use `U256` with explicit bounds checking
+- Insertion sort in `get_active_orders_sorted` is bounded by `max_results` (capped at 256)
+- Full scan in `match_orders` is bounded by `next_order_id`
+
+---
+
+## Account Abstraction Security
+
+### AuraAccount
+
+- Inherits from OpenZeppelin's `SimpleAccount` (audited EIP-4337 implementation)
+- Proxy pattern (ERC-1967) allows upgrades only by owner
+- `AuraFactory` uses `CREATE2` for deterministic addresses
+
+### AuraPaymaster
+
+- Verifier address is set at deployment and validates UserOperation signatures
+- Prevents gas griefing by requiring valid verifier signature before sponsoring
+
+---
+
+## Known Limitations (Testnet)
+
+1. **MockOracle** has no access control on `setPrice` -- production would use Pyth's signed price updates
+2. **No timelock** on guardrail configuration changes -- production should add a delay
+3. **Single keeper EOA** for order matching -- production would use a decentralized keeper network
+4. **Gemini API dependency** -- if the API is down, the chat agent is unavailable (manual trading via /trade still works)
+5. **No formal verification** -- invariants are tested but not mathematically proven
+
+---
+
+## Responsible Disclosure
+
+If you find a vulnerability, please open a private issue or contact the team directly. Do not exploit testnet deployments -- other hackathon participants may be using the same infrastructure.
