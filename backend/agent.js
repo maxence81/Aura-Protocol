@@ -1,4 +1,4 @@
-const { ChatOpenAI } = require("@langchain/openai");
+const { ChatGoogleGenerativeAI } = require("@langchain/google-genai");
 const dotenv = require("dotenv");
 const { ethers } = require("ethers");
 const { analyzeMacroSentiment } = require("./macroAnalyzer");
@@ -36,12 +36,9 @@ const ERC20_ABI = [
     "function transferFrom(address from, address to, uint256 amount) external returns (bool)"
 ];
 
-const agentModel = new ChatOpenAI({
-    apiKey: process.env.NVIDIA_API_KEY,
-    modelName: "meta/llama-3.1-70b-instruct",
-    configuration: {
-        baseURL: "https://integrate.api.nvidia.com/v1",
-    },
+const agentModel = new ChatGoogleGenerativeAI({
+    apiKey: process.env.GEMINI_API_KEY,
+    model: "gemini-2.5-flash",
     temperature: 0,
 });
 

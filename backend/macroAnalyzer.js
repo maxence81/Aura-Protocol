@@ -5,18 +5,15 @@
  * and provide sentiment scoring + strategic recommendations.
  */
 
-const { ChatOpenAI } = require("@langchain/openai");
+const { ChatGoogleGenerativeAI } = require("@langchain/google-genai");
 const dotenv = require("dotenv");
 dotenv.config();
 
 const { getMarketContext, getAllPrices } = require("./market");
 
-const analyzerModel = new ChatOpenAI({
-    apiKey: process.env.NVIDIA_API_KEY,
-    modelName: "meta/llama-3.1-70b-instruct",
-    configuration: {
-        baseURL: "https://integrate.api.nvidia.com/v1",
-    },
+const analyzerModel = new ChatGoogleGenerativeAI({
+    apiKey: process.env.GEMINI_API_KEY,
+    model: "gemini-2.5-flash",
     temperature: 0.1,
 });
 
