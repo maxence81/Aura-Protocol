@@ -89,6 +89,14 @@ const AURA_ACCOUNT_ABI = [
 
 const FACTORY_ADDRESS = "0x95Aa20d53EB26f292a71D8B38515BBeC8905b550";
 
+type Conversation = {
+  id: string;
+  title: string;
+  createdAt: number;
+  updatedAt: number;
+  messages: Message[];
+};
+
 export default function Home() {
   const account = useActiveAccount();
   const activeWallet = useActiveWallet();
@@ -153,22 +161,97 @@ export default function Home() {
 
   const [messages, setMessages] = useState<Message[]>(defaultMessages);
 
-  // Load history from localStorage only AFTER the first mount
-  useEffect(() => {
-    try {
-      const saved = localStorage.getItem('aura_messages');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        setMessages(parsed.map((m: any) => ({ ...m, timestamp: new Date(m.timestamp) })));
-      }
-    } catch { }
-  }, []);
+  // ── Conversation history (per-wallet) ──────────────────────────────
+  // Multiple chats stored per wallet. Always boots on a fresh "Neural
+  // Terminal Ready" empty state — the user picks a past conversation from
+  // the dropdown to resume it.
+  const conversationsKey = (addr: string) => `aura_conversations_${addr}`;
 
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+  const [activeConversationId, setActiveConversationId] = useState<string | null>(null);
+
+  // Load the list of conversations whenever the wallet changes, but ALWAYS
+  // start the chat surface on the empty "Neural Terminal Ready" state.
   useEffect(() => {
+    if (!account?.address) {
+      setConversations([]);
+      setActiveConversationId(null);
+      setMessages([]);
+      return;
+    }
     try {
-      localStorage.setItem('aura_messages', JSON.stringify(messages));
-    } catch { }
-  }, [messages]);
+      const saved = localStorage.getItem(conversationsKey(account.address));
+      const parsed: Conversation[] = saved ? JSON.parse(saved) : [];
+      const rehydrated = parsed.map((c) => ({
+        ...c,
+        messages: c.messages.map((m: any) => ({ ...m, timestamp: new Date(m.timestamp) })),
+      }));
+      setConversations(rehydrated);
+    } catch {
+      setConversations([]);
+    }
+    setActiveConversationId(null);
+    setMessages([]);
+  }, [account?.address]);
+
+  // Persist messages: either update the active conversation, or create a new
+  // one the first time the user sends something in a fresh terminal.
+  useEffect(() => {
+    if (!account?.address || messages.length === 0) return;
+
+    if (!activeConversationId) {
+      const firstUserMsg = messages.find((m) => m.type === 'user');
+      const title = ((firstUserMsg?.content as string) || 'New Conversation').slice(0, 60);
+      const id = generateId();
+      setActiveConversationId(id);
+      setConversations((prev) => {
+        const next: Conversation[] = [
+          { id, title, createdAt: Date.now(), updatedAt: Date.now(), messages },
+          ...prev,
+        ];
+        try {
+          localStorage.setItem(conversationsKey(account.address!), JSON.stringify(next));
+        } catch {}
+        return next;
+      });
+    } else {
+      setConversations((prev) => {
+        const next = prev.map((c) =>
+          c.id === activeConversationId
+            ? { ...c, messages, updatedAt: Date.now() }
+            : c
+        );
+        try {
+          localStorage.setItem(conversationsKey(account.address!), JSON.stringify(next));
+        } catch {}
+        return next;
+      });
+    }
+  }, [messages, account?.address, activeConversationId]);
+
+  const handleSelectConversation = useCallback((id: string) => {
+    const conv = conversations.find((c) => c.id === id);
+    if (!conv) return;
+    setActiveConversationId(id);
+    setMessages(conv.messages);
+    setActiveNav('chat');
+  }, [conversations]);
+
+  const handleDeleteConversation = useCallback((id: string) => {
+    setConversations((prev) => {
+      const next = prev.filter((c) => c.id !== id);
+      if (account?.address) {
+        try {
+          localStorage.setItem(conversationsKey(account.address), JSON.stringify(next));
+        } catch {}
+      }
+      return next;
+    });
+    if (activeConversationId === id) {
+      setActiveConversationId(null);
+      setMessages([]);
+    }
+  }, [account?.address, activeConversationId]);
   const [isThinking, setIsThinking] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [showDeployModal, setShowDeployModal] = useState(false);
@@ -910,14 +993,10 @@ export default function Home() {
     : null;
 
   const handleNewStrategy = useCallback(() => {
-    setMessages([
-      {
-        id: generateId(),
-        type: 'ai',
-        content: 'Let\'s start fresh. I\'m ready for a new strategy! What token would you like to swap or invest today?',
-        timestamp: new Date()
-      }
-    ]);
+    // Fresh terminal — back to "Neural Terminal Ready". Past conversation
+    // remains accessible via the history dropdown.
+    setActiveConversationId(null);
+    setMessages([]);
     setActiveNav('chat');
   }, []);
 
@@ -1105,8 +1184,19 @@ export default function Home() {
       <div className="lg:ml-[280px] min-h-screen flex flex-col relative z-10">
         <ChatHeader
           onMenuClick={() => setMobileSidebarOpen(true)}
-          onClearChat={() => setMessages([])}
+          onClearChat={() => {
+            setActiveConversationId(null);
+            setMessages([]);
+          }}
           onNewStrategy={handleNewStrategy}
+          conversations={conversations.map((c) => ({
+            id: c.id,
+            title: c.title,
+            updatedAt: c.updatedAt,
+          }))}
+          activeConversationId={activeConversationId}
+          onSelectConversation={handleSelectConversation}
+          onDeleteConversation={handleDeleteConversation}
         />
 
         {activeNav === 'chat' && (
