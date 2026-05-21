@@ -3,6 +3,8 @@
 > **A Robinhood-grade trading experience powered by Multi-Agent AI, Account Abstraction, and a Stylus-native Order Book.**
 > Built for the Arbitrum Open House London Buildathon 2026.
 
+🔗 **Live Demo:** [https://aura-protocol-tawny.vercel.app](https://aura-protocol-tawny.vercel.app/)
+
 ---
 
 ## The Problem
