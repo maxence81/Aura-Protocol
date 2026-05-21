@@ -310,7 +310,7 @@ function isLimitOrderRequest(request) {
 // SWAP FLOW (existing) — Synthra V3 router on Robinhood Chain
 // ═══════════════════════════════════════════════════════════════════
 
-async function proposeExecution(request, targetAccount, eoa) {
+async function proposeExecution(request, targetAccount, eoa, tzOffsetMin = 0) {
     const prompt = `You are the Aura Strategy Executor. Extract user intent from: "${request}".
     Available tokens and their addresses:
     - ETH (native Ether, also wrapped as WETH): ${OFFICIAL_CONTRACTS.TOKENS.WETH}
@@ -399,14 +399,21 @@ async function proposeExecution(request, targetAccount, eoa) {
     if (timeMatch) {
         const targetHours = parseInt(timeMatch[1]);
         const targetMinutes = parseInt(timeMatch[2]);
-        const now = new Date();
-        const target = new Date();
-        target.setHours(targetHours, targetMinutes, 0, 0);
-        if (target < now) {
-            target.setDate(target.getDate() + 1);
+        // Build the target time in the USER's timezone using their offset.
+        // tzOffsetMin = minutes ahead of UTC (e.g. +120 for CEST).
+        const nowMs = Date.now();
+        // Current time in user's local: UTC + offset
+        const userNowMs = nowMs + tzOffsetMin * 60 * 1000;
+        const userNow = new Date(userNowMs);
+        // Build target in user-local terms (as if UTC)
+        const targetLocal = new Date(userNowMs);
+        targetLocal.setUTCHours(targetHours, targetMinutes, 0, 0);
+        if (targetLocal <= userNow) {
+            targetLocal.setUTCDate(targetLocal.getUTCDate() + 1);
         }
-        initialDelayMs = target.getTime() - now.getTime();
-        console.log(`⏳ Scheduled strategy at ${targetHours}:${targetMinutes} -> Initial Delay: ${initialDelayMs}ms`);
+        // Delay is the difference in real (UTC) milliseconds
+        initialDelayMs = targetLocal.getTime() - userNowMs;
+        console.log(`⏳ Scheduled strategy at ${targetHours}:${targetMinutes} (user tz offset ${tzOffsetMin}min) -> Initial Delay: ${initialDelayMs}ms (${(initialDelayMs / 1000 / 60).toFixed(1)} min)`);
     }
 
     const isEthIn = tokenInSymbol === "ETH" || tokenInSymbol === "WETH";
@@ -461,7 +468,7 @@ async function proposeExecution(request, targetAccount, eoa) {
 
 const provider = new ethers.JsonRpcProvider("https://rpc.testnet.chain.robinhood.com");
 
-async function runAuraCommittee(request, targetAccount, eoa) {
+async function runAuraCommittee(request, targetAccount, eoa, tzOffsetMin = 0) {
     // ── Intent routing ──
     // The chat surface is for SWAPS / DCA only. Limit orders live on the
     // /trade page (perp order book backed by the Stylus LOB on Arbitrum
@@ -474,7 +481,7 @@ async function runAuraCommittee(request, targetAccount, eoa) {
     }
 
     console.log("🎯 Intent classifier: SWAP (Synthra V3 / Robinhood Chain)");
-    const proposal = await proposeExecution(request, targetAccount, eoa);
+    const proposal = await proposeExecution(request, targetAccount, eoa, tzOffsetMin);
 
     let isSafe = true;
     let rationale = "AI-Powered Compliance Audit passed. All steps verified.";

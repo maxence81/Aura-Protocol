@@ -506,7 +506,8 @@ export default function Home() {
       const response = await axios.post(`${API_URL}/chat`, {
         message: finalPrompt,
         account: auraAccountAddress,
-        eoa: account.address
+        eoa: account.address,
+        tzOffsetMin: -new Date().getTimezoneOffset()
       });
 
       const { txParams, intent, rationale, status, macroAnalysis } = response.data;

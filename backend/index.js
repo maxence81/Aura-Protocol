@@ -57,11 +57,11 @@ app.get("/agent-address", (req, res) => {
 
 app.post("/chat", async (req, res) => {
   try {
-    const { message, account, eoa } = req.body;
+    const { message, account, eoa, tzOffsetMin } = req.body;
     if (!message) return res.status(400).json({ error: "Message is required" });
 
     // 1. Comité Multi-Agents (now includes macro analysis)
-    const { proposal, audit, macroAnalysis } = await runAuraCommittee(message, account, eoa);
+    const { proposal, audit, macroAnalysis } = await runAuraCommittee(message, account, eoa, tzOffsetMin || 0);
 
     // 2. Rejet si non sécurisé
     if (!audit.isSafe) {
