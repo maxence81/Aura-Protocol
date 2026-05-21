@@ -355,7 +355,7 @@ export default function Home() {
       contract: factoryContract,
       method: "createAccount",
       params: [account.address],
-      value: toWei("0.01")
+      value: toWei("0.001")
     });
 
     sendTransaction(tx, {
