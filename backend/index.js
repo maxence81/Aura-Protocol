@@ -68,7 +68,7 @@ app.post("/chat", async (req, res) => {
         return res.json({
             status: "rejected",
             intent: proposal,
-            rationale: `REJETÉ : ${audit.auditReport}`,
+            rationale: `REJECTED: ${audit.auditReport}`,
             macroAnalysis
         });
     }
