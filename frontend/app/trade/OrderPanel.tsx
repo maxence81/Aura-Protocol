@@ -90,10 +90,10 @@ export default function OrderPanel(props: OrderPanelProps) {
               </form>
               {!account && <p className="text-[9px] text-[#FF2A6D] font-mono mb-2">&gt;_ ERR: WALLET_NOT_CONNECTED</p>}
               <div className="grid grid-cols-2 gap-2 mb-3">
-                <button onClick={() => setPrompt("Long BTC 10x avec 500 aUSD")} className="text-[9px] bg-transparent border border-[#00f0ff]/30 p-2.5 text-left hover:bg-[#00f0ff]/10 transition-all text-[#00f0ff] font-mono">
+                <button onClick={() => setPrompt("Long BTC 10x with 500 aUSD")} className="text-[9px] bg-transparent border border-[#00f0ff]/30 p-2.5 text-left hover:bg-[#00f0ff]/10 transition-all text-[#00f0ff] font-mono">
                   <TrendingUp className="w-3 h-3 mb-1 opacity-50" />&gt; QUICK_LONG
                 </button>
-                <button onClick={() => setPrompt("Short ETH 20x avec 50 aUSD")} className="text-[9px] bg-transparent border border-[#FF2A6D]/30 p-2.5 text-left hover:bg-[#FF2A6D]/10 transition-all text-[#FF2A6D] font-mono">
+                <button onClick={() => setPrompt("Short ETH 20x with 50 aUSD")} className="text-[9px] bg-transparent border border-[#FF2A6D]/30 p-2.5 text-left hover:bg-[#FF2A6D]/10 transition-all text-[#FF2A6D] font-mono">
                   <TrendingDown className="w-3 h-3 mb-1 opacity-50" />&gt; QUICK_SHORT
                 </button>
               </div>
