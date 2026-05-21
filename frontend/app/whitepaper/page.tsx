@@ -163,6 +163,46 @@ const sections = [
       </>
     ),
   },
+  {
+    num: "07",
+    title: "On-Chain Safety Layer (Stylus Guardrail + Audit Trail)",
+    icon: Zap,
+    iconColor: "text-neon-cyan",
+    glowClass: "cyber-glow-cyan",
+    content: (
+      <>
+        <p className="text-white/80 leading-relaxed">
+          Aura deploys a <strong className="text-neon-cyan">second Stylus WASM contract</strong> — the <strong>AuraGuardrail</strong> — as an on-chain safety layer that validates every trade <em>before</em> execution, even if the AI agent is compromised.
+        </p>
+        <ul className="mt-4 space-y-3">
+          <li className="flex items-start gap-3">
+            <div className="w-1.5 h-1.5 rounded-full bg-neon-cyan shadow-[0_0_5px_#00f0ff] mt-2 shrink-0" />
+            <span className="text-white/80 leading-relaxed">
+              <strong className="text-neon-cyan">5 on-chain checks:</strong> asset whitelist, max leverage (50x), min collateral, max position size, daily volume cap per user — all enforced in WASM at near-zero gas cost.
+            </span>
+          </li>
+          <li className="flex items-start gap-3">
+            <div className="w-1.5 h-1.5 rounded-full bg-neon-cyan shadow-[0_0_5px_#00f0ff] mt-2 shrink-0" />
+            <span className="text-white/80 leading-relaxed">
+              <strong className="text-neon-cyan">Audit Trail:</strong> Before every gasless execution, the agent records a <code>keccak256</code> hash of its full reasoning (executor + auditor + macro analysis) on-chain via the <code>AuraAuditTrail</code> contract. This creates a verifiable, immutable proof that the AI committee approved the trade.
+            </span>
+          </li>
+          <li className="flex items-start gap-3">
+            <div className="w-1.5 h-1.5 rounded-full bg-neon-cyan shadow-[0_0_5px_#00f0ff] mt-2 shrink-0" />
+            <span className="text-white/80 leading-relaxed">
+              <strong className="text-neon-cyan">Slippage Protection:</strong> Every swap calculates a <code>minAmountOut</code> from real-time Pyth oracle prices (1% max slippage). No more zero-slippage exploits.
+            </span>
+          </li>
+          <li className="flex items-start gap-3">
+            <div className="w-1.5 h-1.5 rounded-full bg-neon-cyan shadow-[0_0_5px_#00f0ff] mt-2 shrink-0" />
+            <span className="text-white/80 leading-relaxed">
+              <strong className="text-neon-cyan">Real-time Reasoning Stream:</strong> The multi-agent committee&apos;s decision process is streamed live to the frontend via SSE — users see each step (Intent Parsing → Macro Audit → On-Chain Audit → Consensus) as it happens.
+            </span>
+          </li>
+        </ul>
+      </>
+    ),
+  },
 ];
 
 const contracts = [
@@ -171,6 +211,18 @@ const contracts = [
     address: "0x3346abe000118b25aca953f48deb1978a069e7de",
     chain: "Arbitrum Sepolia",
     explorer: "https://sepolia.arbiscan.io/address/",
+  },
+  {
+    name: "Stylus Guardrail (Rust/WASM)",
+    address: "0xd57a35af5ea3176667d79d6e460e39e9ba79bc08",
+    chain: "Arbitrum Sepolia",
+    explorer: "https://sepolia.arbiscan.io/address/",
+  },
+  {
+    name: "AuraAuditTrail (Reasoning Proof)",
+    address: "0x527d54D8E534877B9713ADFA9b1f367e1bc964e9",
+    chain: "Robinhood Chain",
+    explorer: "https://explorer.testnet.chain.robinhood.com/address/",
   },
   {
     name: "AuraPerps (Perpetuals Engine)",

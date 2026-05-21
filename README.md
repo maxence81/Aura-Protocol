@@ -29,12 +29,18 @@ A **dual-agent safety architecture** that no other hackathon project has:
 
 Result: a user types *"DCA 0.001 ETH into AMZN every day for a week"*  both agents collaborate -- user gets a single signature prompt with full reasoning visible.
 
-#### 2. Stylus-Native Order Book
+**New safety features:**
+- **On-Chain Audit Trail** — before every gasless execution, the agent records a `keccak256` hash of its reasoning on-chain (`AuraAuditTrail` contract), creating verifiable proof of AI decision-making
+- **Pyth Slippage Protection** — every swap calculates `minAmountOut` from real-time Pyth prices (1% max slippage by default)
+- **Live Reasoning Stream** — the multi-agent committee's decision process is streamed to the frontend via SSE in real-time
+
+#### 2. Stylus-Native Order Book + Guardrail
 The first hackathon project to combine a **Rust/WASM perpetual order book** (Arbitrum Stylus) with a **Solidity Vault LP** (Robinhood Chain) for hybrid execution:
 
 - **Limit orders** go to the Stylus LOB on Arbitrum Sepolia (compute-heavy matching, sorting)
 - **Market orders** go to AuraPerps on Robinhood Chain (immediate liquidity vs Vault LP)
 - **AI Keeper** bridges them: polls Pyth, calls `match_orders` on Stylus, settles fills via the Solidity router
+- **Stylus Guardrail** (WASM) validates every trade on-chain: asset whitelist, max leverage, position size caps, daily volume limits — even if the AI is compromised
 
 Benchmarked **34% gas savings** on `get_active_orders_sorted` (the hot path) vs pure Solidity at scale (see [bench results](#-stylus-vs-solidity-benchmark)).
 
@@ -138,10 +144,11 @@ Real numbers from `scripts/bench-large-scale.js` on Arbitrum Sepolia (60 resting
 
 ## Live Deployments
 
-### Arbitrum Sepolia (Stylus LOB layer)
+### Arbitrum Sepolia (Stylus LOB + Guardrail layer)
 | Contract | Address |
 |---|---|
 | **Stylus LOB v2** | [`0x3346abe000118b25aca953f48deb1978a069e7de`](https://sepolia.arbiscan.io/address/0x3346abe000118b25aca953f48deb1978a069e7de) |
+| **Stylus Guardrail** | [`0xd57a35af5ea3176667d79d6e460e39e9ba79bc08`](https://sepolia.arbiscan.io/address/0xd57a35af5ea3176667d79d6e460e39e9ba79bc08) |
 | Solidity LOB (bench reference) | [`0x030839d7AC5Df159dB38ACa99CF8258BF9EC447E`](https://sepolia.arbiscan.io/address/0x030839d7AC5Df159dB38ACa99CF8258BF9EC447E) |
 
 ### Robinhood Chain Testnet (Settlement layer)
@@ -152,6 +159,7 @@ Real numbers from `scripts/bench-large-scale.js` on Arbitrum Sepolia (60 resting
 | AuraIntelligenceVault (ERC-4626) | `0x69A88c72eAda96A515e0dc57632A6Abf59EA2E38` |
 | AuraPerpsRouter (Hybrid) | `0x5F88E57fBDC5B83827273d2ab8843226F40d0E13` |
 | AuraAccount Factory | `0x95Aa20d53EB26f292a71D8B38515BBeC8905b550` |
+| **AuraAuditTrail** | `0x527d54D8E534877B9713ADFA9b1f367e1bc964e9` |
 | aUSD | `0x359961489f069F16E5dbA46d9b174bBF7b25147B` |
 | Pyth MockOracle | `0x097AeB196366317cf97986A04f32Df312c96ABa1` |
 
@@ -159,7 +167,7 @@ Real numbers from `scripts/bench-large-scale.js` on Arbitrum Sepolia (60 resting
 
 ## Test Coverage
 
-**100 passing tests** across security-critical paths:
+**128 passing tests** across security-critical paths:
 
 ```
 Adversarial Security Tests (21 tests)
@@ -193,6 +201,15 @@ Hybrid LOB+AMM Router (4 tests)
    Walks book first, falls back to Vault LP
    placeLimitOrderFor authorization for MMFund
    Rejects unauthorized callers
+
+AuraAuditTrail -- On-Chain Reasoning Audit (28 tests)
+   Deployment & permissionless recording
+   Event emission with correct parameters (agent, user, hash, timestamp, action)
+   Multiple records, duplicate hashes, batch stress test
+   Gas efficiency (<50k per record)
+   Event indexing (filterable by agent, user, or both)
+   Integrity verification (hash matches off-chain reasoning)
+   Security (cannot spoof msg.sender, timestamp is block.timestamp)
 
 Aura Account Abstraction (6 tests)
    AuraAccount.executeBatch routing
@@ -257,7 +274,7 @@ All contract addresses are pre-filled with our live testnet deployments.
 
 ```bash
 npx hardhat compile
-npx hardhat test                    # 100 tests, all passing
+npx hardhat test                    # 128 tests, all passing
 ```
 
 ### 4. Run the Stylus vs Solidity Benchmark
@@ -298,20 +315,21 @@ The AI Market Maker will populate the order book within 30 seconds. The Keeper m
 
 ```
 arbitrum_hackathon/
- contracts/              Solidity contracts (perps, vault, account, paymaster, )
+ contracts/              Solidity contracts (perps, vault, account, paymaster, audit trail)
  stylus-orderbook/       Rust/WASM order book (Stylus 0.10.6)
+ stylus-guardrail/       Rust/WASM trade validator (Stylus 0.10.6)
  backend/                Node.js multi-agent backend
-    agent.js            Executor + Risk Auditor
+    agent.js            Executor + Risk Auditor + Slippage Protection
     macroAnalyzer.js    Pyth + news + correlations
     marketMaker.js      AI Market Maker (Stylus LOB)
     lobKeeper.js        AI Keeper (Pyth -- match_orders)
-    index.js            Express API
+    index.js            Express API + SSE streaming
  frontend/               Next.js 15 trading UI
     app/trade/          Perpetual trading page (LOB + market orders)
     app/chat/           Multi-agent chat for swaps & DCA
     app/vault/          ERC-4626 deposit / withdraw
  scripts/                Hardhat deploy + bench scripts
- test/                   Hardhat test suite (31 tests)
+ test/                   Hardhat test suite (128 tests)
  ARCHITECTURE.md         Full architecture reference
 ```
 

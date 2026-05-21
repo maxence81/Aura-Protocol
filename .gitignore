@@ -9,6 +9,7 @@ cache/
 frontend/.next/
 frontend/tsconfig.tsbuildinfo
 stylus-orderbook/target/
+stylus-guardrail/target/
 
 # Environment & secrets
 .env
@@ -42,6 +43,10 @@ test-swap.js
 test-tx.js
 coins_test.json
 models.json
+test_gemini.js
+backend/initLob.js
+backend/testPioneer.js
+scripts/debug-guardrail.js
 
 # Old/unused projects
 Kimi_Agent_DCA AI Chatbot Landing/

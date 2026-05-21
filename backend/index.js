@@ -92,6 +92,38 @@ app.post("/chat", async (req, res) => {
   }
 });
 
+// ── SSE Streaming endpoint for real-time reasoning steps ──────────────
+app.post("/chat-stream", async (req, res) => {
+  const { message, account, eoa, tzOffsetMin } = req.body;
+  if (!message) return res.status(400).json({ error: "Message is required" });
+
+  res.setHeader('Content-Type', 'text/event-stream');
+  res.setHeader('Cache-Control', 'no-cache');
+  res.setHeader('Connection', 'keep-alive');
+  res.setHeader('X-Accel-Buffering', 'no');
+  res.flushHeaders();
+
+  const sendStep = (step) => {
+    res.write(`data: ${JSON.stringify({ type: 'step', step })}\n\n`);
+  };
+
+  try {
+    const { proposal, audit, macroAnalysis } = await runAuraCommittee(message, account, eoa, tzOffsetMin || 0, sendStep);
+
+    if (!audit.isSafe) {
+      res.write(`data: ${JSON.stringify({ type: 'result', status: 'rejected', intent: proposal, rationale: audit.rationale, macroAnalysis })}\n\n`);
+    } else {
+      const txParams = await prepareExecution(proposal);
+      res.write(`data: ${JSON.stringify({ type: 'result', status: 'awaiting_signature', intent: proposal, rationale: audit.rationale, txParams, macroAnalysis })}\n\n`);
+    }
+  } catch (error) {
+    res.write(`data: ${JSON.stringify({ type: 'error', message: error.message })}\n\n`);
+  }
+
+  res.write('data: [DONE]\n\n');
+  res.end();
+});
+
 app.post("/approve-strategy", async (req, res) => {
   try {
     const { strategyId, txParams, accountAddress } = req.body;
@@ -566,13 +598,34 @@ app.get("/api/my-orders/:address", async (req, res) => {
 // The user pays ZERO gas -- the agent EOA sponsors it.
 app.post("/api/gasless-execute", async (req, res) => {
   try {
-    const { accountAddress, targets, values, datas } = req.body;
+    const { accountAddress, targets, values, datas, reasoningHash, action } = req.body;
     if (!accountAddress || !targets || !values || !datas) {
       return res.status(400).json({ error: "Missing accountAddress, targets, values, or datas" });
     }
 
     const provider = new ethers.JsonRpcProvider(process.env.RPC_URL || "https://rpc.testnet.chain.robinhood.com");
     const signer = agentWallet.connect(provider);
+
+    // ── Audit Trail: record reasoning hash on-chain BEFORE execution ──
+    const AUDIT_TRAIL_ADDRESS = process.env.AUDIT_TRAIL_ADDRESS;
+    if (AUDIT_TRAIL_ADDRESS && reasoningHash) {
+      try {
+        const auditTrail = new ethers.Contract(
+          AUDIT_TRAIL_ADDRESS,
+          ["function recordReasoning(address user, bytes32 reasoningHash, string calldata action) external"],
+          signer
+        );
+        const auditTx = await auditTrail.recordReasoning(
+          accountAddress,
+          reasoningHash,
+          action || "SWAP"
+        );
+        await auditTx.wait();
+        console.log(`[AuditTrail] Reasoning recorded: ${reasoningHash} for ${accountAddress}`);
+      } catch (auditErr) {
+        console.warn("[AuditTrail] Failed to record (non-blocking):", auditErr.shortMessage || auditErr.message);
+      }
+    }
 
     const ACCOUNT_ABI = [
       "function executeBatchByAgent(address[] dest, uint256[] value, bytes[] func) external"

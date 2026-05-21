@@ -263,7 +263,7 @@ export default function Home() {
   const [backendExecutions, setBackendExecutions] = useState<any[]>([]);
 
   // Feature 1: Streaming Reasoning
-  const { steps: reasoningSteps, isStreaming: isReasoningStreaming, startStream, resolveStream } = useReasoningStream();
+  const { steps: reasoningSteps, isStreaming: isReasoningStreaming, startStream, pushStep, resolveStream } = useReasoningStream();
 
   // Feature 4: Proactive Alerts
   const { pendingAlert, dismissAlert } = useProactiveAlerts(!!account);
@@ -503,14 +503,58 @@ export default function Home() {
 
 
     try {
-      const response = await axios.post(`${API_URL}/chat`, {
-        message: finalPrompt,
-        account: auraAccountAddress,
-        eoa: account.address,
-        tzOffsetMin: -new Date().getTimezoneOffset()
+      // Use SSE streaming endpoint for real-time reasoning steps
+      const response = await fetch(`${API_URL}/chat-stream`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          message: finalPrompt,
+          account: auraAccountAddress,
+          eoa: account.address,
+          tzOffsetMin: -new Date().getTimezoneOffset()
+        }),
       });
 
-      const { txParams, intent, rationale, status, macroAnalysis } = response.data;
+      if (!response.ok || !response.body) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let resultData: any = null;
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buffer += decoder.decode(value, { stream: true });
+
+        const lines = buffer.split('\n');
+        buffer = lines.pop() || '';
+
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          const payload = line.slice(6).trim();
+          if (payload === '[DONE]') continue;
+
+          try {
+            const parsed = JSON.parse(payload);
+            if (parsed.type === 'step') {
+              pushStep(parsed.step);
+            } else if (parsed.type === 'result') {
+              resultData = parsed;
+            } else if (parsed.type === 'error') {
+              throw new Error(parsed.message);
+            }
+          } catch (parseErr: any) {
+            if (parseErr.message && !parseErr.message.includes('JSON')) throw parseErr;
+          }
+        }
+      }
+
+      if (!resultData) throw new Error("No result received from stream");
+
+      const { txParams, intent, rationale, status, macroAnalysis } = resultData;
 
       if (status === "rejected") {
         addMessage({
@@ -627,11 +671,23 @@ export default function Home() {
             });
 
             try {
+                // Compute reasoning hash for on-chain audit trail
+                const auditPayload = JSON.stringify({
+                  rationale: messages.find(m => m.transaction?.id === pendingId)?.transaction?.rawData || '',
+                  description: txParams.description || '',
+                  timestamp: Date.now(),
+                });
+                const reasoningHash = typeof window !== 'undefined'
+                  ? '0x' + Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(auditPayload)))).map(b => b.toString(16).padStart(2, '0')).join('')
+                  : undefined;
+
                 const resp = await axios.post(`${API_URL}/api/gasless-execute`, {
                     accountAddress: auraAccountAddress,
                     targets: txParams.targets,
                     values: txParams.values,
                     datas: txParams.datas,
+                    reasoningHash,
+                    action: txParams.description || 'SWAP',
                 });
 
                 setMessages((prev) => prev.map((msg) => {

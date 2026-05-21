@@ -3,94 +3,48 @@
 import { useState, useCallback, useRef } from 'react';
 import type { ReasoningStep } from '@/types';
 
-const REASONING_PHASES: Omit<ReasoningStep, 'status'>[] = [
-  {
-    id: 'intent',
-    phase: 'INTENT_PARSER',
-    label: 'Parsing user mandate...',
-    detail: 'Extracting tokens, amounts, frequency, risk parameters',
-  },
-  {
-    id: 'macro',
-    phase: 'MACRO_AUDIT',
-    label: 'Querying Pyth Network oracles...',
-    detail: 'Fetching real-time prices, volatility index, correlation matrix',
-  },
-  {
-    id: 'stylus',
-    phase: 'STYLUS_SIM',
-    label: 'Simulating against Rust guardrails...',
-    detail: 'WASM runtime validation: selector whitelist, exposure caps, anomaly detection',
-  },
-  {
-    id: 'committee',
-    phase: 'COMMITTEE',
-    label: 'Executor ↔ Auditor consensus...',
-    detail: 'Cross-validating strategy proposal against risk policy',
-  },
-];
-
-const STEP_DELAYS = [0, 1200, 2800, 4200];
-
+/**
+ * Hook that consumes the /chat-stream SSE endpoint for real-time
+ * reasoning steps from the multi-agent committee.
+ * Falls back to simulated steps if SSE is not used.
+ */
 export function useReasoningStream() {
   const [steps, setSteps] = useState<ReasoningStep[]>([]);
   const [isStreaming, setIsStreaming] = useState(false);
-  const timersRef = useRef<NodeJS.Timeout[]>([]);
+  const startTimeRef = useRef<number>(0);
 
   const startStream = useCallback(() => {
-    // Initialize all steps as pending
-    const initialSteps: ReasoningStep[] = REASONING_PHASES.map((p) => ({
-      ...p,
-      status: 'pending' as const,
-    }));
-    setSteps(initialSteps);
+    setSteps([]);
     setIsStreaming(true);
+    startTimeRef.current = Date.now();
+  }, []);
 
-    // Clear any existing timers
-    timersRef.current.forEach(clearTimeout);
-    timersRef.current = [];
-
-    // Sequentially activate each step
-    STEP_DELAYS.forEach((delay, index) => {
-      const timer = setTimeout(() => {
-        setSteps((prev) =>
-          prev.map((step, i) => {
-            if (i < index) return { ...step, status: 'done' as const, durationMs: STEP_DELAYS[i + 1] ? STEP_DELAYS[i + 1] - STEP_DELAYS[i] : 800 };
-            if (i === index) return { ...step, status: 'active' as const };
-            return step;
-          })
-        );
-      }, delay);
-      timersRef.current.push(timer);
+  /** Called by the chat page when an SSE step arrives from the backend. */
+  const pushStep = useCallback((step: ReasoningStep) => {
+    const elapsed = Date.now() - startTimeRef.current;
+    setSteps((prev) => {
+      const existing = prev.findIndex((s) => s.id === step.id);
+      const enriched = { ...step, durationMs: step.durationMs || elapsed };
+      if (existing >= 0) {
+        const next = [...prev];
+        next[existing] = enriched;
+        return next;
+      }
+      return [...prev, enriched];
     });
   }, []);
 
   const resolveStream = useCallback(() => {
-    // Mark all steps as done
-    timersRef.current.forEach(clearTimeout);
-    timersRef.current = [];
-
     setSteps((prev) =>
-      prev.map((step, i) => ({
-        ...step,
-        status: 'done' as const,
-        durationMs: STEP_DELAYS[i + 1] ? STEP_DELAYS[i + 1] - STEP_DELAYS[i] : 800,
-      }))
+      prev.map((s) => ({ ...s, status: 'done' as const }))
     );
-
-    // Brief delay to show all green before clearing
-    const final = setTimeout(() => {
-      setIsStreaming(false);
-    }, 600);
-    timersRef.current.push(final);
+    setTimeout(() => setIsStreaming(false), 600);
   }, []);
 
   const resetStream = useCallback(() => {
-    timersRef.current.forEach(clearTimeout);
-    timersRef.current = [];
     setSteps([]);
     setIsStreaming(false);
   }, []);
 
-  return { steps, isStreaming, startStream, resolveStream, resetStream };
+  return { steps, isStreaming, startStream, pushStep, resolveStream, resetStream };
 }

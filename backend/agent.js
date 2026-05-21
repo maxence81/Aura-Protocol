@@ -79,7 +79,44 @@ function getTokenAddress(symbol) {
     return null;
 }
 
-function buildEthToTokenSwap(amountWei, tokenOutAddress, recipient) {
+// ── Slippage Protection via Pyth ─────────────────────────────────────
+const MAX_SLIPPAGE_BPS = 100; // 1% default max slippage
+
+/**
+ * Calculate minAmountOut based on Pyth real-time prices.
+ * @param {string} tokenInSymbol - e.g. "ETH"
+ * @param {string} tokenOutSymbol - e.g. "AMZN"
+ * @param {BigInt} amountInWei - amount in (18 decimals)
+ * @param {number} slippageBps - max slippage in basis points (default 100 = 1%)
+ * @returns {BigInt} minAmountOut in wei (18 decimals)
+ */
+async function calculateMinAmountOut(tokenInSymbol, tokenOutSymbol, amountInWei, slippageBps = MAX_SLIPPAGE_BPS) {
+    try {
+        const prices = await getAllPrices();
+        const priceIn = prices[tokenInSymbol.toUpperCase()] || prices[tokenInSymbol === "WETH" ? "ETH" : tokenInSymbol.toUpperCase()];
+        const priceOut = prices[tokenOutSymbol.toUpperCase()] || prices[tokenOutSymbol === "WETH" ? "ETH" : tokenOutSymbol.toUpperCase()];
+
+        if (!priceIn || !priceOut || priceOut === 0) {
+            console.warn(`⚠️ Slippage: missing price for ${tokenInSymbol}/$${priceIn} or ${tokenOutSymbol}/$${priceOut}. Using 0 (no protection).`);
+            return BigInt(0);
+        }
+
+        // expectedOut = amountIn * (priceIn / priceOut)
+        // minOut = expectedOut * (1 - slippage)
+        const amountInFloat = Number(amountInWei) / 1e18;
+        const expectedOut = amountInFloat * (priceIn / priceOut);
+        const minOut = expectedOut * (1 - slippageBps / 10000);
+        const minOutWei = BigInt(Math.floor(minOut * 1e18));
+
+        console.log(`🛡️ Slippage Protection: ${amountInFloat} ${tokenInSymbol} ($${priceIn}) → ~${expectedOut.toFixed(6)} ${tokenOutSymbol} ($${priceOut}) | minOut: ${minOut.toFixed(6)} (${slippageBps/100}% slippage)`);
+        return minOutWei;
+    } catch (e) {
+        console.warn("⚠️ Slippage calculation failed:", e.message, "— using 0");
+        return BigInt(0);
+    }
+}
+
+function buildEthToTokenSwap(amountWei, tokenOutAddress, recipient, minAmountOut = BigInt(0)) {
     const routerIface = new ethers.Interface(["function execute(bytes calldata commands, bytes[] calldata inputs, uint256 deadline) external payable"]);
     const commands = "0x0b00";
     
@@ -96,7 +133,7 @@ function buildEthToTokenSwap(amountWei, tokenOutAddress, recipient) {
     // V3_SWAP_EXACT_IN: recipient (user), amountIn, minAmountOut, path, payerIsUser (false)
     const swapInput = ethers.AbiCoder.defaultAbiCoder().encode(
         ["address", "uint256", "uint256", "bytes", "bool"], 
-        [recipient, amountWei, 0, path, false]
+        [recipient, amountWei, minAmountOut, path, false]
     );
     
     const deadline = Math.floor(Date.now() / 1000) + 1800;
@@ -108,7 +145,7 @@ function buildEthToTokenSwap(amountWei, tokenOutAddress, recipient) {
     };
 }
 
-function buildTokenToEthSwap(amountWei, tokenInAddress, recipient, eoa, targetAccount, symbol, totalSwaps = 1) {
+function buildTokenToEthSwap(amountWei, tokenInAddress, recipient, eoa, targetAccount, symbol, totalSwaps = 1, minAmountOut = BigInt(0)) {
     const routerIface = new ethers.Interface(["function execute(bytes calldata commands, bytes[] calldata inputs, uint256 deadline) external payable"]);
     const erc20Iface = new ethers.Interface(ERC20_ABI);
     const permit2Iface = new ethers.Interface(["function approve(address token, address spender, uint160 amount, uint48 expiration) external"]);
@@ -129,7 +166,7 @@ function buildTokenToEthSwap(amountWei, tokenInAddress, recipient, eoa, targetAc
     );
 
     // IMPORTANT: recipient 0x00...02 for unwrap
-    const swapInput = ethers.AbiCoder.defaultAbiCoder().encode(["address", "uint256", "uint256", "bytes", "bool"], ["0x0000000000000000000000000000000000000002", amountWei, 0, path, true]);
+    const swapInput = ethers.AbiCoder.defaultAbiCoder().encode(["address", "uint256", "uint256", "bytes", "bool"], ["0x0000000000000000000000000000000000000002", amountWei, minAmountOut, path, true]);
     const unwrapInput = ethers.AbiCoder.defaultAbiCoder().encode(["address", "uint256"], [recipient, 0]);
     const deadline = Math.floor(Date.now() / 1000) + 1800;
 
@@ -146,7 +183,7 @@ function buildTokenToEthSwap(amountWei, tokenInAddress, recipient, eoa, targetAc
     };
 }
 
-function buildTokenToTokenSwap(amountWei, tokenInAddress, tokenOutAddress, recipient, eoa, targetAccount, symbol, totalSwaps = 1) {
+function buildTokenToTokenSwap(amountWei, tokenInAddress, tokenOutAddress, recipient, eoa, targetAccount, symbol, totalSwaps = 1, minAmountOut = BigInt(0)) {
     const routerIface = new ethers.Interface(["function execute(bytes calldata commands, bytes[] calldata inputs, uint256 deadline) external payable"]);
     const erc20Iface = new ethers.Interface(ERC20_ABI);
     const permit2Iface = new ethers.Interface(["function approve(address token, address spender, uint160 amount, uint48 expiration) external"]);
@@ -165,7 +202,7 @@ function buildTokenToTokenSwap(amountWei, tokenInAddress, tokenOutAddress, recip
         [tokenInAddress, 3000, tokenOutAddress]
     );
 
-    const swapInput = ethers.AbiCoder.defaultAbiCoder().encode(["address", "uint256", "uint256", "bytes", "bool"], [recipient, amountWei, 0, path, true]);
+    const swapInput = ethers.AbiCoder.defaultAbiCoder().encode(["address", "uint256", "uint256", "bytes", "bool"], [recipient, amountWei, minAmountOut, path, true]);
     const deadline = Math.floor(Date.now() / 1000) + 1800;
 
     return {
@@ -419,18 +456,20 @@ async function proposeExecution(request, targetAccount, eoa, tzOffsetMin = 0) {
     const isEthIn = tokenInSymbol === "ETH" || tokenInSymbol === "WETH";
     const isEthOut = tokenOutSymbol === "ETH" || tokenOutSymbol === "WETH";
 
+    // ── Slippage Protection: calculate minAmountOut from Pyth prices ──
+    const minAmountOut = await calculateMinAmountOut(tokenInSymbol, tokenOutSymbol, amountRaw);
 
     let txData;
     if (isEthIn && !isEthOut) {
         const tokenOutAddr = getTokenAddress(tokenOutSymbol);
-        txData = buildEthToTokenSwap(amountRaw, tokenOutAddr, eoa, totalSwaps);
+        txData = buildEthToTokenSwap(amountRaw, tokenOutAddr, eoa, minAmountOut);
     } else if (!isEthIn && isEthOut) {
         const tokenInAddr = getTokenAddress(tokenInSymbol);
-        txData = buildTokenToEthSwap(amountRaw, tokenInAddr, eoa, eoa, targetAccount, tokenInSymbol, totalSwaps);
+        txData = buildTokenToEthSwap(amountRaw, tokenInAddr, eoa, eoa, targetAccount, tokenInSymbol, totalSwaps, minAmountOut);
     } else if (!isEthIn && !isEthOut) {
         const tokenInAddr = getTokenAddress(tokenInSymbol);
         const tokenOutAddr = getTokenAddress(tokenOutSymbol);
-        txData = buildTokenToTokenSwap(amountRaw, tokenInAddr, tokenOutAddr, eoa, eoa, targetAccount, tokenInSymbol, totalSwaps);
+        txData = buildTokenToTokenSwap(amountRaw, tokenInAddr, tokenOutAddr, eoa, eoa, targetAccount, tokenInSymbol, totalSwaps, minAmountOut);
     } else {
         throw new Error("Cannot swap ETH to ETH");
     }
@@ -468,26 +507,27 @@ async function proposeExecution(request, targetAccount, eoa, tzOffsetMin = 0) {
 
 const provider = new ethers.JsonRpcProvider("https://rpc.testnet.chain.robinhood.com");
 
-async function runAuraCommittee(request, targetAccount, eoa, tzOffsetMin = 0) {
+async function runAuraCommittee(request, targetAccount, eoa, tzOffsetMin = 0, onStep = null) {
     // ── Intent routing ──
-    // The chat surface is for SWAPS / DCA only. Limit orders live on the
-    // /trade page (perp order book backed by the Stylus LOB on Arbitrum
-    // Sepolia). The LIMIT_ORDER pipeline below is kept reachable via a
-    // BACKEND_ENABLE_LIMIT_ORDER_INTENT env flag for ad-hoc testing, but is
-    // disabled in normal chat flows.
     if (process.env.BACKEND_ENABLE_LIMIT_ORDER_INTENT === "1" && isLimitOrderRequest(request)) {
         console.log("🎯 Intent classifier: LIMIT_ORDER (Stylus LOB / Arbitrum Sepolia) — feature flag enabled");
         return await runLimitOrderCommittee(request, eoa);
     }
 
+    if (onStep) onStep({ id: 'intent', phase: 'INTENT_PARSER', status: 'active', label: 'Parsing user mandate...', detail: `Extracting tokens, amounts, frequency from: "${request.slice(0, 50)}"` });
+
     console.log("🎯 Intent classifier: SWAP (Synthra V3 / Robinhood Chain)");
     const proposal = await proposeExecution(request, targetAccount, eoa, tzOffsetMin);
+
+    if (onStep) onStep({ id: 'intent', phase: 'INTENT_PARSER', status: 'done', label: `Parsed: ${proposal.tokenInSymbol} → ${proposal.tokenOutSymbol}`, durationMs: 0 });
 
     let isSafe = true;
     let rationale = "AI-Powered Compliance Audit passed. All steps verified.";
     let macroAnalysis = null;
 
     // ── Step 1: Macro-Economic Analysis ──────────────────────────
+    if (onStep) onStep({ id: 'macro', phase: 'MACRO_AUDIT', status: 'active', label: 'Querying Pyth Network oracles...', detail: 'Fetching real-time prices, news sentiment, correlation matrix' });
+
     try {
         const targetAsset = proposal.tokenOutSymbol !== "ETH" ? proposal.tokenOutSymbol : proposal.tokenInSymbol;
         macroAnalysis = await analyzeMacroSentiment(targetAsset);
@@ -504,7 +544,11 @@ async function runAuraCommittee(request, targetAccount, eoa, tzOffsetMin = 0) {
         console.warn("Macro analysis skipped:", e.message);
     }
 
+    if (onStep) onStep({ id: 'macro', phase: 'MACRO_AUDIT', status: 'done', label: macroAnalysis ? `Sentiment: ${macroAnalysis.sentiment} (${macroAnalysis.score}/100)` : 'Macro analysis complete', durationMs: 0 });
+
     // ── Step 2: On-Chain Balance / Allowance Audit ───────────────
+    if (onStep) onStep({ id: 'audit', phase: 'ON_CHAIN_AUDIT', status: 'active', label: 'Auditing on-chain balances...', detail: `Checking ${proposal.tokenInSymbol} balance & allowance for ${eoa?.slice(0,10)}...` });
+
     try {
         if (proposal.tokenInSymbol !== "ETH") {
             const tokenAddr = getTokenAddress(proposal.tokenInSymbol);
@@ -513,7 +557,7 @@ async function runAuraCommittee(request, targetAccount, eoa, tzOffsetMin = 0) {
             const code = await provider.getCode(tokenAddr);
             if (code === "0x") {
                 console.warn(`⚠️ No contract found at ${tokenAddr} (${proposal.tokenInSymbol}). Mocking audit pass for demo.`);
-                // For demo purposes, we'll assume it's safe if it's one of our mock tokens
+                if (onStep) onStep({ id: 'audit', phase: 'ON_CHAIN_AUDIT', status: 'done', label: 'Mock token — audit bypassed', durationMs: 0 });
                 return { proposal, audit: { isSafe, rationale: `Mock token detected. Audit bypassed for hackathon demo.` }, macroAnalysis };
             }
 
@@ -557,6 +601,10 @@ async function runAuraCommittee(request, targetAccount, eoa, tzOffsetMin = 0) {
         // Fallback: request approval just in case if we can't verify
         rationale = "Audit check incomplete. Please verify your balances before signing.";
     }
+
+    if (onStep) onStep({ id: 'audit', phase: 'ON_CHAIN_AUDIT', status: 'done', label: isSafe ? 'Audit passed ✓' : 'Audit flagged issue', durationMs: 0 });
+    if (onStep) onStep({ id: 'complete', phase: 'COMPLETE', status: 'done', label: 'Committee consensus reached', durationMs: 0 });
+
     return { proposal, audit: { isSafe, rationale }, macroAnalysis };
 }
 

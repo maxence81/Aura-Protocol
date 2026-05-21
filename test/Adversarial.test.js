@@ -167,6 +167,34 @@ describe("Adversarial Security Tests", function () {
         vault.connect(attacker).payoutProfit(attacker.address, ethers.parseEther("100"))
       ).to.be.revertedWith("AuraVault: Only Perps contract allowed");
     });
+
+    it("should reject non-owner setting router on perps", async function () {
+      await expect(
+        perps.connect(attacker).setRouter(attacker.address)
+      ).to.be.reverted;
+    });
+
+    it("should reject non-owner setting oracle on perps", async function () {
+      // AuraPerps inherits Ownable - no setStylusMath from non-owner
+      await expect(
+        perps.connect(attacker).setStylusMath(attacker.address)
+      ).to.be.reverted;
+    });
+
+    it("should reject opening position with insufficient allowance", async function () {
+      // User has balance but no approval
+      await expect(
+        perps.connect(user).openPosition("BTC", true, ethers.parseEther("100"), 5)
+      ).to.be.reverted;
+    });
+
+    it("should reject opening position with insufficient balance", async function () {
+      const [,,,, broke] = await ethers.getSigners();
+      await ausd.connect(broke).approve(perps.target, ethers.parseEther("1000"));
+      await expect(
+        perps.connect(broke).openPosition("BTC", true, ethers.parseEther("100"), 5)
+      ).to.be.reverted;
+    });
   });
 
   // ═══════════════════════════════════════════════════════════
