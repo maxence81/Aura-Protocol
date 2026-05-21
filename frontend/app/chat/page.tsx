@@ -1230,7 +1230,7 @@ export default function Home() {
 
         {activeNav === 'history' && (
           <HistoryArea 
-            messages={messages} 
+            messages={conversations.flatMap((c) => c.messages)} 
             backendExecutions={backendExecutions} 
             walletAddress={wallet.address} 
           />
