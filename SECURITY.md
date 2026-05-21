@@ -85,6 +85,42 @@ Deployed as an immutable policy layer between the AI agent and user funds.
 - Agent address is set by owner and can be revoked at any time
 - Guardrail contract is set by owner and can be swapped or disabled
 
+### Stylus Guardrail (WASM -- Arbitrum Sepolia)
+
+A second Stylus contract deployed at `0xd57a35af5ea3176667d79d6e460e39e9ba79bc08` that validates trade parameters on-chain before execution. Even if the AI agent is compromised, the WASM guardrail rejects invalid trades.
+
+| Check | Description |
+|-------|-------------|
+| Asset whitelist | Only registered asset hashes can be traded |
+| Max leverage | Capped at 50x (configurable by owner) |
+| Min collateral | Minimum 1 token per trade |
+| Max position size | collateral × leverage cannot exceed 500k tokens |
+| Daily volume cap | Per-user daily volume limit (10M tokens default) |
+
+The guardrail resets daily volume counters automatically using `block.timestamp / 86400`.
+
+### AuraAuditTrail (On-Chain Reasoning Proof)
+
+Deployed at `0x527d54D8E534877B9713ADFA9b1f367e1bc964e9` on Robinhood Chain. Before every gasless execution, the backend records a `keccak256` hash of the full AI reasoning (executor proposal + risk auditor verdict + macro analysis) on-chain.
+
+| Property | Detail |
+|----------|--------|
+| Permissionless | Any address can record (the `agent` field in the event proves identity) |
+| Immutable | Events cannot be modified or deleted after emission |
+| Verifiable | Off-chain reasoning JSON can be hashed and compared to the on-chain record |
+| Gas efficient | < 50k gas per record (tested) |
+| Indexed | Filterable by agent address and user address |
+
+### Slippage Protection (Pyth-Based)
+
+Every swap calculates `minAmountOut` from real-time Pyth Network oracle prices with 1% max slippage by default. This prevents sandwich attacks and excessive slippage on mainnet deployments.
+
+- Price source: Pyth Hermes API (7 feeds: BTC, ETH, TSLA, AMZN, NFLX, AMD, PLTR)
+- Formula: `minOut = amountIn × (priceIn / priceOut) × (1 - slippageBps / 10000)`
+- Enforcement: active on mainnet (`ENABLE_SLIPPAGE_ENFORCEMENT=1`), logged-only on testnet (pool prices diverge from oracle)
+
+---
+
 ### AuraIntelligenceVault (ERC-4626)
 
 | Control | Description |
