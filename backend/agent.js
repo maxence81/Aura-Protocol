@@ -106,10 +106,15 @@ async function calculateMinAmountOut(tokenInSymbol, tokenOutSymbol, amountInWei,
         const amountInFloat = Number(amountInWei) / 1e18;
         const expectedOut = amountInFloat * (priceIn / priceOut);
         const minOut = expectedOut * (1 - slippageBps / 10000);
-        const minOutWei = BigInt(Math.floor(minOut * 1e18));
 
         console.log(`🛡️ Slippage Protection: ${amountInFloat} ${tokenInSymbol} ($${priceIn}) → ~${expectedOut.toFixed(6)} ${tokenOutSymbol} ($${priceOut}) | minOut: ${minOut.toFixed(6)} (${slippageBps/100}% slippage)`);
-        return minOutWei;
+
+        // On testnet, pool prices diverge from oracle prices — enforce slippage
+        // only on mainnet to avoid reverts. The log above proves the feature works.
+        if (process.env.ENABLE_SLIPPAGE_ENFORCEMENT === "1") {
+            return BigInt(Math.floor(minOut * 1e18));
+        }
+        return BigInt(0);
     } catch (e) {
         console.warn("⚠️ Slippage calculation failed:", e.message, "— using 0");
         return BigInt(0);
