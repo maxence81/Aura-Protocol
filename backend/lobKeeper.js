@@ -30,6 +30,23 @@
 
 require("dotenv").config({ path: require("path").join(__dirname, ".env"), override: true });
 const { ethers } = require("ethers");
+const fs = require("fs");
+const path = require("path");
+
+// ── Settlement Events Log (shared with index.js for SSE) ──
+const SETTLEMENT_LOG = path.join(__dirname, "settlement-events.json");
+
+function logSettlementEvent(event) {
+    let events = [];
+    try {
+        if (fs.existsSync(SETTLEMENT_LOG)) {
+            events = JSON.parse(fs.readFileSync(SETTLEMENT_LOG, "utf8"));
+        }
+    } catch {}
+    events.push({ ...event, timestamp: Date.now() });
+    if (events.length > 50) events = events.slice(-50);
+    fs.writeFileSync(SETTLEMENT_LOG, JSON.stringify(events));
+}
 
 // ── Config ──
 const PRIVATE_KEY        = process.env.PRIVATE_KEY;
@@ -160,6 +177,17 @@ async function settleFilledOrders(symbol, midPrice) {
             console.log(
                 `[Keeper] ✅ Position opened on Robinhood Chain for order #${orderId} | ${isLong ? "LONG" : "SHORT"} ${symbol} ${leverage}x | tx ${receipt.hash}`
             );
+
+            logSettlementEvent({
+                orderId: Number(orderId),
+                asset: symbol,
+                isLong,
+                leverage: Number(leverage),
+                collateral: Number(ethers.formatUnits(collatNum, 18)),
+                txHash: receipt.hash,
+                sourceChain: "Arbitrum Sepolia",
+                destChain: "Robinhood Chain",
+            });
 
             // Mark as executed on Stylus LOB
             await (await lob.mark_executed(orderId)).wait();

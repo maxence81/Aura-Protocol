@@ -303,6 +303,22 @@ app.get("/api/news", async (req, res) => {
   }
 });
 
+// ── Cross-Chain Settlement Events ─────────────────────────────────────
+app.get("/api/settlement-events", (req, res) => {
+  try {
+    const SETTLEMENT_LOG = path.join(__dirname, "settlement-events.json");
+    if (fs.existsSync(SETTLEMENT_LOG)) {
+      const events = JSON.parse(fs.readFileSync(SETTLEMENT_LOG, "utf8"));
+      const since = parseInt(req.query.since) || 0;
+      res.json(events.filter(e => e.timestamp > since));
+    } else {
+      res.json([]);
+    }
+  } catch (err) {
+    res.json([]);
+  }
+});
+
 // ── Intelligence Vault Endpoints ──────────────────────────────────────
 
 const { runAuraFundManager, executeStrategiesOnChain, readVaultState, VAULT_CONFIG } = require("./vaultAgent");

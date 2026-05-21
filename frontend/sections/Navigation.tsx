@@ -127,6 +127,15 @@ export default function Navigation({ onNavigate }: NavigationProps) {
                 </div>
               </Link>
             </div>
+            <div className="hidden lg:block">
+              <Link href="/benchmark" className="cyber-uiv-radio-wrapper block">
+                <div className="cyber-uiv-btn text-sm">
+                  <span aria-hidden="true">_</span>Bench
+                  <span className="cyber-uiv-btn__glitch" aria-hidden="true">_WASM_</span>
+                  <label className="cyber-uiv-number">⚡</label>
+                </div>
+              </Link>
+            </div>
 
             {/* Hamburger - Mobile */}
             <button

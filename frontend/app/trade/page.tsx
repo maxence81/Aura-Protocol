@@ -16,6 +16,7 @@ import { useTradeState } from "./useTradeState";
 import OrderPanel from "./OrderPanel";
 import PositionsPanel from "./PositionsPanel";
 import OrderBook from "./OrderBook";
+import SettlementToasts from "./SettlementToasts";
 
 const robinhoodChain = defineChain({
   id: 46630,
@@ -59,6 +60,7 @@ export default function TradeDashboard() {
 
   return (
     <div className="min-h-screen bg-[#020204] text-white font-mono selection:bg-[#00f0ff] selection:text-black flex flex-col relative overflow-hidden">
+      <SettlementToasts />
       <video autoPlay muted loop playsInline className="fixed inset-0 z-0 h-full w-full object-cover opacity-10 pointer-events-none"><source src="/assets/cyber_wallpaper.mp4" type="video/mp4" /></video>
       <div className="cyber-grid-bg fixed inset-0 z-0" /><div className="scanlines fixed inset-0 z-[1]" /><div className="noise-overlay fixed inset-0 z-[1]" />
 
