@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import {
   Activity,
@@ -257,6 +258,7 @@ const contracts = [
 ];
 
 export default function Whitepaper() {
+  const router = useRouter();
   return (
     <div className="bg-cyber-black text-white min-h-screen relative overflow-hidden font-body selection:bg-neon-cyan selection:text-cyber-black">
       {/* Background effects */}
@@ -273,7 +275,7 @@ export default function Whitepaper() {
       <div className="scanlines relative z-10" />
       <div className="noise-overlay relative z-10" />
 
-      <Navigation onNavigate={() => {}} />
+      <Navigation onNavigate={() => router.push('/')} />
 
       <main className="relative z-10 pt-32 pb-24 px-4 sm:px-6 lg:px-8">
         {/* Hero */}

@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { motion } from "framer-motion";
 import { Activity, Cpu, Zap, Shield } from "lucide-react";
 import Navigation from "@/sections/Navigation";
@@ -96,6 +97,7 @@ function GasBar({ label, stylus, solidity, maxGas }: { label: string; stylus: nu
 }
 
 export default function BenchmarkPage() {
+  const router = useRouter();
   const maxGas = Math.max(...benchData.map(d => Math.max(d.stylus, d.solidity)));
 
   return (
@@ -108,7 +110,7 @@ export default function BenchmarkPage() {
       />
       <div className="fixed inset-0 bg-gradient-to-b from-[#050505]/60 via-[#050505]/40 to-[#050505]/80 pointer-events-none z-0" />
 
-      <Navigation onNavigate={() => {}} />
+      <Navigation onNavigate={() => router.push('/')} />
 
       <main className="relative z-10 pt-32 pb-24 px-4 sm:px-6 lg:px-8">
         {/* Hero */}
