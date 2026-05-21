@@ -101,13 +101,12 @@ export default function BenchmarkPage() {
   return (
     <div className="bg-[#050505] text-white min-h-screen relative overflow-hidden font-mono selection:bg-[#00f0ff]/30 selection:text-white">
       {/* Background */}
-      <div className="fixed inset-0 opacity-5 pointer-events-none z-0"
-        style={{
-          backgroundImage: 'linear-gradient(rgba(0,240,255,0.3) 1px, transparent 1px), linear-gradient(90deg, rgba(0,240,255,0.3) 1px, transparent 1px)',
-          backgroundSize: '60px 60px',
-        }}
+      <img
+        src="/assets/fond_benchmark.jpg"
+        className="fixed inset-0 w-full h-full object-cover opacity-30 pointer-events-none z-0"
+        alt=""
       />
-      <div className="fixed inset-0 bg-gradient-to-b from-[#00f0ff]/5 via-transparent to-[#00f0ff]/3 pointer-events-none z-0" />
+      <div className="fixed inset-0 bg-gradient-to-b from-[#050505]/60 via-[#050505]/40 to-[#050505]/80 pointer-events-none z-0" />
 
       <Navigation onNavigate={() => {}} />
 
