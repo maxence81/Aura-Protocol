@@ -30,6 +30,9 @@ export const CONTRACT_ADDRESSES = {
     (process.env.NEXT_PUBLIC_MM_FUND_ADDRESS as `0x${string}`) ||
     "0x0581B992cdeD8C739ac9A26eC629014838549018",
   CONDITIONAL_ORDER_MANAGER: "0x00C81abc47B840E9104620F6477Def4608fD165A",
+  LIQUIDATION_SHIELD:
+    (process.env.NEXT_PUBLIC_LIQUIDATION_SHIELD_ADDRESS as `0x${string}`) ||
+    "0x089ABc77f4C68Da0299C7521ebd82A7Db4791c0B",
 };
 
 
@@ -166,4 +169,11 @@ export const CONDITIONAL_ORDER_MANAGER_ABI = [
   { type: "function", name: "getUserOrders", inputs: [{ name: "user", type: "address" }], outputs: [{ type: "uint256[]" }], stateMutability: "view" },
   { type: "function", name: "getActiveOrderCount", inputs: [{ name: "user", type: "address" }], outputs: [{ type: "uint256" }], stateMutability: "view" },
   { type: "function", name: "orders", inputs: [{ name: "", type: "uint256" }], outputs: [{ name: "owner", type: "address" }, { name: "positionId", type: "uint256" }, { name: "asset", type: "string" }, { name: "orderType", type: "uint8" }, { name: "triggerPrice", type: "uint256" }, { name: "status", type: "uint8" }, { name: "createdAt", type: "uint256" }, { name: "executedAt", type: "uint256" }], stateMutability: "view" },
+] as const;
+
+export const LIQUIDATION_SHIELD_ABI = [
+  { type: "function", name: "armShield", inputs: [{ name: "positionId", type: "uint256" }, { name: "thresholdBps", type: "uint256" }, { name: "recommendedTopUp", type: "uint256" }, { name: "maxTopUpPerEvent", type: "uint256" }], outputs: [], stateMutability: "nonpayable" },
+  { type: "function", name: "disarmShield", inputs: [{ name: "positionId", type: "uint256" }], outputs: [], stateMutability: "nonpayable" },
+  { type: "function", name: "mandates", inputs: [{ name: "", type: "uint256" }], outputs: [{ name: "armed", type: "bool" }, { name: "thresholdBps", type: "uint256" }, { name: "recommendedTopUp", type: "uint256" }, { name: "maxTopUpPerEvent", type: "uint256" }, { name: "createdAt", type: "uint256" }, { name: "updatedAt", type: "uint256" }], stateMutability: "view" },
+  { type: "function", name: "getActiveMandates", inputs: [{ name: "user", type: "address" }], outputs: [{ type: "uint256[]" }], stateMutability: "view" },
 ] as const;

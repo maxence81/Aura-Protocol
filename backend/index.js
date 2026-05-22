@@ -319,6 +319,72 @@ app.get("/api/settlement-events", (req, res) => {
   }
 });
 
+// ── Liquidation Shield Alerts ─────────────────────────────────────────
+// The conditionalKeeper writes liquidation-events.json when a position's
+// health drops below the user's armed threshold. The frontend polls this
+// endpoint (cheaper than SSE for low-frequency events) and surfaces toasts.
+//
+// Optional query params:
+//   ?since=<unix-ms>   only return events after this timestamp
+//   ?owner=<address>   filter to a single position owner
+app.get("/api/liquidation-alerts", (req, res) => {
+  try {
+    const LIQUIDATION_LOG = path.join(__dirname, "liquidation-events.json");
+    if (!fs.existsSync(LIQUIDATION_LOG)) return res.json([]);
+
+    let events = JSON.parse(fs.readFileSync(LIQUIDATION_LOG, "utf8"));
+    const since = parseInt(req.query.since) || 0;
+    if (since > 0) events = events.filter(e => e.timestamp > since);
+    const ownerFilter = req.query.owner ? String(req.query.owner).toLowerCase() : null;
+    if (ownerFilter) events = events.filter(e => (e.owner || "").toLowerCase() === ownerFilter);
+    res.json(events);
+  } catch (err) {
+    console.warn("[liquidation-alerts] read error:", err.message);
+    res.json([]);
+  }
+});
+
+// SSE variant — pushes new alerts as they arrive. Useful for a live toast
+// feed on /trade. Streams a heartbeat every 15s to keep the connection alive.
+app.get("/api/liquidation-alerts/stream", (req, res) => {
+  res.setHeader("Content-Type", "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection", "keep-alive");
+  res.setHeader("X-Accel-Buffering", "no");
+  res.flushHeaders();
+
+  const ownerFilter = req.query.owner ? String(req.query.owner).toLowerCase() : null;
+  const LIQUIDATION_LOG = path.join(__dirname, "liquidation-events.json");
+
+  let lastTs = Date.now();
+
+  const pump = () => {
+    try {
+      if (!fs.existsSync(LIQUIDATION_LOG)) return;
+      const events = JSON.parse(fs.readFileSync(LIQUIDATION_LOG, "utf8"));
+      const fresh = events.filter(e => {
+        if (e.timestamp <= lastTs) return false;
+        if (ownerFilter && (e.owner || "").toLowerCase() !== ownerFilter) return false;
+        return true;
+      });
+      for (const event of fresh) {
+        res.write(`data: ${JSON.stringify(event)}\n\n`);
+        lastTs = Math.max(lastTs, event.timestamp);
+      }
+    } catch (err) {
+      // Don't crash the stream; just skip this tick.
+    }
+  };
+
+  const pumpInterval = setInterval(pump, 2000);
+  const heartbeat = setInterval(() => res.write(": heartbeat\n\n"), 15000);
+
+  req.on("close", () => {
+    clearInterval(pumpInterval);
+    clearInterval(heartbeat);
+  });
+});
+
 // ── Intelligence Vault Endpoints ──────────────────────────────────────
 
 const { runAuraFundManager, executeStrategiesOnChain, readVaultState, VAULT_CONFIG } = require("./vaultAgent");

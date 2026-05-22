@@ -14,15 +14,38 @@
 
 require("dotenv").config({ path: require("path").join(__dirname, ".env"), override: true });
 const { ethers } = require("ethers");
+const fs = require("fs");
+const path = require("path");
+const { computeHealth, recommendTopUp } = require("./healthFactor");
 
 // ── Config ──
 const PRIVATE_KEY = process.env.PRIVATE_KEY;
 const ROBINHOOD_RPC = process.env.RPC_URL || "https://rpc.testnet.chain.robinhood.com";
 const AURA_PERPS_ADDRESS = process.env.AURA_PERPS_ADDRESS;
 const COM_ADDRESS = process.env.CONDITIONAL_ORDER_MANAGER_ADDRESS;
+const SHIELD_ADDRESS = process.env.LIQUIDATION_SHIELD_ADDRESS;
 const ORACLE_ADDRESS = process.env.MOCK_ORACLE_ADDRESS || "0x097AeB196366317cf97986A04f32Df312c96ABa1";
 const INTERVAL_MS = parseInt(process.env.COND_KEEPER_INTERVAL_MS || "5000");
 const ASSETS = (process.env.KEEPER_ASSETS || "BTC,ETH").split(",").map(s => s.trim().toUpperCase());
+
+// Liquidation alerts log (consumed by /api/liquidation-alerts SSE endpoint)
+const LIQUIDATION_LOG = path.join(__dirname, "liquidation-events.json");
+
+// Cooldown to avoid spamming alerts for the same position (60s)
+const ALERT_COOLDOWN_MS = 60_000;
+const recentAlerts = new Map(); // positionId → timestamp
+
+function logLiquidationAlert(event) {
+    let events = [];
+    try {
+        if (fs.existsSync(LIQUIDATION_LOG)) {
+            events = JSON.parse(fs.readFileSync(LIQUIDATION_LOG, "utf8"));
+        }
+    } catch {}
+    events.push({ ...event, timestamp: Date.now() });
+    if (events.length > 100) events = events.slice(-100);
+    fs.writeFileSync(LIQUIDATION_LOG, JSON.stringify(events));
+}
 
 // ── Pyth Hermes price IDs ──
 const PYTH_IDS = {
@@ -46,12 +69,17 @@ const COM_ABI = [
     "function orders(uint256) view returns (address owner, uint256 positionId, string asset, uint8 orderType, uint256 triggerPrice, uint8 status, uint256 createdAt, uint256 executedAt)",
 ];
 
+const SHIELD_ABI = [
+    "function mandates(uint256) view returns (bool armed, uint256 thresholdBps, uint256 recommendedTopUp, uint256 maxTopUpPerEvent, uint256 createdAt, uint256 updatedAt)",
+    "function recordAlert(uint256 positionId, uint256 healthBps)",
+];
+
 const ORACLE_ABI = [
     "function setPrice(string asset, uint256 price) external",
     "function getPrice(string asset) view returns (uint256)",
 ];
 
-let provider, wallet, perps, com, oracle;
+let provider, wallet, perps, com, shield, oracle;
 
 async function fetchPythPrices() {
     const ids = ASSETS.map(a => PYTH_IDS[a]).filter(Boolean);
@@ -159,6 +187,83 @@ async function scanConditionalOrders(asset) {
     }
 }
 
+/// Path 3: Liquidation Shield — scan armed positions, alert on health breach
+async function scanLiquidationRisk(asset, currentPrice) {
+    if (!shield) return;
+
+    const nextId = Number(await perps.nextPositionId());
+    const start = Math.max(0, nextId - 50);
+    const priceWei = ethers.parseUnits(currentPrice.toFixed(2), 18);
+    const nowSeconds = BigInt(Math.floor(Date.now() / 1000));
+
+    for (let i = start; i < nextId; i++) {
+        try {
+            const pos = await perps.positions(i);
+            if (!pos.isOpen) continue;
+            if (pos.asset !== asset) continue;
+
+            // Check if shield is armed for this position
+            const m = await shield.mandates(i);
+            if (!m.armed) continue;
+
+            // Compute health
+            const { healthBps, isProfit, pnlWei, fundingFeeWei } = computeHealth({
+                isLong: pos.isLong,
+                collateralAmount: pos.collateralAmount,
+                entryPrice: pos.entryPrice,
+                positionSize: pos.positionSize,
+                openedAt: pos.openedAt,
+            }, priceWei, nowSeconds);
+
+            // Below threshold? Alert.
+            if (healthBps < Number(m.thresholdBps)) {
+                const last = recentAlerts.get(i) || 0;
+                if (Date.now() - last < ALERT_COOLDOWN_MS) continue;
+                recentAlerts.set(i, Date.now());
+
+                console.log(
+                    `[Shield] ⚠️ Position #${i} (${pos.isLong ? "LONG" : "SHORT"} ${asset} ${pos.leverage}x) ` +
+                    `health=${(healthBps/100).toFixed(1)}% < ${(Number(m.thresholdBps)/100).toFixed(1)}% | ` +
+                    `recommendedTopUp=${ethers.formatUnits(m.recommendedTopUp, 18)} aUSD`
+                );
+
+                // Push to SSE log
+                logLiquidationAlert({
+                    positionId: i,
+                    owner: pos.owner,
+                    asset: pos.asset,
+                    isLong: pos.isLong,
+                    leverage: Number(pos.leverage),
+                    collateral: ethers.formatUnits(pos.collateralAmount, 18),
+                    entryPrice: ethers.formatUnits(pos.entryPrice, 18),
+                    currentPrice: currentPrice,
+                    healthBps,
+                    healthPct: healthBps / 100,
+                    thresholdBps: Number(m.thresholdBps),
+                    recommendedTopUp: ethers.formatUnits(m.recommendedTopUp, 18),
+                    maxTopUpPerEvent: ethers.formatUnits(m.maxTopUpPerEvent, 18),
+                    pnl: ethers.formatUnits(pnlWei, 18),
+                    isProfit,
+                    fundingFee: ethers.formatUnits(fundingFeeWei, 18),
+                });
+
+                // Record on-chain (auditability)
+                try {
+                    const tx = await shield.recordAlert(i, healthBps);
+                    await tx.wait();
+                    console.log(`[Shield] ✅ Alert recorded on-chain (tx: ${tx.hash.slice(0, 10)}...)`);
+                } catch (e) {
+                    console.warn(`[Shield] On-chain recordAlert failed for #${i}:`, e.shortMessage || e.message);
+                }
+            }
+        } catch (e) {
+            if (!e.message?.includes("call revert")) {
+                console.warn(`[Shield] Health check failed for #${i}:`, e.shortMessage || e.message);
+            }
+        }
+    }
+}
+
 async function cycle() {
     const prices = await fetchPythPrices();
     if (Object.keys(prices).length === 0) {
@@ -172,6 +277,7 @@ async function cycle() {
 
         await scanPerpsTriggersForAsset(asset, price);
         await scanConditionalOrders(asset);
+        await scanLiquidationRisk(asset, price);
     }
 }
 
@@ -194,6 +300,13 @@ async function main() {
         console.log(`COM:           ${COM_ADDRESS}`);
     } else {
         console.log("COM:           Not configured (using AuraPerps triggers only)");
+    }
+
+    if (SHIELD_ADDRESS) {
+        shield = new ethers.Contract(SHIELD_ADDRESS, SHIELD_ABI, wallet);
+        console.log(`Shield:        ${SHIELD_ADDRESS}`);
+    } else {
+        console.log("Shield:        Not configured (liquidation monitoring disabled)");
     }
 
     const bal = await provider.getBalance(wallet.address);

@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { ConnectButton, useActiveAccount } from "thirdweb/react";
 import { client } from "../client";
 import { createPublicClient, http, formatUnits, createWalletClient, custom, keccak256, toBytes } from "viem";
-import { CONTRACT_ADDRESSES, AUSD_ABI, AURA_PERPS_ABI, AURA_ROUTER_ABI, STYLUS_LOB_ABI, CONDITIONAL_ORDER_MANAGER_ABI } from "../../lib/contracts";
+import { CONTRACT_ADDRESSES, AUSD_ABI, AURA_PERPS_ABI, AURA_ROUTER_ABI, STYLUS_LOB_ABI, CONDITIONAL_ORDER_MANAGER_ABI, LIQUIDATION_SHIELD_ABI } from "../../lib/contracts";
 import { API_URL } from "../../lib/config";
 
 const publicClient = createPublicClient({
@@ -249,6 +249,75 @@ export function useTradeState() {
         }
       }
     } catch(e: any) { addLog(`Trigger save failed: ${e.message.split("\n")[0].substring(0, 50)}...`, "alert"); }
+  };
+
+  // ─── Liquidation Shield: arm/disarm + per-position config ───────────
+  // The shield is a mandate registry. Once armed, the off-chain keeper
+  // will scan this position's health every cycle and emit toast alerts
+  // (via /api/liquidation-alerts) when health drops below the threshold.
+  const handleArmShield = async (
+    positionId: number,
+    thresholdPct: number,
+    recommendedTopUp: string,
+    maxTopUpPerEvent: string,
+  ) => {
+    if (!window.ethereum || !account?.address) return;
+    if (!CONTRACT_ADDRESSES.LIQUIDATION_SHIELD || CONTRACT_ADDRESSES.LIQUIDATION_SHIELD === "0x0000000000000000000000000000000000000000") {
+      addLog("Shield contract not configured.", "alert");
+      return;
+    }
+
+    addLog(`Arming shield for position #${positionId}...`, "info");
+    try {
+      const wc = createWalletClient({
+        chain: { id: 46630, name: "Robinhood Testnet", nativeCurrency: { name: "ETH", symbol: "ETH", decimals: 18 }, rpcUrls: { default: { http: ["https://rpc.testnet.chain.robinhood.com"] } } } as any,
+        account: account.address as `0x${string}`,
+        transport: custom(window.ethereum as any),
+      });
+
+      const thresholdBps = BigInt(Math.max(0, Math.min(9000, Math.floor(thresholdPct * 100))));
+      const recommendedWei = BigInt(Math.floor(Number(recommendedTopUp) * 1e18));
+      const maxWei = BigInt(Math.floor(Number(maxTopUpPerEvent) * 1e18));
+
+      if (recommendedWei <= 0n) { addLog("Recommended amount must be > 0.", "alert"); return; }
+      if (maxWei < recommendedWei) { addLog("Max must be >= recommended.", "alert"); return; }
+
+      const tx = await wc.writeContract({
+        chain: null,
+        address: CONTRACT_ADDRESSES.LIQUIDATION_SHIELD as `0x${string}`,
+        abi: LIQUIDATION_SHIELD_ABI as any,
+        functionName: "armShield",
+        args: [BigInt(positionId), thresholdBps, recommendedWei, maxWei],
+      });
+      addLog(`🛡️ Shield armed at ${thresholdPct}% (${tx.slice(0, 6)}...${tx.slice(-4)})`, "action");
+    } catch (e: any) {
+      addLog(`Shield arm failed: ${e.message?.split("\n")[0]?.substring(0, 60)}`, "alert");
+    }
+  };
+
+  const handleDisarmShield = async (positionId: number) => {
+    if (!window.ethereum || !account?.address) return;
+    if (!CONTRACT_ADDRESSES.LIQUIDATION_SHIELD || CONTRACT_ADDRESSES.LIQUIDATION_SHIELD === "0x0000000000000000000000000000000000000000") return;
+
+    addLog(`Disarming shield for #${positionId}...`, "info");
+    try {
+      const wc = createWalletClient({
+        chain: { id: 46630, name: "Robinhood Testnet", nativeCurrency: { name: "ETH", symbol: "ETH", decimals: 18 }, rpcUrls: { default: { http: ["https://rpc.testnet.chain.robinhood.com"] } } } as any,
+        account: account.address as `0x${string}`,
+        transport: custom(window.ethereum as any),
+      });
+
+      const tx = await wc.writeContract({
+        chain: null,
+        address: CONTRACT_ADDRESSES.LIQUIDATION_SHIELD as `0x${string}`,
+        abi: LIQUIDATION_SHIELD_ABI as any,
+        functionName: "disarmShield",
+        args: [BigInt(positionId)],
+      });
+      addLog(`Shield disarmed (${tx.slice(0, 6)}...)`, "action");
+    } catch (e: any) {
+      addLog(`Disarm failed: ${e.message?.split("\n")[0]?.substring(0, 60)}`, "alert");
+    }
   };
 
   // ─── Wave 4: chain switch helpers ──────────────────────────────────
@@ -514,6 +583,7 @@ export function useTradeState() {
     tpSlConfig, setTpSlConfig, account,
     handleClosePosition, handlePartialClose, handleAddMargin, handleSetTriggers,
     handleCancelLimitOrder,
+    handleArmShield, handleDisarmShield,
     handleMintFaucet, handleAction, handleManualAction, addLog,
   };
 }
