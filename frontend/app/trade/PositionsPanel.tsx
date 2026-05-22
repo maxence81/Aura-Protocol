@@ -224,28 +224,34 @@ export default function PositionsPanel({
                         {activeAction?.id === pos.id && activeAction.type === "shield" ? (
                           // Shield mandate config: 3 inputs (threshold, recommended, max)
                           <div className="flex flex-col gap-1 items-end w-32 ml-auto">
-                            <input
-                              type="number"
-                              placeholder="Threshold %"
-                              autoFocus
-                              className="w-full bg-[#0a0a0a] border border-[#FFA500]/30 px-1.5 py-0.5 text-[9px] text-[#FFA500] font-mono focus:outline-none"
-                              value={shieldConfig.threshold}
-                              onChange={(e) => setShieldConfig(c => ({ ...c, threshold: e.target.value }))}
-                            />
-                            <input
-                              type="number"
-                              placeholder="Recommended"
-                              className="w-full bg-[#0a0a0a] border border-[#00f0ff]/30 px-1.5 py-0.5 text-[9px] text-[#00f0ff] font-mono focus:outline-none"
-                              value={shieldConfig.recommended}
-                              onChange={(e) => setShieldConfig(c => ({ ...c, recommended: e.target.value }))}
-                            />
-                            <input
-                              type="number"
-                              placeholder="Max per event"
-                              className="w-full bg-[#0a0a0a] border border-[#00f0ff]/30 px-1.5 py-0.5 text-[9px] text-[#00f0ff] font-mono focus:outline-none"
-                              value={shieldConfig.max}
-                              onChange={(e) => setShieldConfig(c => ({ ...c, max: e.target.value }))}
-                            />
+                            <div className="w-full">
+                              <p className="text-[8px] text-[#FFA500]/70 mb-0.5">Alert below health %</p>
+                              <input
+                                type="number"
+                                autoFocus
+                                className="w-full bg-[#0a0a0a] border border-[#FFA500]/30 px-1.5 py-0.5 text-[9px] text-[#FFA500] font-mono focus:outline-none"
+                                value={shieldConfig.threshold}
+                                onChange={(e) => setShieldConfig(c => ({ ...c, threshold: e.target.value }))}
+                              />
+                            </div>
+                            <div className="w-full">
+                              <p className="text-[8px] text-[#00f0ff]/70 mb-0.5">Top-up amount (aUSD)</p>
+                              <input
+                                type="number"
+                                className="w-full bg-[#0a0a0a] border border-[#00f0ff]/30 px-1.5 py-0.5 text-[9px] text-[#00f0ff] font-mono focus:outline-none"
+                                value={shieldConfig.recommended}
+                                onChange={(e) => setShieldConfig(c => ({ ...c, recommended: e.target.value }))}
+                              />
+                            </div>
+                            <div className="w-full">
+                              <p className="text-[8px] text-white/40 mb-0.5">Max per alert (aUSD)</p>
+                              <input
+                                type="number"
+                                className="w-full bg-[#0a0a0a] border border-white/20 px-1.5 py-0.5 text-[9px] text-white/60 font-mono focus:outline-none"
+                                value={shieldConfig.max}
+                                onChange={(e) => setShieldConfig(c => ({ ...c, max: e.target.value }))}
+                              />
+                            </div>
                             <div className="flex gap-1 w-full">
                               <button
                                 onClick={() => setActiveAction(null)}
@@ -334,9 +340,10 @@ export default function PositionsPanel({
                               <button
                                 onClick={() => {
                                   setActiveAction({ id: pos.id, type: "shield" });
-                                  // Pre-fill recommended = 10% of position size
-                                  const rec = Math.max(5, pos.collateral * 0.25).toFixed(2);
-                                  setShieldConfig({ threshold: "20", recommended: rec, max: (pos.collateral * 2).toFixed(2) });
+                                  // Pre-fill: alert at 20% health, top-up = 20% of collateral, max = collateral
+                                  const rec = Math.max(5, Math.round(pos.collateral * 0.2)).toFixed(0);
+                                  const max = Math.round(pos.collateral).toFixed(0);
+                                  setShieldConfig({ threshold: "20", recommended: rec, max });
                                 }}
                                 className="w-20 px-1.5 py-0.5 bg-[#FFA500]/5 text-[#FFA500]/70 border border-[#FFA500]/15 hover:bg-[#FFA500]/15 text-[9px] font-bold font-mono transition"
                                 title="Arm AI Liquidation Shield"
