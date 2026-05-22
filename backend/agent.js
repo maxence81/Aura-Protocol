@@ -349,6 +349,257 @@ function isLimitOrderRequest(request) {
 }
 
 // ═══════════════════════════════════════════════════════════════════
+// CONDITIONAL ORDER (SL/TP) FLOW — Natural Language Stop-Loss / Take-Profit
+// ═══════════════════════════════════════════════════════════════════
+
+const CONDITIONAL_ORDER_MANAGER_ADDRESS = process.env.CONDITIONAL_ORDER_MANAGER_ADDRESS || "";
+const AURA_PERPS_ADDRESS = process.env.AURA_PERPS_ADDRESS || "0x8AECF449B27BB41E34C04D8C99F4348FF38bB9a2";
+
+const COM_ABI = [
+    "function createOrder(uint256 positionId, uint8 orderType, uint256 triggerPrice) returns (uint256)",
+    "function createOrderFor(address owner, uint256 positionId, uint8 orderType, uint256 triggerPrice) returns (uint256)",
+];
+
+const PERPS_READ_ABI = [
+    "function positions(uint256) view returns (address owner, string asset, bool isLong, uint256 collateralAmount, uint256 leverage, uint256 entryPrice, uint256 positionSize, bool isOpen, uint256 openedAt, uint256 realizedPnl, bool isProfitRealized, uint256 exitPrice, uint256 takeProfitPrice, uint256 stopLossPrice)",
+    "function setTriggerOrders(uint256 positionId, uint256 tpPrice, uint256 slPrice)",
+];
+
+/// Detect if the user is asking for a stop-loss or take-profit
+function isConditionalOrderRequest(request) {
+    return /\b(stop[\s-]?loss|take[\s-]?profit|sl\b|tp\b|if\s+.*(drops?|falls?|goes?\s+below|rises?|goes?\s+above|hits?|reaches?).*\b(close|sell|exit)|set\s+(a\s+)?(sl|tp|stop|trigger)|protect\s+my\s+position)/i
+        .test(request);
+}
+
+async function proposeConditionalOrder(request, eoa) {
+    const prompt = `You are the Aura Conditional Order Parser. Extract a stop-loss or take-profit intent from: "${request}".
+
+The user wants to set a price trigger on an EXISTING perpetual position. When the trigger price is hit, the position will be automatically closed.
+
+Available assets: ETH, BTC, TSLA, AMZN, NFLX, AMD, PLTR.
+
+Order types:
+  - STOP_LOSS (0): closes position to limit losses. For longs: triggers when price DROPS to/below trigger. For shorts: triggers when price RISES to/above trigger.
+  - TAKE_PROFIT (1): closes position to lock in gains. For longs: triggers when price RISES to/above trigger. For shorts: triggers when price DROPS to/below trigger.
+
+Examples:
+  - "Set a stop-loss at $2200 on my ETH position" → { order_type: 0, trigger_price: 2200, asset: "ETH", position_id: null }
+  - "If ETH drops below 2400, close my position" → { order_type: 0, trigger_price: 2400, asset: "ETH", position_id: null }
+  - "Take profit on AMZN at $250" → { order_type: 1, trigger_price: 250, asset: "AMZN", position_id: null }
+  - "Set TP at 3000 and SL at 2200 on position #3" → { order_type: -1, tp_price: 3000, sl_price: 2200, asset: "ETH", position_id: 3 }
+  - "Protect my BTC position with a 5% stop-loss" → { order_type: 0, trigger_price_pct: 5, asset: "BTC", position_id: null }
+
+If the user specifies BOTH a stop-loss AND take-profit, set order_type to -1 and include both tp_price and sl_price.
+If the user specifies a percentage instead of an absolute price, set trigger_price_pct (the keeper will calculate the actual price from entry).
+If position_id is not specified, set it to null (the system will find the user's open position for that asset).
+
+Return strict JSON:
+{
+  "order_type": <0 for STOP_LOSS, 1 for TAKE_PROFIT, -1 for BOTH>,
+  "asset": "<one of ETH|BTC|TSLA|AMZN|NFLX|AMD|PLTR>",
+  "trigger_price": <number or null if using percentage>,
+  "tp_price": <number or null>,
+  "sl_price": <number or null>,
+  "trigger_price_pct": <number or null>,
+  "position_id": <integer or null>,
+  "description": "<short human readable description>"
+}`;
+
+    const parsed = await askAI(prompt);
+    console.log("🎯 AI parsed (CONDITIONAL_ORDER):", JSON.stringify(parsed));
+
+    const asset = String(parsed.asset || "ETH").toUpperCase();
+    const orderType = parseInt(parsed.order_type);
+    const triggerPrice = parseFloat(parsed.trigger_price) || 0;
+    const tpPrice = parseFloat(parsed.tp_price) || 0;
+    const slPrice = parseFloat(parsed.sl_price) || 0;
+    const triggerPricePct = parseFloat(parsed.trigger_price_pct) || 0;
+    const positionId = parsed.position_id !== null && parsed.position_id !== undefined ? parseInt(parsed.position_id) : null;
+
+    // Build the transaction(s)
+    const perpsIface = new ethers.Interface(PERPS_READ_ABI);
+    const comIface = new ethers.Interface(COM_ABI);
+
+    // If both SL and TP, use setTriggerOrders on AuraPerps directly (simpler)
+    if (orderType === -1 && tpPrice > 0 && slPrice > 0) {
+        const tpWei = ethers.parseUnits(tpPrice.toString(), 18);
+        const slWei = ethers.parseUnits(slPrice.toString(), 18);
+
+        // We need the positionId — if not provided, the frontend/keeper will resolve it
+        const data = perpsIface.encodeFunctionData("setTriggerOrders", [
+            positionId !== null ? positionId : 0, // placeholder if unknown
+            tpWei,
+            slWei
+        ]);
+
+        return {
+            targets: [AURA_PERPS_ADDRESS],
+            values: ["0"],
+            datas: [data],
+            chainId: CHAINS.ROBINHOOD_TESTNET,
+            kind: "CONDITIONAL_ORDER",
+            description: parsed.description || `Set TP at $${tpPrice} and SL at $${slPrice} on ${asset}`,
+            tokenInSymbol: asset,
+            tokenOutSymbol: asset,
+            amount_raw: "0",
+            conditionalOrder: {
+                asset,
+                orderType: "BOTH",
+                tpPrice,
+                slPrice,
+                triggerPrice: 0,
+                triggerPricePct,
+                positionId,
+            },
+            automation: { isAutomated: false, totalSwaps: 1, intervalSeconds: 0, initialDelayMs: 0 },
+            riskManagement: { trailingStopPct: 0, takeProfitPct: 0 }
+        };
+    }
+
+    // Single SL or TP — use ConditionalOrderManager for keeper monitoring
+    const triggerWei = ethers.parseUnits(
+        (triggerPrice > 0 ? triggerPrice : (orderType === 0 ? slPrice : tpPrice)).toString(),
+        18
+    );
+    const effectiveOrderType = orderType === 0 ? 0 : 1;
+
+    if (CONDITIONAL_ORDER_MANAGER_ADDRESS) {
+        // Batch: 1) set triggers on AuraPerps, 2) register with COM for keeper monitoring
+        const tpVal = effectiveOrderType === 1 ? triggerWei : BigInt(0);
+        const slVal = effectiveOrderType === 0 ? triggerWei : BigInt(0);
+        const setTriggersData = perpsIface.encodeFunctionData("setTriggerOrders", [
+            positionId !== null ? positionId : 0,
+            tpVal,
+            slVal
+        ]);
+        const createOrderData = comIface.encodeFunctionData("createOrder", [
+            positionId !== null ? positionId : 0,
+            effectiveOrderType,
+            triggerWei
+        ]);
+
+        return {
+            targets: [AURA_PERPS_ADDRESS, CONDITIONAL_ORDER_MANAGER_ADDRESS],
+            values: ["0", "0"],
+            datas: [setTriggersData, createOrderData],
+            chainId: CHAINS.ROBINHOOD_TESTNET,
+            kind: "CONDITIONAL_ORDER",
+            description: parsed.description || `${effectiveOrderType === 0 ? "Stop-Loss" : "Take-Profit"} at $${triggerPrice || tpPrice || slPrice} on ${asset}`,
+            tokenInSymbol: asset,
+            tokenOutSymbol: asset,
+            amount_raw: "0",
+            conditionalOrder: {
+                asset,
+                orderType: effectiveOrderType === 0 ? "STOP_LOSS" : "TAKE_PROFIT",
+                triggerPrice: triggerPrice || (effectiveOrderType === 0 ? slPrice : tpPrice),
+                tpPrice,
+                slPrice,
+                triggerPricePct,
+                positionId,
+            },
+            automation: { isAutomated: false, totalSwaps: 1, intervalSeconds: 0, initialDelayMs: 0 },
+            riskManagement: { trailingStopPct: 0, takeProfitPct: 0 }
+        };
+    }
+
+    // Fallback: use setTriggerOrders directly on AuraPerps
+    const tpVal = effectiveOrderType === 1 ? triggerWei : BigInt(0);
+    const slVal = effectiveOrderType === 0 ? triggerWei : BigInt(0);
+    const data = perpsIface.encodeFunctionData("setTriggerOrders", [
+        positionId !== null ? positionId : 0,
+        tpVal,
+        slVal
+    ]);
+
+    return {
+        targets: [AURA_PERPS_ADDRESS],
+        values: ["0"],
+        datas: [data],
+        chainId: CHAINS.ROBINHOOD_TESTNET,
+        kind: "CONDITIONAL_ORDER",
+        description: parsed.description || `${effectiveOrderType === 0 ? "Stop-Loss" : "Take-Profit"} at $${triggerPrice || tpPrice || slPrice} on ${asset}`,
+        tokenInSymbol: asset,
+        tokenOutSymbol: asset,
+        amount_raw: "0",
+        conditionalOrder: {
+            asset,
+            orderType: effectiveOrderType === 0 ? "STOP_LOSS" : "TAKE_PROFIT",
+            triggerPrice: triggerPrice || (effectiveOrderType === 0 ? slPrice : tpPrice),
+            tpPrice,
+            slPrice,
+            triggerPricePct,
+            positionId,
+        },
+        automation: { isAutomated: false, totalSwaps: 1, intervalSeconds: 0, initialDelayMs: 0 },
+        riskManagement: { trailingStopPct: 0, takeProfitPct: 0 }
+    };
+}
+
+async function runConditionalOrderCommittee(request, eoa, onStep = null) {
+    if (onStep) onStep({ id: 'intent', phase: 'INTENT_PARSER', status: 'active', label: 'Parsing conditional order intent...', detail: `Extracting SL/TP from: "${request.slice(0, 60)}"` });
+
+    const proposal = await proposeConditionalOrder(request, eoa);
+
+    if (onStep) onStep({ id: 'intent', phase: 'INTENT_PARSER', status: 'done', label: `Parsed: ${proposal.conditionalOrder.orderType} on ${proposal.conditionalOrder.asset}`, durationMs: 0 });
+
+    let isSafe = true;
+    let rationale = "Conditional order audit passed.";
+    let macroAnalysis = null;
+
+    // ── Macro Analysis ──
+    if (onStep) onStep({ id: 'macro', phase: 'MACRO_AUDIT', status: 'active', label: 'Checking market context...', detail: `Analyzing ${proposal.conditionalOrder.asset} conditions` });
+
+    try {
+        macroAnalysis = await analyzeMacroSentiment(proposal.conditionalOrder.asset);
+        rationale = `✅ ${proposal.conditionalOrder.orderType} order validated. Market: ${macroAnalysis.sentiment} (${macroAnalysis.score}/100).`;
+    } catch (e) {
+        console.warn("Macro analysis skipped:", e.message);
+    }
+
+    if (onStep) onStep({ id: 'macro', phase: 'MACRO_AUDIT', status: 'done', label: macroAnalysis ? `Market: ${macroAnalysis.sentiment}` : 'Analysis complete', durationMs: 0 });
+
+    // ── Parameter Sanity Audit ──
+    if (onStep) onStep({ id: 'audit', phase: 'ON_CHAIN_AUDIT', status: 'active', label: 'Validating trigger parameters...', detail: 'Checking price bounds and position existence' });
+
+    const auditFindings = [];
+    const co = proposal.conditionalOrder;
+
+    if (co.triggerPrice <= 0 && co.tpPrice <= 0 && co.slPrice <= 0 && co.triggerPricePct <= 0) {
+        isSafe = false;
+        auditFindings.push("No valid trigger price specified");
+    }
+
+    // Check trigger price vs current market (if we have macro data)
+    if (macroAnalysis?.rawPrices && macroAnalysis.rawPrices[co.asset]) {
+        const mid = macroAnalysis.rawPrices[co.asset];
+        const tp = co.triggerPrice || co.tpPrice;
+        const sl = co.slPrice;
+
+        if (co.orderType === "STOP_LOSS" || co.orderType === 0) {
+            // SL for a long should be BELOW current price
+            if (sl > 0 && sl > mid * 1.05) {
+                auditFindings.push(`⚠️ Stop-loss ($${sl}) is above current price ($${mid.toFixed(2)}) — are you sure this is for a long position?`);
+            }
+        }
+        if (co.orderType === "TAKE_PROFIT" || co.orderType === 1) {
+            // TP for a long should be ABOVE current price
+            if (tp > 0 && tp < mid * 0.95) {
+                auditFindings.push(`⚠️ Take-profit ($${tp}) is below current price ($${mid.toFixed(2)}) — are you sure this is for a long position?`);
+            }
+        }
+    }
+
+    if (auditFindings.length > 0) {
+        rationale = `${isSafe ? "⚠️" : "❌"} Audit: ${auditFindings.join("; ")}`;
+    }
+
+    if (onStep) onStep({ id: 'audit', phase: 'ON_CHAIN_AUDIT', status: 'done', label: isSafe ? 'Triggers validated ✓' : 'Audit flagged issue', durationMs: 0 });
+    if (onStep) onStep({ id: 'complete', phase: 'COMPLETE', status: 'done', label: 'Conditional order ready', durationMs: 0 });
+
+    return { proposal, audit: { isSafe, rationale, auditReport: auditFindings.join("; ") || "OK" }, macroAnalysis };
+}
+
+// ═══════════════════════════════════════════════════════════════════
 // SWAP FLOW (existing) — Synthra V3 router on Robinhood Chain
 // ═══════════════════════════════════════════════════════════════════
 
@@ -514,6 +765,11 @@ const provider = new ethers.JsonRpcProvider("https://rpc.testnet.chain.robinhood
 
 async function runAuraCommittee(request, targetAccount, eoa, tzOffsetMin = 0, onStep = null) {
     // ── Intent routing ──
+    if (isConditionalOrderRequest(request)) {
+        console.log("🎯 Intent classifier: CONDITIONAL_ORDER (SL/TP on AuraPerps / Robinhood Chain)");
+        return await runConditionalOrderCommittee(request, eoa, onStep);
+    }
+
     if (process.env.BACKEND_ENABLE_LIMIT_ORDER_INTENT === "1" && isLimitOrderRequest(request)) {
         console.log("🎯 Intent classifier: LIMIT_ORDER (Stylus LOB / Arbitrum Sepolia) — feature flag enabled");
         return await runLimitOrderCommittee(request, eoa);

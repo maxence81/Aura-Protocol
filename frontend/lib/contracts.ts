@@ -29,6 +29,7 @@ export const CONTRACT_ADDRESSES = {
   MM_FUND:
     (process.env.NEXT_PUBLIC_MM_FUND_ADDRESS as `0x${string}`) ||
     "0x0581B992cdeD8C739ac9A26eC629014838549018",
+  CONDITIONAL_ORDER_MANAGER: "0x00C81abc47B840E9104620F6477Def4608fD165A",
 };
 
 
@@ -157,4 +158,12 @@ export const STYLUS_LOB_ABI = [
     outputs: [{ type: "uint256" }, { type: "uint256" }, { type: "uint256" }],
     stateMutability: "view",
   },
+] as const;
+
+export const CONDITIONAL_ORDER_MANAGER_ABI = [
+  { type: "function", name: "createOrder", inputs: [{ name: "positionId", type: "uint256" }, { name: "orderType", type: "uint8" }, { name: "triggerPrice", type: "uint256" }], outputs: [{ type: "uint256" }], stateMutability: "nonpayable" },
+  { type: "function", name: "cancelOrder", inputs: [{ name: "orderId", type: "uint256" }], outputs: [], stateMutability: "nonpayable" },
+  { type: "function", name: "getUserOrders", inputs: [{ name: "user", type: "address" }], outputs: [{ type: "uint256[]" }], stateMutability: "view" },
+  { type: "function", name: "getActiveOrderCount", inputs: [{ name: "user", type: "address" }], outputs: [{ type: "uint256" }], stateMutability: "view" },
+  { type: "function", name: "orders", inputs: [{ name: "", type: "uint256" }], outputs: [{ name: "owner", type: "address" }, { name: "positionId", type: "uint256" }, { name: "asset", type: "string" }, { name: "orderType", type: "uint8" }, { name: "triggerPrice", type: "uint256" }, { name: "status", type: "uint8" }, { name: "createdAt", type: "uint256" }, { name: "executedAt", type: "uint256" }], stateMutability: "view" },
 ] as const;

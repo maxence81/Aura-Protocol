@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { ConnectButton, useActiveAccount } from "thirdweb/react";
 import { client } from "../client";
 import { createPublicClient, http, formatUnits, createWalletClient, custom, keccak256, toBytes } from "viem";
-import { CONTRACT_ADDRESSES, AUSD_ABI, AURA_PERPS_ABI, AURA_ROUTER_ABI, STYLUS_LOB_ABI } from "../../lib/contracts";
+import { CONTRACT_ADDRESSES, AUSD_ABI, AURA_PERPS_ABI, AURA_ROUTER_ABI, STYLUS_LOB_ABI, CONDITIONAL_ORDER_MANAGER_ABI } from "../../lib/contracts";
 import { API_URL } from "../../lib/config";
 
 const publicClient = createPublicClient({
@@ -232,6 +232,22 @@ export function useTradeState() {
       const slWei = slStr ? BigInt(Math.floor(Number(slStr) * 1e18)) : BigInt(0);
       const tx = await wc.writeContract({ chain: null, address: CONTRACT_ADDRESSES.AURA_PERPS as `0x${string}`, abi: AURA_PERPS_ABI as any, functionName: "setTriggerOrders", args: [BigInt(id), tpWei, slWei] });
       addLog(`Triggers saved (TX: ${tx.slice(0,6)}...${tx.slice(-4)})`, "action");
+
+      // Register with ConditionalOrderManager for keeper auto-execution
+      if (CONTRACT_ADDRESSES.CONDITIONAL_ORDER_MANAGER) {
+        try {
+          if (slWei > 0n) {
+            const slTx = await wc.writeContract({ chain: null, address: CONTRACT_ADDRESSES.CONDITIONAL_ORDER_MANAGER as `0x${string}`, abi: CONDITIONAL_ORDER_MANAGER_ABI as any, functionName: "createOrder", args: [BigInt(id), 0, slWei] });
+            addLog(`🛡️ SL keeper registered (${slTx.slice(0,6)}...)`, "action");
+          }
+          if (tpWei > 0n) {
+            const tpTx = await wc.writeContract({ chain: null, address: CONTRACT_ADDRESSES.CONDITIONAL_ORDER_MANAGER as `0x${string}`, abi: CONDITIONAL_ORDER_MANAGER_ABI as any, functionName: "createOrder", args: [BigInt(id), 1, tpWei] });
+            addLog(`🎯 TP keeper registered (${tpTx.slice(0,6)}...)`, "action");
+          }
+        } catch (comErr: any) {
+          addLog(`Keeper registration skipped: ${comErr.message?.split("\n")[0]?.substring(0, 40)}`, "info");
+        }
+      }
     } catch(e: any) { addLog(`Trigger save failed: ${e.message.split("\n")[0].substring(0, 50)}...`, "alert"); }
   };
 
