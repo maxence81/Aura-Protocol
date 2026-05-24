@@ -55,7 +55,7 @@ export default function VaultPage() {
   const isAnalyzingRef = useRef(false);
   const hasAutoStarted = useRef(false);
   const autoAnalysisInterval = useRef<NodeJS.Timeout | null>(null);
-  const AUTO_ANALYSIS_INTERVAL_MS = 60_000; // Re-run analysis every 60s
+  const AUTO_ANALYSIS_INTERVAL_MS = 20_000; // Re-run analysis every 20s (demo pace)
 
   const addLog = (agent: string, message: string, type: NeuralLog["type"], txHash?: string) => {
     setNeuralLogs(prev => [{ id: Date.now() + Math.random(), time: new Date().toLocaleTimeString("en-US", { hour12: false, hour: "2-digit", minute: "2-digit", second: "2-digit" }), agent, message, type, txHash }, ...prev].slice(0, 50));
