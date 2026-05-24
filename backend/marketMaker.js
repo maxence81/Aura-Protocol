@@ -27,7 +27,7 @@
  *   - MM_INTERVAL_MS            (default 30000)
  *   - MM_COLLATERAL             (default 100, used by the contract for size = collateral * leverage)
  *   - MM_LEVERAGE               (default 1)
- *   - MM_ASSETS                 (default "BTC,ETH")
+ *   - MM_ASSETS                 (default "BTC,ETH,AMZN,TSLA,AMD,NFLX,PLTR")
  *   - MM_MAX_ACTIVE_PER_SIDE    (default 12, hard cap to keep the book bounded)
  */
 
@@ -45,7 +45,7 @@ const LEVEL_STEP_BPS      = parseInt(process.env.MM_LEVEL_STEP_BPS   || "20");
 const INTERVAL_MS         = parseInt(process.env.MM_INTERVAL_MS      || "30000");
 const COLLATERAL          = process.env.MM_COLLATERAL || "100";  // human units
 const LEVERAGE            = parseInt(process.env.MM_LEVERAGE        || "1");
-const ASSETS              = (process.env.MM_ASSETS || "BTC,ETH").split(",").map(s => s.trim().toUpperCase());
+const ASSETS              = (process.env.MM_ASSETS || "BTC,ETH,AMZN,TSLA,AMD,NFLX,PLTR").split(",").map(s => s.trim().toUpperCase());
 const MAX_ACTIVE_PER_SIDE = parseInt(process.env.MM_MAX_ACTIVE_PER_SIDE || "12");
 
 // ── Stylus LOB ABI (snake_case, matches lib.rs #[selector] annotations) ──
@@ -55,10 +55,15 @@ const STYLUS_LOB_ABI = [
     "function get_stats() view returns (uint256, uint256, uint256)",
 ];
 
-// ── Pyth Hermes IDs (only BTC/ETH are reliable on testnet) ──
+// ── Pyth Hermes IDs ──
 const PYTH_IDS = {
-    BTC: "e62df6c8b4a85fe1a67db44dc12de5db330f7ac66b72dc658afedf0f4a415b43",
-    ETH: "ff61491a931112ddf1bd8147cd1b641375f79f5825126d665480874634fd0ace",
+    BTC:  "e62df6c8b4a85fe1a67db44dc12de5db330f7ac66b72dc658afedf0f4a415b43",
+    ETH:  "ff61491a931112ddf1bd8147cd1b641375f79f5825126d665480874634fd0ace",
+    AMZN: "b5d0e0fa58a1f8b81498ae670ce93c872d14434b72c364885d4fa1b257cbb07a",
+    TSLA: "16dad506d7db8da01c87581c87ca897a012a153557d4d578c3b9c9e1bc0632f1",
+    AMD:  "3622e381dbca2efd1859253763b1adc63f7f9abb8e76da1aa8e638a57ccde93e",
+    NFLX: "8376cfd7ca8bcdf372ced05307b24dced1f15b1afafdeff715664598f15a3dd2",
+    PLTR: "11a70634863ddffb71f2b11f2cff29f73f3db8f6d0b78c49f2b5f4ad36e885f0",
 };
 
 let provider, wallet, lob;
