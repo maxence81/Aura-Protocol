@@ -304,11 +304,11 @@ export default function PositionsPanel({
                             </div>
                           </div>
                         ) : (
-                          <div className="flex flex-col gap-0.5 items-end">
+                          <div className="flex flex-wrap gap-1 justify-end">
                             <CubeButton
                               onClick={() => handleClosePosition(pos.id)}
                               color="#FF2A6D"
-                              className="w-20 !px-1.5 !py-0.5 text-[9px]"
+                              className="!px-2 !py-1 text-[10px]"
                             >
                               Close
                             </CubeButton>
@@ -318,7 +318,7 @@ export default function PositionsPanel({
                                 setActionValue("50");
                               }}
                               color="#9e9e9e"
-                              className="w-20 !px-1.5 !py-0.5 text-[9px]"
+                              className="!px-2 !py-1 text-[10px]"
                             >
                               Partial
                             </CubeButton>
@@ -328,7 +328,7 @@ export default function PositionsPanel({
                                 setActionValue("10");
                               }}
                               color="#00f0ff"
-                              className="w-20 !px-1.5 !py-0.5 text-[9px]"
+                              className="!px-2 !py-1 text-[10px]"
                             >
                               +Margin
                             </CubeButton>
@@ -341,7 +341,7 @@ export default function PositionsPanel({
                                   setShieldConfig({ threshold: "20", recommended: rec, max });
                                 }}
                                 color="#FFA500"
-                                className="w-20 !px-1.5 !py-0.5 text-[9px]"
+                                className="!px-2 !py-1 text-[10px]"
                               >
                                 Shield
                               </CubeButton>
