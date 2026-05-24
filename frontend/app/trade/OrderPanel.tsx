@@ -1,6 +1,7 @@
 "use client";
 import { useState } from "react";
 import { Activity, Zap, TrendingUp, TrendingDown, Send, ShieldCheck, ChevronDown } from "lucide-react";
+import CubeButton from "./CubeButton";
 
 interface OrderPanelProps {
   tradingMode: "ai" | "manual";
@@ -263,10 +264,15 @@ export default function OrderPanel(props: OrderPanelProps) {
             </div>
 
             {/* Execute */}
-            <button onClick={() => handleManualAction(manualIsLong)} disabled={isProcessing || !account || !manualCollateral || (orderType === "limit" && !limitPrice)} className={`w-full py-3 text-xs font-bold transition-all flex flex-col items-center justify-center disabled:opacity-30 font-mono uppercase tracking-wider ${manualIsLong ? "bg-[#00f0ff]/10 text-[#00f0ff] border border-[#00f0ff]/30 hover:bg-[#00f0ff]/20" : "bg-[#FF2A6D]/10 text-[#FF2A6D] border border-[#FF2A6D]/30 hover:bg-[#FF2A6D]/20"}`}>
-              <span>{manualIsLong ? "Long ↗" : "Short ↘"} {selectedMarket} for {Number(manualCollateral).toFixed(2)} aUSD</span>
-              <span className="text-[9px] opacity-50 mt-1 normal-case">{orderType === "limit" ? `Limit @ ${limitPrice || "—"} aUSD` : `at ${currentPrice.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})} aUSD`}</span>
-            </button>
+            <CubeButton
+              onClick={() => handleManualAction(manualIsLong)}
+              disabled={isProcessing || !account || !manualCollateral || (orderType === "limit" && !limitPrice)}
+              color={manualIsLong ? "#00f0ff" : "#FF2A6D"}
+              className="w-full py-3 text-center"
+            >
+              <span className="block text-xs">{manualIsLong ? "Long" : "Short"} {selectedMarket}</span>
+              <span className="block text-[9px] opacity-60 mt-0.5 normal-case">{Number(manualCollateral).toFixed(2)} aUSD {orderType === "limit" ? `@ ${limitPrice || "—"}` : `@ ${currentPrice.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})}`}</span>
+            </CubeButton>
 
             {!account && <p className="text-[9px] text-[#FF2A6D] font-mono text-center border border-[#FF2A6D]/20 py-1.5 bg-[#FF2A6D]/5">Connect wallet to trade</p>}
           </div>

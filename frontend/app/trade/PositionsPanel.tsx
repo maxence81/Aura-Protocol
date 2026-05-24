@@ -1,5 +1,7 @@
 import { useState } from "react";
 import { Activity, X } from "lucide-react";
+import CubeButton from "./CubeButton";
+import FloatingInput from "./FloatingInput";
 import type { OnChainPosition, OpenLimitOrder } from "./useTradeState";
 
 interface PositionsPanelProps {
@@ -222,44 +224,34 @@ export default function PositionsPanel({
                     {activeTab === "positions" && (
                       <td className="py-2 text-right">
                         {activeAction?.id === pos.id && activeAction.type === "shield" ? (
-                          // Shield mandate config: 3 inputs (threshold, recommended, max)
-                          <div className="flex flex-col gap-1 items-end w-32 ml-auto">
-                            <div className="w-full">
-                              <p className="text-[8px] text-[#FFA500]/70 mb-0.5">Alert below health %</p>
-                              <input
-                                type="number"
-                                autoFocus
-                                className="w-full bg-[#0a0a0a] border border-[#FFA500]/30 px-1.5 py-0.5 text-[9px] text-[#FFA500] font-mono focus:outline-none"
-                                value={shieldConfig.threshold}
-                                onChange={(e) => setShieldConfig(c => ({ ...c, threshold: e.target.value }))}
-                              />
-                            </div>
-                            <div className="w-full">
-                              <p className="text-[8px] text-[#00f0ff]/70 mb-0.5">Top-up amount (aUSD)</p>
-                              <input
-                                type="number"
-                                className="w-full bg-[#0a0a0a] border border-[#00f0ff]/30 px-1.5 py-0.5 text-[9px] text-[#00f0ff] font-mono focus:outline-none"
-                                value={shieldConfig.recommended}
-                                onChange={(e) => setShieldConfig(c => ({ ...c, recommended: e.target.value }))}
-                              />
-                            </div>
-                            <div className="w-full">
-                              <p className="text-[8px] text-white/40 mb-0.5">Max per alert (aUSD)</p>
-                              <input
-                                type="number"
-                                className="w-full bg-[#0a0a0a] border border-white/20 px-1.5 py-0.5 text-[9px] text-white/60 font-mono focus:outline-none"
-                                value={shieldConfig.max}
-                                onChange={(e) => setShieldConfig(c => ({ ...c, max: e.target.value }))}
-                              />
-                            </div>
+                          // Shield mandate config
+                          <div className="flex flex-col gap-2 items-end w-36 ml-auto">
+                            <FloatingInput
+                              label="Alert below %"
+                              value={shieldConfig.threshold}
+                              onChange={(v) => setShieldConfig(c => ({ ...c, threshold: v }))}
+                              color="#FFA500"
+                            />
+                            <FloatingInput
+                              label="Top-up (aUSD)"
+                              value={shieldConfig.recommended}
+                              onChange={(v) => setShieldConfig(c => ({ ...c, recommended: v }))}
+                              color="#00f0ff"
+                            />
+                            <FloatingInput
+                              label="Max (aUSD)"
+                              value={shieldConfig.max}
+                              onChange={(v) => setShieldConfig(c => ({ ...c, max: v }))}
+                              color="#9e9e9e"
+                            />
                             <div className="flex gap-1 w-full">
                               <button
                                 onClick={() => setActiveAction(null)}
-                                className="flex-1 px-1 py-0.5 bg-white/5 text-white/50 text-[9px] hover:bg-white/10 transition"
+                                className="flex-1 px-1 py-0.5 bg-white/5 text-white/50 text-[9px] hover:bg-white/10 transition font-mono"
                               >
                                 Cancel
                               </button>
-                              <button
+                              <CubeButton
                                 onClick={() => {
                                   if (handleArmShield) {
                                     handleArmShield(
@@ -271,10 +263,11 @@ export default function PositionsPanel({
                                   }
                                   setActiveAction(null);
                                 }}
-                                className="flex-1 px-1 py-0.5 bg-[#FFA500]/10 text-[#FFA500] text-[9px] hover:bg-[#FFA500]/20 transition"
+                                color="#FFA500"
+                                className="flex-1 !px-2 !py-0.5 text-[9px]"
                               >
                                 Arm
-                              </button>
+                              </CubeButton>
                             </div>
                           </div>
                         ) : activeAction?.id === pos.id ? (
@@ -312,44 +305,46 @@ export default function PositionsPanel({
                           </div>
                         ) : (
                           <div className="flex flex-col gap-0.5 items-end">
-                            <button
+                            <CubeButton
                               onClick={() => handleClosePosition(pos.id)}
-                              className="w-20 px-1.5 py-0.5 bg-[#FF2A6D]/10 text-[#FF2A6D] border border-[#FF2A6D]/20 hover:bg-[#FF2A6D] hover:text-white text-[9px] font-bold font-mono transition"
+                              color="#FF2A6D"
+                              className="w-20 !px-1.5 !py-0.5 text-[9px]"
                             >
                               Close
-                            </button>
-                            <button
+                            </CubeButton>
+                            <CubeButton
                               onClick={() => {
                                 setActiveAction({ id: pos.id, type: "partial" });
                                 setActionValue("50");
                               }}
-                              className="w-20 px-1.5 py-0.5 bg-white/5 text-white/50 border border-white/10 hover:bg-white/10 text-[9px] font-bold font-mono transition"
+                              color="#9e9e9e"
+                              className="w-20 !px-1.5 !py-0.5 text-[9px]"
                             >
                               Partial
-                            </button>
-                            <button
+                            </CubeButton>
+                            <CubeButton
                               onClick={() => {
                                 setActiveAction({ id: pos.id, type: "margin" });
                                 setActionValue("10");
                               }}
-                              className="w-20 px-1.5 py-0.5 bg-[#00f0ff]/5 text-[#00f0ff]/60 border border-[#00f0ff]/15 hover:bg-[#00f0ff]/15 text-[9px] font-bold font-mono transition"
+                              color="#00f0ff"
+                              className="w-20 !px-1.5 !py-0.5 text-[9px]"
                             >
                               +Margin
-                            </button>
+                            </CubeButton>
                             {handleArmShield && (
-                              <button
+                              <CubeButton
                                 onClick={() => {
                                   setActiveAction({ id: pos.id, type: "shield" });
-                                  // Pre-fill: alert at 20% health, top-up = 20% of collateral, max = collateral
                                   const rec = Math.max(5, Math.round(pos.collateral * 0.2)).toFixed(0);
                                   const max = Math.round(pos.collateral).toFixed(0);
                                   setShieldConfig({ threshold: "20", recommended: rec, max });
                                 }}
-                                className="w-20 px-1.5 py-0.5 bg-[#FFA500]/5 text-[#FFA500]/70 border border-[#FFA500]/15 hover:bg-[#FFA500]/15 text-[9px] font-bold font-mono transition"
-                                title="Arm AI Liquidation Shield"
+                                color="#FFA500"
+                                className="w-20 !px-1.5 !py-0.5 text-[9px]"
                               >
-                                🛡️ Shield
-                              </button>
+                                Shield
+                              </CubeButton>
                             )}
                           </div>
                         )}

@@ -238,11 +238,11 @@ export function useTradeState() {
         try {
           if (slWei > 0n) {
             const slTx = await wc.writeContract({ chain: null, address: CONTRACT_ADDRESSES.CONDITIONAL_ORDER_MANAGER as `0x${string}`, abi: CONDITIONAL_ORDER_MANAGER_ABI as any, functionName: "createOrder", args: [BigInt(id), 0, slWei] });
-            addLog(`🛡️ SL keeper registered (${slTx.slice(0,6)}...)`, "action");
+            addLog(`SL keeper registered (${slTx.slice(0,6)}...)`, "action");
           }
           if (tpWei > 0n) {
             const tpTx = await wc.writeContract({ chain: null, address: CONTRACT_ADDRESSES.CONDITIONAL_ORDER_MANAGER as `0x${string}`, abi: CONDITIONAL_ORDER_MANAGER_ABI as any, functionName: "createOrder", args: [BigInt(id), 1, tpWei] });
-            addLog(`🎯 TP keeper registered (${tpTx.slice(0,6)}...)`, "action");
+            addLog(`TP keeper registered (${tpTx.slice(0,6)}...)`, "action");
           }
         } catch (comErr: any) {
           addLog(`Keeper registration skipped: ${comErr.message?.split("\n")[0]?.substring(0, 40)}`, "info");
@@ -289,7 +289,7 @@ export function useTradeState() {
         functionName: "armShield",
         args: [BigInt(positionId), thresholdBps, recommendedWei, maxWei],
       });
-      addLog(`🛡️ Shield armed at ${thresholdPct}% (${tx.slice(0, 6)}...${tx.slice(-4)})`, "action");
+      addLog(`Shield armed at ${thresholdPct}% (${tx.slice(0, 6)}...${tx.slice(-4)})`, "action");
     } catch (e: any) {
       addLog(`Shield arm failed: ${e.message?.split("\n")[0]?.substring(0, 60)}`, "alert");
     }
@@ -515,7 +515,7 @@ export function useTradeState() {
         addLog(`Limit order tx sent (${tx.slice(0, 6)}...${tx.slice(-4)})`, "action");
         const receipt = await sepoliaPublic.waitForTransactionReceipt({ hash: tx });
         if (receipt.status === "success") {
-          addLog(`✅ Limit order placed in Stylus LOB. Block ${receipt.blockNumber}`, "action");
+          addLog(`Limit order placed in Stylus LOB. Block ${receipt.blockNumber}`, "action");
         } else {
           addLog(`Limit order tx reverted on-chain.`, "alert");
         }
