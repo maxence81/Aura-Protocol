@@ -378,16 +378,23 @@ async function getLatestNews() {
     }
 
     try {
-        const query = encodeURIComponent("bitcoin OR ethereum OR tesla OR amazon OR netflix OR amd OR palantir");
-        const url = `https://newsapi.org/v2/everything?q=${query}&language=en&sortBy=publishedAt&pageSize=15&apiKey=${apiKey}`;
+        const query = encodeURIComponent("crypto OR DeFi OR \"stock market\" OR \"S&P 500\" OR arbitrum OR blockchain OR (TSLA stock) OR (AMZN stock) OR (AMD stock) OR (NFLX stock) OR (PLTR stock)");
+        const url = `https://newsapi.org/v2/everything?q=${query}&language=en&sortBy=publishedAt&pageSize=30&apiKey=${apiKey}`;
         
         const response = await fetch(url);
         if (!response.ok) throw new Error(`NewsAPI HTTP ${response.status}`);
         
         const data = await response.json();
-        
+
+        // Filter out irrelevant articles (deals, entertainment, lifestyle)
+        const NOISE_PATTERNS = /coupon|deal[s ]|promo|discount|off at amazon|free shipping|slickdeal|dealnews|streaming|tv show|series|movie|episode|season \d|rotten tomatoes|celebrity|murder|homicide|headphone|hoodie|jacket|underwear|owl|garden|piracy|dog rain/i;
+        const RELEVANCE_PATTERNS = /crypto|bitcoin|ethereum|defi|blockchain|arbitrum|token|stock|market|investor|trading|finance|economy|fed |inflation|earnings|IPO|SEC|ETF|yield|treasury|bull|bear|rally|hedge|portfolio|wall street|nasdaq|dow jones/i;
+
         const articles = (data.articles || [])
             .filter(a => a.title && a.title !== "[Removed]")
+            .filter(a => !NOISE_PATTERNS.test(a.title + " " + (a.description || "") + " " + (a.source?.name || "")))
+            .filter(a => RELEVANCE_PATTERNS.test(a.title + " " + (a.description || "")))
+            .slice(0, 15)
             .map(a => ({
                 title: a.title,
                 description: a.description || "",
