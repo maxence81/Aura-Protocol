@@ -37,17 +37,17 @@ const ERC20_ABI = [
 ];
 
 const agentModel = new ChatOpenAI({
-    apiKey: process.env.PIONEER_API_KEY,
-    modelName: "qwen/Qwen3-8B",
+    apiKey: process.env.DO_API_KEY,
+    modelName: "deepseek-3.2",
     temperature: 0,
     configuration: {
-        baseURL: "https://api.pioneer.ai/v1",
+        baseURL: "https://inference.do-ai.run/v1",
     },
 });
 
 async function askAI(prompt) {
     try {
-        console.log("🤖 Attempting AI (NVIDIA - Llama 3.1 70B)...");
+        console.log("🤖 Attempting AI (DeepSeek 3.2 via DigitalOcean)...");
         const response = await agentModel.invoke([{
             role: "user",
             content: prompt + " \nIMPORTANT: Return ONLY raw JSON. No markdown."
@@ -55,7 +55,7 @@ async function askAI(prompt) {
         const clean = response.content.replace(/```json/g, "").replace(/```/g, "").trim();
         return JSON.parse(clean);
     } catch (e) {
-        console.error("❌ NVIDIA API failed:", e.message);
+        console.error("❌ AI API failed:", e.message);
         return {
             action: "SWAP",
             token_in_symbol: "ETH",

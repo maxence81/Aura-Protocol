@@ -52,16 +52,16 @@ const ROUTER_ABI = [
 // ═══════════════════════════════════════════════════════════════
 
 const analystModel = new ChatOpenAI({
-    apiKey: process.env.NVIDIA_API_KEY,
-    modelName: "meta/llama-3.1-70b-instruct",
-    configuration: { baseURL: "https://integrate.api.nvidia.com/v1" },
+    apiKey: process.env.DO_API_KEY,
+    modelName: "openai-gpt-oss-120b",
+    configuration: { baseURL: "https://inference.do-ai.run/v1" },
     temperature: 0.2,
 });
 
 const riskOfficerModel = new ChatOpenAI({
-    apiKey: process.env.NVIDIA_API_KEY,
-    modelName: "meta/llama-3.1-70b-instruct",
-    configuration: { baseURL: "https://integrate.api.nvidia.com/v1" },
+    apiKey: process.env.DO_API_KEY,
+    modelName: "openai-gpt-oss-120b",
+    configuration: { baseURL: "https://inference.do-ai.run/v1" },
     temperature: 0,
 });
 

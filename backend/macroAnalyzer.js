@@ -1,7 +1,7 @@
 /**
  * macroAnalyzer.js - AI-Powered Macro-Economic Sentiment Analysis
  * 
- * Uses the LLM (Llama 3.1 70B via NVIDIA) to analyze market context 
+ * Uses the LLM (Qwen3.5 Plus via OrcaRouter) to analyze market context 
  * and provide sentiment scoring + strategic recommendations.
  */
 
@@ -12,11 +12,11 @@ dotenv.config();
 const { getMarketContext, getAllPrices } = require("./market");
 
 const analyzerModel = new ChatOpenAI({
-    apiKey: process.env.PIONEER_API_KEY,
-    modelName: "qwen/Qwen3-8B",
+    apiKey: process.env.DO_API_KEY,
+    modelName: "deepseek-3.2",
     temperature: 0.1,
     configuration: {
-        baseURL: "https://api.pioneer.ai/v1",
+        baseURL: "https://inference.do-ai.run/v1",
     },
 });
 
