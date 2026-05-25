@@ -112,12 +112,18 @@ export function useTradeState() {
           }) as bigint;
           const positions: OnChainPosition[] = [];
           const history: OnChainPosition[] = [];
-          for (let i = 0; i < Number(nextPosId); i++) {
-            const pos = await publicClient.readContract({
+          const count = Number(nextPosId);
+          // Batch all position reads in parallel
+          const calls = Array.from({ length: count }, (_, i) =>
+            publicClient.readContract({
               address: CONTRACT_ADDRESSES.AURA_PERPS as `0x${string}`,
               abi: AURA_PERPS_ABI as any, functionName: "positions",
               args: [BigInt(i)],
-            }) as any;
+            })
+          );
+          const results = await Promise.all(calls);
+          for (let i = 0; i < count; i++) {
+            const pos = results[i] as any;
             if (pos[0].toLowerCase() === account.address.toLowerCase()) {
               const d = {
                 id: i, asset: pos[1], isLong: pos[2],
