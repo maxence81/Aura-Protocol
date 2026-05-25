@@ -33,6 +33,7 @@ Result: a user types *"DCA 0.001 ETH into AMZN every day for a week"*  both agen
 
 **New safety features:**
 - **On-Chain Audit Trail** — before every gasless execution, the agent records a `keccak256` hash of its reasoning on-chain (`AuraAuditTrail` contract), creating verifiable proof of AI decision-making
+- **AI Confidence Score** — the Risk Auditor computes a 0-100 confidence score for every trade, recorded on-chain via `recordReasoningWithScore`. Users see the score in the SignModal before signing — a first-of-its-kind on-chain AI confidence marker
 - **Pyth Slippage Protection** — every swap calculates `minAmountOut` from real-time Pyth prices (1% max slippage by default)
 - **Live Reasoning Stream** — the multi-agent committee's decision process is streamed to the frontend via SSE in real-time
 
@@ -142,6 +143,22 @@ Real numbers from `scripts/bench-large-scale.js` on Arbitrum Sepolia (60 resting
 
 **Insight**: Stylus wins on compute-heavy hot paths (sort, scan large arrays). For storage-only operations the runtime overhead breaks even. We use Stylus exactly where it matters -- the order book viewer hit on every page render.
 
+### Guardrail Benchmark (validate_trade)
+
+Real numbers from `scripts/bench-guardrail.js` on Arbitrum Sepolia:
+
+| Operation | Stylus (WASM) | Solidity | Overhead | Why |
+|---|---|---|---|---|
+| `validate_trade` (APPROVED) | 145 187 | 110 291 | +32% | Storage-bound (5 mapping reads + 2 writes) |
+| `validate_trade` (REJECT leverage) | 98 527 | 63 886 | +54% | Early exit, minimal compute |
+| `validate_trade` (REJECT asset) | 96 363 | 61 756 | +56% | Single mapping read |
+| `get_stats` (view) | 67 118 | 30 679 | +119% | Pure storage read |
+| Batch 10x `validate_trade` | 905 536 | 555 266 | +63% | Cumulative overhead |
+
+**Why we still use Stylus for the Guardrail**: The guardrail is called once per trade (not per page render). The absolute cost difference is ~35K gas (~$0.001). We keep it in WASM for **architectural consistency** -- the same Rust codebase validates trades whether called from the LOB (Stylus-to-Stylus, zero cross-VM cost) or from the Solidity router. In production, the guardrail would be inlined into the LOB contract as a Stylus-to-Stylus internal call, eliminating the EVM→WASM bridge overhead entirely.
+
+**Honest takeaway**: Stylus is not a silver bullet. It wins on compute (sort, scan, math) and loses on storage-only operations due to cross-VM overhead. We benchmark both and use each where it makes sense.
+
 ---
 
 ## Live Deployments
@@ -161,7 +178,7 @@ Real numbers from `scripts/bench-large-scale.js` on Arbitrum Sepolia (60 resting
 | AuraIntelligenceVault (ERC-4626) | `0x69A88c72eAda96A515e0dc57632A6Abf59EA2E38` |
 | AuraPerpsRouter (Hybrid) | `0x5F88E57fBDC5B83827273d2ab8843226F40d0E13` |
 | AuraAccount Factory | `0x95Aa20d53EB26f292a71D8B38515BBeC8905b550` |
-| **AuraAuditTrail** | `0x527d54D8E534877B9713ADFA9b1f367e1bc964e9` |
+| **AuraAuditTrail** | `0x7262d100793CdDDF43F7fd69c4561e72C55493a4` |
 | aUSD | `0x359961489f069F16E5dbA46d9b174bBF7b25147B` |
 | Pyth MockOracle | `0x097AeB196366317cf97986A04f32Df312c96ABa1` |
 
@@ -169,7 +186,7 @@ Real numbers from `scripts/bench-large-scale.js` on Arbitrum Sepolia (60 resting
 
 ## Test Coverage
 
-**246 passing tests** across security-critical paths:
+**260 passing tests** across security-critical paths:
 
 ```
 Adversarial Security Tests (21 tests)
@@ -204,7 +221,7 @@ Hybrid LOB+AMM Router (4 tests)
    placeLimitOrderFor authorization for MMFund
    Rejects unauthorized callers
 
-AuraAuditTrail -- On-Chain Reasoning Audit (28 tests)
+AuraAuditTrail -- On-Chain Reasoning Audit (42 tests)
    Deployment & permissionless recording
    Event emission with correct parameters (agent, user, hash, timestamp, action)
    Multiple records, duplicate hashes, batch stress test
@@ -212,6 +229,7 @@ AuraAuditTrail -- On-Chain Reasoning Audit (28 tests)
    Event indexing (filterable by agent, user, or both)
    Integrity verification (hash matches off-chain reasoning)
    Security (cannot spoof msg.sender, timestamp is block.timestamp)
+   AI Confidence Score (recordReasoningWithScore, dual event emission, score isolation per agent/user, boundary 0-100, legacy compat)
 
 Aura Account Abstraction (6 tests)
    AuraAccount.executeBatch routing
@@ -246,7 +264,7 @@ Run with: `npx hardhat test`
 
 | Criterion | Aura's Edge |
 |---|---|
-| **Smart Contract Quality** | 246 tests (adversarial, fuzz, invariant, edge-case), OZ standards, ERC-4626 vault, EIP-4337 accounts, Stylus snake_case selector compatibility, gas-benched against Solidity |
+| **Smart Contract Quality** | 260 tests (adversarial, fuzz, invariant, edge-case), OZ standards, ERC-4626 vault, EIP-4337 accounts, Stylus snake_case selector compatibility, gas-benched against Solidity |
 | **Product-Market Fit** | Targets Robinhood Chain's massive retail audience. Gasless UX + chat = the same UX pattern as Robinhood, but with full self-custody and DeFi yields |
 | **Innovation & Creativity** | First project to combine Multi-Agent safety + Stylus LOB + EIP-4337. Cross-chain hybrid (Stylus = compute, Robinhood = settlement) is novel |
 | **Real Problem Solving** | Answers DeFi's three real barriers -- complexity, gas, trust -- without compromising self-custody |
@@ -295,7 +313,7 @@ All contract addresses are pre-filled with our live testnet deployments.
 
 ```bash
 npx hardhat compile
-npx hardhat test                    # 246 tests, all passing
+npx hardhat test                    # 260 tests, all passing
 ```
 
 ### 4. Run the Stylus vs Solidity Benchmark
@@ -350,7 +368,7 @@ arbitrum_hackathon/
     app/chat/           Multi-agent chat for swaps & DCA
     app/vault/          ERC-4626 deposit / withdraw
  scripts/                Hardhat deploy + bench scripts
- test/                   Hardhat test suite (246 tests)
+ test/                   Hardhat test suite (260 tests)
  ARCHITECTURE.md         Full architecture reference
 ```
 

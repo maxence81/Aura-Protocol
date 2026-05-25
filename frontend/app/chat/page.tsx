@@ -554,7 +554,7 @@ export default function Home() {
 
       if (!resultData) throw new Error("No result received from stream");
 
-      const { txParams, intent, rationale, status, macroAnalysis } = resultData;
+      const { txParams, intent, rationale, status, macroAnalysis, confidenceScore } = resultData;
 
       if (status === "rejected") {
         addMessage({
@@ -618,6 +618,7 @@ export default function Home() {
         chainId: txParams.chainId,
         network: txParams.kind === 'LIMIT_ORDER' ? 'Arbitrum Sepolia' : 'Robinhood Chain',
         limitOrder: txParams.limitOrder,
+        confidenceScore: typeof confidenceScore === 'number' ? confidenceScore : undefined,
       };
 
       addMessage({
@@ -688,6 +689,7 @@ export default function Home() {
                     datas: txParams.datas,
                     reasoningHash,
                     action: txParams.description || 'SWAP',
+                    confidenceScore: messages.find(m => m.transaction?.id === pendingId)?.transaction?.confidenceScore,
                 });
 
                 setMessages((prev) => prev.map((msg) => {

@@ -535,6 +535,46 @@ Return strict JSON:
     };
 }
 
+/**
+ * Compute an AI Confidence Score (0-100) from the committee's audit + macro analysis.
+ *
+ * Heuristic:
+ *   - Start at 75 (default "moderately confident").
+ *   - Audit safety: +15 if isSafe, −60 if not (failed audit caps confidence below 30).
+ *   - Macro alignment: ±10 based on sentiment score (bullish helps long swaps, bearish helps short).
+ *   - Recommendation flag: −10 for CAUTION, −20 for DELAY, +5 for PROCEED.
+ *   - Approval needed: −5 (extra friction implies more risk surface).
+ *   - Clamp to [0, 100].
+ *
+ * Returned as a uint8-friendly integer.
+ */
+function computeConfidenceScore({ audit, macroAnalysis }) {
+    let score = 75;
+
+    if (audit?.isSafe === false) {
+        score -= 60;
+    } else if (audit?.isSafe === true) {
+        score += 15;
+    }
+
+    if (audit?.rationale && /action required|incomplete|warning/i.test(audit.rationale)) {
+        score -= 5;
+    }
+
+    if (macroAnalysis) {
+        const macroScore = Number(macroAnalysis.score) || 0;
+        // ±10 based on |score|/100, sign tracks sentiment direction
+        score += Math.round(Math.max(-10, Math.min(10, macroScore / 10)));
+
+        const rec = String(macroAnalysis.recommendation || "").toUpperCase();
+        if (rec === "DELAY") score -= 20;
+        else if (rec === "CAUTION") score -= 10;
+        else if (rec === "PROCEED" || rec === "BULLISH") score += 5;
+    }
+
+    return Math.max(0, Math.min(100, Math.round(score)));
+}
+
 async function runConditionalOrderCommittee(request, eoa, onStep = null) {
     if (onStep) onStep({ id: 'intent', phase: 'INTENT_PARSER', status: 'active', label: 'Parsing conditional order intent...', detail: `Extracting SL/TP from: "${request.slice(0, 60)}"` });
 
@@ -596,7 +636,9 @@ async function runConditionalOrderCommittee(request, eoa, onStep = null) {
     if (onStep) onStep({ id: 'audit', phase: 'ON_CHAIN_AUDIT', status: 'done', label: isSafe ? 'Triggers validated ✓' : 'Audit flagged issue', durationMs: 0 });
     if (onStep) onStep({ id: 'complete', phase: 'COMPLETE', status: 'done', label: 'Conditional order ready', durationMs: 0 });
 
-    return { proposal, audit: { isSafe, rationale, auditReport: auditFindings.join("; ") || "OK" }, macroAnalysis };
+    const auditObj = { isSafe, rationale, auditReport: auditFindings.join("; ") || "OK" };
+    const confidenceScore = computeConfidenceScore({ audit: auditObj, macroAnalysis });
+    return { proposal, audit: auditObj, macroAnalysis, confidenceScore };
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -819,7 +861,9 @@ async function runAuraCommittee(request, targetAccount, eoa, tzOffsetMin = 0, on
             if (code === "0x") {
                 console.warn(`⚠️ No contract found at ${tokenAddr} (${proposal.tokenInSymbol}). Mocking audit pass for demo.`);
                 if (onStep) onStep({ id: 'audit', phase: 'ON_CHAIN_AUDIT', status: 'done', label: 'Mock token — audit bypassed', durationMs: 0 });
-                return { proposal, audit: { isSafe, rationale: `Mock token detected. Audit bypassed for hackathon demo.` }, macroAnalysis };
+                const mockAudit = { isSafe, rationale: `Mock token detected. Audit bypassed for hackathon demo.` };
+                const mockScore = computeConfidenceScore({ audit: mockAudit, macroAnalysis });
+                return { proposal, audit: mockAudit, macroAnalysis, confidenceScore: mockScore };
             }
 
             const erc20 = new ethers.Contract(tokenAddr, [
@@ -866,7 +910,9 @@ async function runAuraCommittee(request, targetAccount, eoa, tzOffsetMin = 0, on
     if (onStep) onStep({ id: 'audit', phase: 'ON_CHAIN_AUDIT', status: 'done', label: isSafe ? 'Audit passed ✓' : 'Audit flagged issue', durationMs: 0 });
     if (onStep) onStep({ id: 'complete', phase: 'COMPLETE', status: 'done', label: 'Committee consensus reached', durationMs: 0 });
 
-    return { proposal, audit: { isSafe, rationale }, macroAnalysis };
+    const auditObj = { isSafe, rationale };
+    const confidenceScore = computeConfidenceScore({ audit: auditObj, macroAnalysis });
+    return { proposal, audit: auditObj, macroAnalysis, confidenceScore };
 }
 
 
@@ -922,10 +968,13 @@ async function runLimitOrderCommittee(request, eoa) {
         rationale = `${isSafe ? "⚠️" : "❌"} Audit findings: ${auditFindings.join("; ")}`;
     }
 
+    const auditObj = { isSafe, rationale, auditReport: auditFindings.join("; ") || "OK" };
+    const confidenceScore = computeConfidenceScore({ audit: auditObj, macroAnalysis });
     return {
         proposal,
-        audit: { isSafe, rationale, auditReport: auditFindings.join("; ") || "OK" },
-        macroAnalysis
+        audit: auditObj,
+        macroAnalysis,
+        confidenceScore
     };
 }
 

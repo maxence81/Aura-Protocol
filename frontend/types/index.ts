@@ -36,6 +36,9 @@ export interface TransactionProposal {
     limitPrice: number;
     collateral: number;
   };
+
+  // ── Wave 5: AI Confidence Score ──
+  confidenceScore?: number; // 0-100, from Risk Auditor
 }
 
 export interface Message {

@@ -61,7 +61,7 @@ app.post("/chat", async (req, res) => {
     if (!message) return res.status(400).json({ error: "Message is required" });
 
     // 1. Comité Multi-Agents (now includes macro analysis)
-    const { proposal, audit, macroAnalysis } = await runAuraCommittee(message, account, eoa, tzOffsetMin || 0);
+    const { proposal, audit, macroAnalysis, confidenceScore } = await runAuraCommittee(message, account, eoa, tzOffsetMin || 0);
 
     // 2. Rejet si non sécurisé
     if (!audit.isSafe) {
@@ -69,7 +69,8 @@ app.post("/chat", async (req, res) => {
             status: "rejected",
             intent: proposal,
             rationale: `REJECTED: ${audit.auditReport}`,
-            macroAnalysis
+            macroAnalysis,
+            confidenceScore
         });
     }
 
@@ -81,7 +82,8 @@ app.post("/chat", async (req, res) => {
       intent: proposal,
       rationale: audit.rationale,
       txParams: txParams, // Ces données seront envoyées au wallet de l'utilisateur
-      macroAnalysis // Include macro analysis in response
+      macroAnalysis, // Include macro analysis in response
+      confidenceScore // AI Confidence Score (0-100) from the Risk Auditor
     });
   } catch (error) {
     console.error(error);
@@ -108,13 +110,13 @@ app.post("/chat-stream", async (req, res) => {
   };
 
   try {
-    const { proposal, audit, macroAnalysis } = await runAuraCommittee(message, account, eoa, tzOffsetMin || 0, sendStep);
+    const { proposal, audit, macroAnalysis, confidenceScore } = await runAuraCommittee(message, account, eoa, tzOffsetMin || 0, sendStep);
 
     if (!audit.isSafe) {
-      res.write(`data: ${JSON.stringify({ type: 'result', status: 'rejected', intent: proposal, rationale: audit.rationale, macroAnalysis })}\n\n`);
+      res.write(`data: ${JSON.stringify({ type: 'result', status: 'rejected', intent: proposal, rationale: audit.rationale, macroAnalysis, confidenceScore })}\n\n`);
     } else {
       const txParams = await prepareExecution(proposal);
-      res.write(`data: ${JSON.stringify({ type: 'result', status: 'awaiting_signature', intent: proposal, rationale: audit.rationale, txParams, macroAnalysis })}\n\n`);
+      res.write(`data: ${JSON.stringify({ type: 'result', status: 'awaiting_signature', intent: proposal, rationale: audit.rationale, txParams, macroAnalysis, confidenceScore })}\n\n`);
     }
   } catch (error) {
     res.write(`data: ${JSON.stringify({ type: 'error', message: error.message })}\n\n`);
@@ -680,7 +682,7 @@ app.get("/api/my-orders/:address", async (req, res) => {
 // The user pays ZERO gas -- the agent EOA sponsors it.
 app.post("/api/gasless-execute", async (req, res) => {
   try {
-    const { accountAddress, targets, values, datas, reasoningHash, action } = req.body;
+    const { accountAddress, targets, values, datas, reasoningHash, action, confidenceScore } = req.body;
     if (!accountAddress || !targets || !values || !datas) {
       return res.status(400).json({ error: "Missing accountAddress, targets, values, or datas" });
     }
@@ -692,18 +694,20 @@ app.post("/api/gasless-execute", async (req, res) => {
     const AUDIT_TRAIL_ADDRESS = process.env.AUDIT_TRAIL_ADDRESS;
     if (AUDIT_TRAIL_ADDRESS && reasoningHash) {
       try {
+        const hasScore = typeof confidenceScore === "number" && confidenceScore >= 0 && confidenceScore <= 100;
         const auditTrail = new ethers.Contract(
           AUDIT_TRAIL_ADDRESS,
-          ["function recordReasoning(address user, bytes32 reasoningHash, string calldata action) external"],
+          [
+            "function recordReasoning(address user, bytes32 reasoningHash, string calldata action) external",
+            "function recordReasoningWithScore(address user, bytes32 reasoningHash, string calldata action, uint8 confidenceScore) external"
+          ],
           signer
         );
-        const auditTx = await auditTrail.recordReasoning(
-          accountAddress,
-          reasoningHash,
-          action || "SWAP"
-        );
+        const auditTx = hasScore
+          ? await auditTrail.recordReasoningWithScore(accountAddress, reasoningHash, action || "SWAP", confidenceScore)
+          : await auditTrail.recordReasoning(accountAddress, reasoningHash, action || "SWAP");
         await auditTx.wait();
-        console.log(`[AuditTrail] Reasoning recorded: ${reasoningHash} for ${accountAddress}`);
+        console.log(`[AuditTrail] Reasoning recorded${hasScore ? ` (confidence ${confidenceScore}/100)` : ""}: ${reasoningHash} for ${accountAddress}`);
       } catch (auditErr) {
         console.warn("[AuditTrail] Failed to record (non-blocking):", auditErr.shortMessage || auditErr.message);
       }

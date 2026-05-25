@@ -101,6 +101,31 @@ export default function SignModal({
           })()}
         </div>
 
+        {/* AI Confidence Score */}
+        {transaction.confidenceScore != null && (
+          <div className="mt-5 flex items-center gap-3 bg-[#0a0a0a] border border-[#00f0ff]/20 p-3">
+            <div className="relative w-10 h-10 flex items-center justify-center">
+              <svg className="w-10 h-10 -rotate-90" viewBox="0 0 36 36">
+                <circle cx="18" cy="18" r="15" fill="none" stroke="#00f0ff" strokeOpacity="0.15" strokeWidth="3" />
+                <circle cx="18" cy="18" r="15" fill="none"
+                  stroke={transaction.confidenceScore >= 70 ? '#00f0ff' : transaction.confidenceScore >= 40 ? '#f0a000' : '#ff2a6d'}
+                  strokeWidth="3" strokeDasharray={`${transaction.confidenceScore * 0.942} 94.2`} strokeLinecap="round" />
+              </svg>
+              <span className="absolute text-[9px] font-mono font-bold"
+                style={{ color: transaction.confidenceScore >= 70 ? '#00f0ff' : transaction.confidenceScore >= 40 ? '#f0a000' : '#ff2a6d' }}>
+                {transaction.confidenceScore}
+              </span>
+            </div>
+            <div>
+              <p className="font-mono text-[0.6rem] text-white/30 uppercase tracking-widest">AI Confidence</p>
+              <p className="font-mono text-xs font-bold"
+                style={{ color: transaction.confidenceScore >= 70 ? '#00f0ff' : transaction.confidenceScore >= 40 ? '#f0a000' : '#ff2a6d' }}>
+                {transaction.confidenceScore >= 80 ? 'High Confidence' : transaction.confidenceScore >= 60 ? 'Moderate' : transaction.confidenceScore >= 40 ? 'Low Confidence' : 'Caution'}
+              </p>
+            </div>
+          </div>
+        )}
+
         {/* Wallet Info */}
         <div className="mt-5">
           <span className="font-mono text-[0.55rem] text-white/30 uppercase tracking-widest">
