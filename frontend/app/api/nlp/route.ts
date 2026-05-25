@@ -5,7 +5,7 @@ export async function POST(req: Request) {
     const { prompt } = await req.json();
     if (!prompt) return NextResponse.json({ error: "No prompt provided" }, { status: 400 });
 
-    const API_KEY = process.env.PIONEER_API_KEY || process.env.GEMINI_API_KEY;
+    const API_KEY = process.env.DO_API_KEY;
 
     if (!API_KEY) {
       return NextResponse.json({ response: "Simulated Action (No API Key). You asked to: " + prompt, action: {} }, { status: 200 });
@@ -15,7 +15,7 @@ export async function POST(req: Request) {
     const timeoutId = setTimeout(() => controller.abort(), 15000);
 
     try {
-      const response = await fetch("https://api.pioneer.ai/v1/chat/completions", {
+      const response = await fetch("https://inference.do-ai.run/v1/chat/completions", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -23,7 +23,7 @@ export async function POST(req: Request) {
         },
         signal: controller.signal,
         body: JSON.stringify({
-          model: "qwen/Qwen3-8B",
+          model: "deepseek-3.2",
           messages: [
             {
               role: "system",
@@ -39,7 +39,7 @@ export async function POST(req: Request) {
 
       if (!response.ok) {
         const err = await response.text();
-        console.error("Pioneer API Error:", err);
+        console.error("AI API Error:", err);
         return NextResponse.json({ error: "Failed to reach AI API" }, { status: 500 });
       }
 
