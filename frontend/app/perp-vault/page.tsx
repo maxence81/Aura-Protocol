@@ -154,7 +154,8 @@ export default function PerpVaultPage() {
   };
 
   return (
-    <div className="min-h-screen bg-[#050505] font-mono text-white selection:bg-[#00f0ff]/30 selection:text-[#00f0ff]">
+    <div className="min-h-screen bg-[#050505] font-mono text-white selection:bg-[#00f0ff]/30 selection:text-[#00f0ff] relative overflow-hidden">
+      <img src="/assets/fond_chat.png" className="fixed inset-0 w-full h-full object-cover opacity-40 pointer-events-none z-0" alt="" />
       {/* Header */}
       <header className="sticky top-0 z-50 border-b border-[#00f0ff]/30 bg-[#050505]/95 px-6 py-4 backdrop-blur-md">
         <div className="mx-auto flex max-w-7xl items-center justify-between">

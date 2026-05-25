@@ -138,6 +138,7 @@ export default function PortfolioPage() {
 
   return (
     <div className="min-h-screen bg-[#020204] text-white font-mono relative overflow-hidden">
+      <img src="/assets/fond_chat.png" className="fixed inset-0 w-full h-full object-cover opacity-40 pointer-events-none z-0" alt="" />
       <div className="cyber-grid-bg fixed inset-0 z-0" />
       <div className="scanlines fixed inset-0 z-[1]" />
 
