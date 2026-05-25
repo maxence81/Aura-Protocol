@@ -178,7 +178,7 @@ Real numbers from `scripts/bench-guardrail.js` on Arbitrum Sepolia:
 | AuraIntelligenceVault (ERC-4626) | `0x69A88c72eAda96A515e0dc57632A6Abf59EA2E38` |
 | AuraPerpsRouter (Hybrid) | `0x5F88E57fBDC5B83827273d2ab8843226F40d0E13` |
 | AuraAccount Factory | `0x95Aa20d53EB26f292a71D8B38515BBeC8905b550` |
-| **AuraAuditTrail** | `0x7262d100793CdDDF43F7fd69c4561e72C55493a4` |
+| **AuraAuditTrail** | `0x42D141CBe4aDc46B082D702C2e1bD802236348C4` |
 | aUSD | `0x359961489f069F16E5dbA46d9b174bBF7b25147B` |
 | Pyth MockOracle | `0x097AeB196366317cf97986A04f32Df312c96ABa1` |
 

@@ -73,6 +73,10 @@ contract AuraAuditTrail {
         lastConfidenceScore[msg.sender][user] = confidenceScore;
         totalRecords += 1;
 
+        // Accumulate agent reputation
+        agentReputation[msg.sender].totalTrades += 1;
+        agentReputation[msg.sender].cumulativeScore += confidenceScore;
+
         // Both events fire — old indexers keep working, new ones can read the score.
         emit ReasoningRecorded(msg.sender, user, reasoningHash, block.timestamp, action);
         emit ReasoningRecordedWithScore(
@@ -84,5 +88,24 @@ contract AuraAuditTrail {
     ///         if no score has been recorded yet.
     function getLastConfidenceScore(address agent, address user) external view returns (uint8) {
         return lastConfidenceScore[agent][user];
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    //              ON-CHAIN AGENT REPUTATION
+    // ═══════════════════════════════════════════════════════════
+
+    struct Reputation {
+        uint256 totalTrades;
+        uint256 cumulativeScore;  // sum of all confidence scores
+    }
+
+    /// @notice Cumulative reputation per agent address.
+    mapping(address => Reputation) public agentReputation;
+
+    /// @notice Get the agent's average confidence score (0-100) and trade count.
+    function getAgentReputation(address agent) external view returns (uint256 trades, uint256 avgScore) {
+        Reputation memory r = agentReputation[agent];
+        trades = r.totalTrades;
+        avgScore = r.totalTrades > 0 ? r.cumulativeScore / r.totalTrades : 0;
     }
 }

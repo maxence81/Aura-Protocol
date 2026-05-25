@@ -398,11 +398,59 @@ describe("AuraAuditTrail — On-Chain Reasoning Audit", () => {
             expect(await auditTrail.lastConfidenceScore(agent.address, user1.address)).to.equal(88);
         });
 
-        it("score tx costs less than 75k gas", async () => {
+        it("score tx costs less than 130k gas", async () => {
             const hash = ethers.keccak256(ethers.toUtf8Bytes("gas score"));
             const tx = await auditTrail.connect(agent).recordReasoningWithScore(user1.address, hash, "SWAP", 87);
             const receipt = await tx.wait();
-            expect(receipt.gasUsed).to.be.lt(75000n);
+            expect(receipt.gasUsed).to.be.lt(130000n);
+        });
+    });
+
+    // ═══════════════════════════════════════════════════════════
+    //              ON-CHAIN AGENT REPUTATION
+    // ═══════════════════════════════════════════════════════════
+
+    describe("On-Chain Agent Reputation", () => {
+        it("getAgentReputation returns 0 trades and 0 avg for new agent", async () => {
+            const [trades, avg] = await auditTrail.getAgentReputation(agent.address);
+            expect(trades).to.equal(0);
+            expect(avg).to.equal(0);
+        });
+
+        it("reputation accumulates on recordReasoningWithScore", async () => {
+            const hash = ethers.keccak256(ethers.toUtf8Bytes("rep1"));
+            await auditTrail.connect(agent).recordReasoningWithScore(user1.address, hash, "A", 80);
+            await auditTrail.connect(agent).recordReasoningWithScore(user1.address, hash, "B", 90);
+            const [trades, avg] = await auditTrail.getAgentReputation(agent.address);
+            expect(trades).to.equal(2);
+            expect(avg).to.equal(85); // (80+90)/2
+        });
+
+        it("reputation does NOT accumulate on legacy recordReasoning", async () => {
+            const hash = ethers.keccak256(ethers.toUtf8Bytes("legacy rep"));
+            await auditTrail.connect(agent).recordReasoning(user1.address, hash, "SWAP");
+            const [trades] = await auditTrail.getAgentReputation(agent.address);
+            expect(trades).to.equal(0);
+        });
+
+        it("reputation is per-agent (isolated)", async () => {
+            const hash = ethers.keccak256(ethers.toUtf8Bytes("iso"));
+            await auditTrail.connect(agent).recordReasoningWithScore(user1.address, hash, "A", 60);
+            await auditTrail.connect(agent2).recordReasoningWithScore(user1.address, hash, "A", 100);
+            const [t1, a1] = await auditTrail.getAgentReputation(agent.address);
+            const [t2, a2] = await auditTrail.getAgentReputation(agent2.address);
+            expect(t1).to.equal(1);
+            expect(a1).to.equal(60);
+            expect(t2).to.equal(1);
+            expect(a2).to.equal(100);
+        });
+
+        it("agentReputation mapping is publicly readable", async () => {
+            const hash = ethers.keccak256(ethers.toUtf8Bytes("pub"));
+            await auditTrail.connect(agent).recordReasoningWithScore(user1.address, hash, "A", 75);
+            const rep = await auditTrail.agentReputation(agent.address);
+            expect(rep.totalTrades).to.equal(1);
+            expect(rep.cumulativeScore).to.equal(75);
         });
     });
 });
