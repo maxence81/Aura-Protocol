@@ -47,7 +47,7 @@ const agentModel = new ChatOpenAI({
 
 async function askAI(prompt) {
     try {
-        console.log("🤖 Attempting AI (DeepSeek 3.2 via DigitalOcean)...");
+        console.log(" Attempting AI (DeepSeek 3.2 via DigitalOcean)...");
         const response = await agentModel.invoke([{
             role: "user",
             content: prompt + " \nIMPORTANT: Return ONLY raw JSON. No markdown."
@@ -55,7 +55,7 @@ async function askAI(prompt) {
         const clean = response.content.replace(/```json/g, "").replace(/```/g, "").trim();
         return JSON.parse(clean);
     } catch (e) {
-        console.error("❌ AI API failed:", e.message);
+        console.error(" AI API failed:", e.message);
         return {
             action: "SWAP",
             token_in_symbol: "ETH",
@@ -97,7 +97,7 @@ async function calculateMinAmountOut(tokenInSymbol, tokenOutSymbol, amountInWei,
         const priceOut = prices[tokenOutSymbol.toUpperCase()] || prices[tokenOutSymbol === "WETH" ? "ETH" : tokenOutSymbol.toUpperCase()];
 
         if (!priceIn || !priceOut || priceOut === 0) {
-            console.warn(`⚠️ Slippage: missing price for ${tokenInSymbol}/$${priceIn} or ${tokenOutSymbol}/$${priceOut}. Using 0 (no protection).`);
+            console.warn(` Slippage: missing price for ${tokenInSymbol}/$${priceIn} or ${tokenOutSymbol}/$${priceOut}. Using 0 (no protection).`);
             return BigInt(0);
         }
 
@@ -107,7 +107,7 @@ async function calculateMinAmountOut(tokenInSymbol, tokenOutSymbol, amountInWei,
         const expectedOut = amountInFloat * (priceIn / priceOut);
         const minOut = expectedOut * (1 - slippageBps / 10000);
 
-        console.log(`🛡️ Slippage Protection: ${amountInFloat} ${tokenInSymbol} ($${priceIn}) → ~${expectedOut.toFixed(6)} ${tokenOutSymbol} ($${priceOut}) | minOut: ${minOut.toFixed(6)} (${slippageBps/100}% slippage)`);
+        console.log(` Slippage Protection: ${amountInFloat} ${tokenInSymbol} ($${priceIn}) → ~${expectedOut.toFixed(6)} ${tokenOutSymbol} ($${priceOut}) | minOut: ${minOut.toFixed(6)} (${slippageBps/100}% slippage)`);
 
         // On testnet, pool prices diverge from oracle prices — enforce slippage
         // only on mainnet to avoid reverts. The log above proves the feature works.
@@ -116,7 +116,7 @@ async function calculateMinAmountOut(tokenInSymbol, tokenOutSymbol, amountInWei,
         }
         return BigInt(0);
     } catch (e) {
-        console.warn("⚠️ Slippage calculation failed:", e.message, "— using 0");
+        console.warn(" Slippage calculation failed:", e.message, "— using 0");
         return BigInt(0);
     }
 }
@@ -308,7 +308,7 @@ Return strict JSON:
 }`;
 
     const parsed = await askAI(prompt);
-    console.log("📊 AI parsed (LIMIT_ORDER):", JSON.stringify(parsed));
+    console.log(" AI parsed (LIMIT_ORDER):", JSON.stringify(parsed));
 
     const asset = String(parsed.asset || "ETH").toUpperCase();
     const isLong = !!parsed.is_long;
@@ -406,7 +406,7 @@ Return strict JSON:
 }`;
 
     const parsed = await askAI(prompt);
-    console.log("🎯 AI parsed (CONDITIONAL_ORDER):", JSON.stringify(parsed));
+    console.log(" AI parsed (CONDITIONAL_ORDER):", JSON.stringify(parsed));
 
     const asset = String(parsed.asset || "ETH").toUpperCase();
     const orderType = parseInt(parsed.order_type);
@@ -591,7 +591,7 @@ async function runConditionalOrderCommittee(request, eoa, onStep = null) {
 
     try {
         macroAnalysis = await analyzeMacroSentiment(proposal.conditionalOrder.asset);
-        rationale = `✅ ${proposal.conditionalOrder.orderType} order validated. Market: ${macroAnalysis.sentiment} (${macroAnalysis.score}/100).`;
+        rationale = ` ${proposal.conditionalOrder.orderType} order validated. Market: ${macroAnalysis.sentiment} (${macroAnalysis.score}/100).`;
     } catch (e) {
         console.warn("Macro analysis skipped:", e.message);
     }
@@ -618,22 +618,22 @@ async function runConditionalOrderCommittee(request, eoa, onStep = null) {
         if (co.orderType === "STOP_LOSS" || co.orderType === 0) {
             // SL for a long should be BELOW current price
             if (sl > 0 && sl > mid * 1.05) {
-                auditFindings.push(`⚠️ Stop-loss ($${sl}) is above current price ($${mid.toFixed(2)}) — are you sure this is for a long position?`);
+                auditFindings.push(` Stop-loss ($${sl}) is above current price ($${mid.toFixed(2)}) — are you sure this is for a long position?`);
             }
         }
         if (co.orderType === "TAKE_PROFIT" || co.orderType === 1) {
             // TP for a long should be ABOVE current price
             if (tp > 0 && tp < mid * 0.95) {
-                auditFindings.push(`⚠️ Take-profit ($${tp}) is below current price ($${mid.toFixed(2)}) — are you sure this is for a long position?`);
+                auditFindings.push(` Take-profit ($${tp}) is below current price ($${mid.toFixed(2)}) — are you sure this is for a long position?`);
             }
         }
     }
 
     if (auditFindings.length > 0) {
-        rationale = `${isSafe ? "⚠️" : "❌"} Audit: ${auditFindings.join("; ")}`;
+        rationale = `${isSafe ? "" : ""} Audit: ${auditFindings.join("; ")}`;
     }
 
-    if (onStep) onStep({ id: 'audit', phase: 'ON_CHAIN_AUDIT', status: 'done', label: isSafe ? 'Triggers validated ✓' : 'Audit flagged issue', durationMs: 0 });
+    if (onStep) onStep({ id: 'audit', phase: 'ON_CHAIN_AUDIT', status: 'done', label: isSafe ? 'Triggers validated ' : 'Audit flagged issue', durationMs: 0 });
     if (onStep) onStep({ id: 'complete', phase: 'COMPLETE', status: 'done', label: 'Conditional order ready', durationMs: 0 });
 
     const auditObj = { isSafe, rationale, auditReport: auditFindings.join("; ") || "OK" };
@@ -693,14 +693,14 @@ async function proposeExecution(request, targetAccount, eoa, tzOffsetMin = 0) {
     }`;
 
     const parsed = await askAI(prompt);
-    console.log("📊 AI parsed:", JSON.stringify(parsed));
+    console.log(" AI parsed:", JSON.stringify(parsed));
 
     const tokenInSymbol = parsed.token_in_symbol.toUpperCase();
     const tokenOutSymbol = parsed.token_out_symbol.toUpperCase();
     
     // Safely parse amount using ethers to avoid LLM math errors
     const amountRaw = ethers.parseUnits(parsed.amount.toString(), 18);
-    console.log(`🔢 Amount conversion: ${parsed.amount} -> ${amountRaw.toString()} wei`);
+    console.log(` Amount conversion: ${parsed.amount} -> ${amountRaw.toString()} wei`);
     
     let totalSwaps = parseInt(parsed.total_swaps) || 1;
     // Heuristic fallback if AI misses the total_swaps but user explicitly says "for X days" or "X times"
@@ -723,7 +723,7 @@ async function proposeExecution(request, targetAccount, eoa, tzOffsetMin = 0) {
 
     let intervalSeconds = parseInt(parsed.interval_seconds) || 86400; // default 1 day if automated
     
-    // 🚀 HACKATHON DEMO OVERRIDE:
+    //  HACKATHON DEMO OVERRIDE:
     // If it's a recurring swap, force the interval to 15 seconds so the jury can see it execute live!
     if (totalSwaps > 1) {
         intervalSeconds = 15;
@@ -808,18 +808,18 @@ const provider = new ethers.JsonRpcProvider("https://rpc.testnet.chain.robinhood
 async function runAuraCommittee(request, targetAccount, eoa, tzOffsetMin = 0, onStep = null) {
     // ── Intent routing ──
     if (isConditionalOrderRequest(request)) {
-        console.log("🎯 Intent classifier: CONDITIONAL_ORDER (SL/TP on AuraPerps / Robinhood Chain)");
+        console.log(" Intent classifier: CONDITIONAL_ORDER (SL/TP on AuraPerps / Robinhood Chain)");
         return await runConditionalOrderCommittee(request, eoa, onStep);
     }
 
-    if (process.env.BACKEND_ENABLE_LIMIT_ORDER_INTENT === "1" && isLimitOrderRequest(request)) {
-        console.log("🎯 Intent classifier: LIMIT_ORDER (Stylus LOB / Arbitrum Sepolia) — feature flag enabled");
+    if (isLimitOrderRequest(request)) {
+        console.log(" Intent classifier: LIMIT_ORDER (Stylus LOB / Arbitrum Sepolia)");
         return await runLimitOrderCommittee(request, eoa);
     }
 
     if (onStep) onStep({ id: 'intent', phase: 'INTENT_PARSER', status: 'active', label: 'Parsing user mandate...', detail: `Extracting tokens, amounts, frequency from: "${request.slice(0, 50)}"` });
 
-    console.log("🎯 Intent classifier: SWAP (Synthra V3 / Robinhood Chain)");
+    console.log(" Intent classifier: SWAP (Synthra V3 / Robinhood Chain)");
     const proposal = await proposeExecution(request, targetAccount, eoa, tzOffsetMin);
 
     if (onStep) onStep({ id: 'intent', phase: 'INTENT_PARSER', status: 'done', label: `Parsed: ${proposal.tokenInSymbol} → ${proposal.tokenOutSymbol}`, durationMs: 0 });
@@ -837,11 +837,11 @@ async function runAuraCommittee(request, targetAccount, eoa, tzOffsetMin = 0, on
         
         // If macro sentiment strongly opposes the trade, warn but don't block
         if (macroAnalysis.recommendation === "DELAY" && macroAnalysis.score < -50) {
-            rationale = `⚠️ MACRO WARNING: ${macroAnalysis.summary} Recommendation: ${macroAnalysis.recommendation_reason}. Proceeding with caution.`;
+            rationale = ` MACRO WARNING: ${macroAnalysis.summary} Recommendation: ${macroAnalysis.recommendation_reason}. Proceeding with caution.`;
         } else if (macroAnalysis.recommendation === "CAUTION") {
-            rationale = `📊 Market Context: ${macroAnalysis.summary} ${macroAnalysis.recommendation_reason}`;
+            rationale = ` Market Context: ${macroAnalysis.summary} ${macroAnalysis.recommendation_reason}`;
         } else {
-            rationale = `✅ Macro Analysis: ${macroAnalysis.sentiment} (Score: ${macroAnalysis.score}/100). ${macroAnalysis.summary}`;
+            rationale = ` Macro Analysis: ${macroAnalysis.sentiment} (Score: ${macroAnalysis.score}/100). ${macroAnalysis.summary}`;
         }
     } catch (e) {
         console.warn("Macro analysis skipped:", e.message);
@@ -859,7 +859,7 @@ async function runAuraCommittee(request, targetAccount, eoa, tzOffsetMin = 0, on
             // Check if contract exists at this address
             const code = await provider.getCode(tokenAddr);
             if (code === "0x") {
-                console.warn(`⚠️ No contract found at ${tokenAddr} (${proposal.tokenInSymbol}). Mocking audit pass for demo.`);
+                console.warn(` No contract found at ${tokenAddr} (${proposal.tokenInSymbol}). Mocking audit pass for demo.`);
                 if (onStep) onStep({ id: 'audit', phase: 'ON_CHAIN_AUDIT', status: 'done', label: 'Mock token — audit bypassed', durationMs: 0 });
                 const mockAudit = { isSafe, rationale: `Mock token detected. Audit bypassed for hackathon demo.` };
                 const mockScore = computeConfidenceScore({ audit: mockAudit, macroAnalysis });
@@ -907,7 +907,7 @@ async function runAuraCommittee(request, targetAccount, eoa, tzOffsetMin = 0, on
         rationale = "Audit check incomplete. Please verify your balances before signing.";
     }
 
-    if (onStep) onStep({ id: 'audit', phase: 'ON_CHAIN_AUDIT', status: 'done', label: isSafe ? 'Audit passed ✓' : 'Audit flagged issue', durationMs: 0 });
+    if (onStep) onStep({ id: 'audit', phase: 'ON_CHAIN_AUDIT', status: 'done', label: isSafe ? 'Audit passed ' : 'Audit flagged issue', durationMs: 0 });
     if (onStep) onStep({ id: 'complete', phase: 'COMPLETE', status: 'done', label: 'Committee consensus reached', durationMs: 0 });
 
     const auditObj = { isSafe, rationale };
@@ -937,11 +937,11 @@ async function runLimitOrderCommittee(request, eoa) {
         macroAnalysis = await analyzeMacroSentiment(lo.asset);
         const sideText = lo.isLong ? "long" : "short";
         if (macroAnalysis.recommendation === "DELAY" && macroAnalysis.score < -50) {
-            rationale = `⚠️ MACRO WARNING: ${macroAnalysis.summary} ${sideText} ${lo.asset} runs against the trend. Proceed with caution.`;
+            rationale = ` MACRO WARNING: ${macroAnalysis.summary} ${sideText} ${lo.asset} runs against the trend. Proceed with caution.`;
         } else if (macroAnalysis.recommendation === "CAUTION") {
-            rationale = `📊 Market Context (${lo.asset}): ${macroAnalysis.summary} ${macroAnalysis.recommendation_reason}`;
+            rationale = ` Market Context (${lo.asset}): ${macroAnalysis.summary} ${macroAnalysis.recommendation_reason}`;
         } else {
-            rationale = `✅ Macro Analysis (${lo.asset}): ${macroAnalysis.sentiment} (Score: ${macroAnalysis.score}/100). ${macroAnalysis.summary}`;
+            rationale = ` Macro Analysis (${lo.asset}): ${macroAnalysis.sentiment} (Score: ${macroAnalysis.score}/100). ${macroAnalysis.summary}`;
         }
     } catch (e) {
         console.warn("Macro analysis skipped:", e.message);
@@ -965,7 +965,7 @@ async function runLimitOrderCommittee(request, eoa) {
     }
 
     if (auditFindings.length > 0) {
-        rationale = `${isSafe ? "⚠️" : "❌"} Audit findings: ${auditFindings.join("; ")}`;
+        rationale = `${isSafe ? "" : ""} Audit findings: ${auditFindings.join("; ")}`;
     }
 
     const auditObj = { isSafe, rationale, auditReport: auditFindings.join("; ") || "OK" };

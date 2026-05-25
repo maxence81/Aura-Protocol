@@ -143,7 +143,7 @@ async function settleFilledOrders(symbol, midPrice) {
     }
     if (filledIds.length === 0) return;
 
-    console.log(`[Keeper] 🌉 ${filledIds.length} filled order(s) for ${symbol} — settling on Robinhood Chain...`);
+    console.log(`[Keeper]  ${filledIds.length} filled order(s) for ${symbol} — settling on Robinhood Chain...`);
 
     // Update oracle on Robinhood Chain with fresh Pyth price before opening positions
     try {
@@ -167,7 +167,7 @@ async function settleFilledOrders(symbol, midPrice) {
             if (allowance < collatNum) {
                 const MAX = ethers.MaxUint256;
                 await (await ausd.approve(AURA_PERPS_ADDRESS, MAX)).wait();
-                console.log(`[Keeper] ✅ aUSD approved for AuraPerps (unlimited)`);
+                console.log(`[Keeper]  aUSD approved for AuraPerps (unlimited)`);
             }
 
             // Open position (keeper is msg.sender, position owned by keeper for now)
@@ -175,7 +175,7 @@ async function settleFilledOrders(symbol, midPrice) {
             const tx = await perps.openPosition(symbol, isLong, collatNum, leverage);
             const receipt = await tx.wait();
             console.log(
-                `[Keeper] ✅ Position opened on Robinhood Chain for order #${orderId} | ${isLong ? "LONG" : "SHORT"} ${symbol} ${leverage}x | tx ${receipt.hash}`
+                `[Keeper]  Position opened on Robinhood Chain for order #${orderId} | ${isLong ? "LONG" : "SHORT"} ${symbol} ${leverage}x | tx ${receipt.hash}`
             );
 
             logSettlementEvent({
@@ -191,7 +191,7 @@ async function settleFilledOrders(symbol, midPrice) {
 
             // Mark as executed on Stylus LOB
             await (await lob.mark_executed(orderId)).wait();
-            console.log(`[Keeper] ✅ Order #${orderId} marked EXECUTED on Stylus LOB`);
+            console.log(`[Keeper]  Order #${orderId} marked EXECUTED on Stylus LOB`);
         } catch (e) {
             console.error(`[Keeper] Settlement failed for order #${orderId}:`, e.shortMessage || e.message);
         }
@@ -210,7 +210,7 @@ async function tickAsset(symbol, midPrice) {
         const tx = await lob.match_orders(hash, priceWei);
         const receipt = await tx.wait();
         console.log(
-            `[Keeper] 🔨 match_orders(${symbol}, $${midPrice.toFixed(2)}) | book: bids=${bids}/asks=${asks} | tx ${receipt.hash} | gas ${receipt.gasUsed}`
+            `[Keeper]  match_orders(${symbol}, $${midPrice.toFixed(2)}) | book: bids=${bids}/asks=${asks} | tx ${receipt.hash} | gas ${receipt.gasUsed}`
         );
 
         // Cross-chain settlement: open positions on Robinhood for filled orders
@@ -235,7 +235,7 @@ async function cycle() {
 
     try {
         const stats = await lob.get_stats();
-        console.log(`[Keeper] 📈 LOB stats: nextId=${stats[0]} placed=${stats[1]} filled=${stats[2]}`);
+        console.log(`[Keeper]  LOB stats: nextId=${stats[0]} placed=${stats[1]} filled=${stats[2]}`);
     } catch {}
 }
 
@@ -281,7 +281,7 @@ async function main() {
     console.log(`Stylus LOB:    ${STYLUS_LOB_ADDRESS}`);
     console.log(`Arb Sepolia:   ${ethers.formatEther(sepoliaBal)} ETH`);
     console.log(`Robinhood:     ${ethers.formatEther(robinhoodBal)} ETH`);
-    console.log(`Settlement:    ${ENABLE_SETTLEMENT ? "✅ ON (→ AuraPerps " + AURA_PERPS_ADDRESS + ")" : "❌ OFF"}`);
+    console.log(`Settlement:    ${ENABLE_SETTLEMENT ? " ON (→ AuraPerps " + AURA_PERPS_ADDRESS + ")" : " OFF"}`);
     console.log(`Assets:        ${ASSETS.join(", ")}`);
     console.log(`Cycle every:   ${INTERVAL_MS / 1000}s\n`);
 

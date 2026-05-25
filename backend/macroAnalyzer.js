@@ -75,7 +75,7 @@ Based on the above data, provide your analysis as strict JSON:
 
 IMPORTANT: Return ONLY raw JSON. No markdown.`;
 
-        console.log(`🧠 Running macro sentiment analysis for ${targetAsset}...`);
+        console.log(` Running macro sentiment analysis for ${targetAsset}...`);
 
         const response = await analyzerModel.invoke([{
             role: "user",
@@ -85,7 +85,7 @@ IMPORTANT: Return ONLY raw JSON. No markdown.`;
         const clean = response.content.replace(/```json/g, "").replace(/```/g, "").trim();
         const analysis = JSON.parse(clean);
 
-        console.log(`📈 Macro Analysis Result: ${analysis.sentiment} (Score: ${analysis.score}) - ${analysis.recommendation}`);
+        console.log(` Macro Analysis Result: ${analysis.sentiment} (Score: ${analysis.score}) - ${analysis.recommendation}`);
 
         return {
             ...analysis,
@@ -94,7 +94,7 @@ IMPORTANT: Return ONLY raw JSON. No markdown.`;
         };
 
     } catch (err) {
-        console.error("❌ Macro analysis failed:", err.message);
+        console.error(" Macro analysis failed:", err.message);
         // Return a neutral fallback so the system doesn't block trades
         return {
             sentiment: "NEUTRAL",
@@ -156,7 +156,7 @@ async function getQuickSentiment() {
         throw new Error("Invalid response format from CoinMarketCap");
 
     } catch (err) {
-        console.warn("⚠️ Quick sentiment failed:", err.message);
+        console.warn(" Quick sentiment failed:", err.message);
         return {
             sentiment: "NEUTRAL",
             score: 0,

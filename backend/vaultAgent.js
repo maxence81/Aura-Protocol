@@ -78,7 +78,7 @@ async function askAI(model, prompt) {
         const clean = response.content.replace(/```json/g, "").replace(/```/g, "").trim();
         return JSON.parse(clean);
     } catch (e) {
-        console.error("❌ AI failure:", e.message);
+        console.error(" AI failure:", e.message);
         throw e;
     }
 }
@@ -88,7 +88,7 @@ async function askAI(model, prompt) {
  * Analyzes market and vault idle capital to deploy to yields or swaps.
  */
 async function generateRebalanceStrategy(vaultState, macroSentiment) {
-    console.log("📊 [Analyst Agent] Analyzing market conditions...");
+    console.log(" [Analyst Agent] Analyzing market conditions...");
     
     const prompt = `You are the Aura Vault Analyst. 
     Current Vault State:
@@ -118,7 +118,7 @@ async function generateRebalanceStrategy(vaultState, macroSentiment) {
  * Risk Audit for Proposed Strategies
  */
 async function auditStrategy(proposals, vaultState) {
-    console.log("🛡️ [Risk Officer] Validating proposal...");
+    console.log(" [Risk Officer] Validating proposal...");
     
     const prompt = `You are the Aura Risk Officer. Audit the following proposed vault actions:
     ${JSON.stringify(proposals)}
@@ -140,7 +140,7 @@ async function auditStrategy(proposals, vaultState) {
  * Encode strategies for the on-chain vault
  */
 function encodeVaultActions(proposals, vaultState) {
-    console.log("⚡ [Encoder] Generating on-chain calldata...");
+    console.log(" [Encoder] Generating on-chain calldata...");
     const vaultIface = new ethers.Interface(VAULT_ABI);
     const erc20Iface = new ethers.Interface(ERC20_ABI);
     const routerIface = new ethers.Interface(ROUTER_ABI);
@@ -242,16 +242,16 @@ async function executeStrategiesOnChain(actions, vaultAddr, signer) {
 
     for (const action of actions) {
         try {
-            console.log(`🔗 [Executor] Sending: ${action.description}...`);
+            console.log(` [Executor] Sending: ${action.description}...`);
             // We use a risk score from the audit, or a default safe one for the individual action
             const tx = await vault.executeStrategy(action.target, action.data, 30, {
                 gasLimit: 1000000
             });
             const receipt = await tx.wait();
-            console.log(`   ✅ Success! Hash: ${tx.hash}`);
+            console.log(`    Success! Hash: ${tx.hash}`);
             results.push({ description: action.description, success: true, hash: tx.hash });
         } catch (err) {
-            console.error(`   ❌ Failed: ${err.message}`);
+            console.error(`    Failed: ${err.message}`);
             results.push({ description: action.description, success: false, error: err.message });
         }
     }
@@ -282,7 +282,7 @@ async function readVaultState(vaultAddr, provider) {
 
 async function runVaultStrategyCycle() {
     console.log("\n╔══════════════════════════════════════════╗");
-    console.log("║   🧠 AURA FUND MANAGER — Strategy Cycle  ║");
+    console.log("║    AURA FUND MANAGER — Strategy Cycle  ║");
     console.log("╚══════════════════════════════════════════╝\n");
 
     const provider = new ethers.JsonRpcProvider(process.env.RPC_URL || "https://rpc.testnet.chain.robinhood.com");
@@ -293,15 +293,15 @@ async function runVaultStrategyCycle() {
         const result = await runAuraFundManager(vaultAddr, provider);
         
         if (result.status === "approved" && result.encodedStrategies) {
-            console.log(`🛡️ [Risk Officer] ✅ APPROVED (Risk: ${result.audit.riskScore}/100)`);
-            console.log(`🎯 [Fund Manager] ${result.encodedStrategies.length} strategies ready for execution.`);
+            console.log(` [Risk Officer]  APPROVED (Risk: ${result.audit.riskScore}/100)`);
+            console.log(` [Fund Manager] ${result.encodedStrategies.length} strategies ready for execution.`);
             await executeStrategiesOnChain(result.encodedStrategies, vaultAddr, wallet);
         } else {
-            console.log(`💤 [Fund Manager] Cycle finished: ${result.message || "No actions approved"}`);
+            console.log(` [Fund Manager] Cycle finished: ${result.message || "No actions approved"}`);
         }
 
     } catch (e) {
-        console.error("❌ Critical error in vault cycle:", e);
+        console.error(" Critical error in vault cycle:", e);
     }
 }
 

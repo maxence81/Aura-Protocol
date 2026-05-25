@@ -41,7 +41,7 @@ function loadStrategiesFromDisk() {
         const parsed = JSON.parse(raw);
         return Array.isArray(parsed) ? parsed : [];
     } catch (err) {
-        console.error("⚠️  Failed to read strategies.json:", err.message);
+        console.error("  Failed to read strategies.json:", err.message);
         return [];
     }
 }
@@ -54,7 +54,7 @@ function persistStrategies() {
         });
         fs.writeFileSync(STRATEGIES_FILE, JSON.stringify(serializable, null, 2));
     } catch (err) {
-        console.error("⚠️  Failed to persist strategies:", err.message);
+        console.error("  Failed to persist strategies:", err.message);
     }
 }
 
@@ -88,14 +88,14 @@ async function executeSwap(strategy) {
 
     try {
         const timestamp = new Date().toISOString();
-        console.log(`[${timestamp}] [${strategyId}] 🤖 AGENT ACTION: Executing swap ${current}/${totalSwaps}...`);
+        console.log(`[${timestamp}] [${strategyId}]  AGENT ACTION: Executing swap ${current}/${totalSwaps}...`);
 
         const provider = new ethers.JsonRpcProvider("https://rpc.testnet.chain.robinhood.com");
         const signer = operatorWallet.connect(provider);
 
         const balance = await provider.getBalance(operatorWallet.address);
         if (balance === 0n) {
-            console.error(`[${strategyId}] ❌ ERROR: Agent has no ETH for gas. Address: ${operatorWallet.address}`);
+            console.error(`[${strategyId}]  ERROR: Agent has no ETH for gas. Address: ${operatorWallet.address}`);
             logExecution(strategyId, { status: "failed", error: "Agent has no ETH for gas", current, total: totalSwaps });
             return false;
         }
@@ -116,7 +116,7 @@ async function executeSwap(strategy) {
         const receipt = await tx.wait();
 
         if (receipt.status === 1) {
-            console.log(`[${strategyId}] ✅ SUCCESS: Swap ${current} confirmed in block ${receipt.blockNumber}!`);
+            console.log(`[${strategyId}]  SUCCESS: Swap ${current} confirmed in block ${receipt.blockNumber}!`);
             logExecution(strategyId, {
                 status: "confirmed",
                 txHash: tx.hash,
@@ -134,7 +134,7 @@ async function executeSwap(strategy) {
             strategy.lastTxHash = tx.hash;
             return true;
         } else {
-            console.error(`[${strategyId}] ❌ REVERTED: Swap ${current} failed on-chain.`);
+            console.error(`[${strategyId}]  REVERTED: Swap ${current} failed on-chain.`);
             logExecution(strategyId, {
                 status: "failed",
                 txHash: tx.hash,
@@ -145,7 +145,7 @@ async function executeSwap(strategy) {
             return false;
         }
     } catch (err) {
-        console.error(`[${strategyId}] ❌ EXECUTION FAILED:`, err.message);
+        console.error(`[${strategyId}]  EXECUTION FAILED:`, err.message);
         logExecution(strategyId, { status: "failed", error: err.message, current, total: totalSwaps });
         return false;
     }
@@ -176,7 +176,7 @@ async function runStep(strategyId) {
         strategy.nextRunAt = null;
         clearTimer(strategy);
         persistStrategies();
-        console.log(`[${strategyId}] 🏁 ALL SWAPS COMPLETED.`);
+        console.log(`[${strategyId}]  ALL SWAPS COMPLETED.`);
         return;
     }
 
@@ -188,7 +188,7 @@ async function runStep(strategyId) {
         strategy.nextRunAt = null;
         clearTimer(strategy);
         persistStrategies();
-        console.log(`[${strategyId}] 🏁 ALL SWAPS COMPLETED.`);
+        console.log(`[${strategyId}]  ALL SWAPS COMPLETED.`);
         return;
     }
 
@@ -206,7 +206,7 @@ async function runStep(strategyId) {
  */
 async function startAutomation(strategyId, totalSwaps, intervalSeconds, txParams, accountAddress, initialDelayMs = 0) {
     console.log(
-        `🚀 Automation Engine Started for ${totalSwaps} swaps. Initial Delay: ${initialDelayMs}ms, Interval: ${intervalSeconds}s`
+        ` Automation Engine Started for ${totalSwaps} swaps. Initial Delay: ${initialDelayMs}ms, Interval: ${intervalSeconds}s`
     );
 
     // If a strategy with this id already exists, clear it first (idempotency).
@@ -242,7 +242,7 @@ function pauseStrategy(strategyId) {
     clearTimer(strategy);
     strategy.nextRunAt = null;
     persistStrategies();
-    console.log(`[${strategyId}] ⏸️  Paused`);
+    console.log(`[${strategyId}] ⏸  Paused`);
     return { ok: true, strategy: serializeStrategy(strategy) };
 }
 
@@ -256,7 +256,7 @@ function resumeStrategy(strategyId) {
     strategy.status = "active";
     // Run the next swap (almost) immediately on resume.
     scheduleNextRun(strategy, 1000);
-    console.log(`[${strategyId}] ▶️  Resumed`);
+    console.log(`[${strategyId}] ▶  Resumed`);
     return { ok: true, strategy: serializeStrategy(strategy) };
 }
 
@@ -269,7 +269,7 @@ function cancelStrategy(strategyId) {
     clearTimer(strategy);
     strategy.nextRunAt = null;
     persistStrategies();
-    console.log(`[${strategyId}] 🛑 Cancelled`);
+    console.log(`[${strategyId}]  Cancelled`);
     return { ok: true, strategy: serializeStrategy(strategy) };
 }
 
@@ -294,7 +294,7 @@ function getStrategy(strategyId) {
 function restoreStrategies() {
     const saved = loadStrategiesFromDisk();
     if (saved.length === 0) {
-        console.log("📂 No persisted strategies to restore.");
+        console.log(" No persisted strategies to restore.");
         return;
     }
 
@@ -325,7 +325,7 @@ function restoreStrategies() {
         }
     }
 
-    console.log(`📂 Restored ${saved.length} strategies (${active} active resumed, ${paused} paused, ${other} other).`);
+    console.log(` Restored ${saved.length} strategies (${active} active resumed, ${paused} paused, ${other} other).`);
     persistStrategies(); // rewrite with refreshed nextRunAt values
 }
 

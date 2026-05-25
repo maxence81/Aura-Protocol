@@ -57,7 +57,7 @@ async function fetchPythPrices() {
         }
         return results;
     } catch (err) {
-        console.error("❌ Pyth price fetch failed:", err.message);
+        console.error(" Pyth price fetch failed:", err.message);
         return null;
     }
 }
@@ -134,7 +134,7 @@ async function getAllPrices() {
             prices[symbol] = price;
             if (symbol === 'ETH') prices.WETH = price;
         }
-        console.log("🔮 Pyth Network prices fetched:", Object.entries(pythPrices).map(([k,v]) => `${k}=$${v}`).join(', '));
+        console.log(" Pyth Network prices fetched:", Object.entries(pythPrices).map(([k,v]) => `${k}=$${v}`).join(', '));
     }
 
     try {
@@ -162,10 +162,10 @@ async function getAllPrices() {
             }
         }
 
-        console.log("📊 Market prices updated:", 
+        console.log(" Market prices updated:", 
             Object.entries(prices).filter(([k]) => !k.includes('_')).map(([k,v]) => `${k}=$${v}`).join(', '));
     } catch (err) {
-        console.warn("⚠️ Price fetch partially failed, using fallback/pyth prices:", err.message);
+        console.warn(" Price fetch partially failed, using fallback/pyth prices:", err.message);
         prices.ETH  = prices.ETH  || 3100;
         prices.WETH = prices.WETH || 3100;
         prices.BTC  = prices.BTC  || 67000;
@@ -242,7 +242,7 @@ async function getCoinDetails() {
                 lastUpdated: data.last_updated || new Date().toISOString(),
             };
         } catch (err) {
-            console.warn(`⚠️ Coin detail fetch failed for ${coin.symbol}:`, err.message);
+            console.warn(` Coin detail fetch failed for ${coin.symbol}:`, err.message);
         }
     }
 
@@ -288,7 +288,7 @@ async function getCoinDetails() {
         };
     }
 
-    console.log(`📋 Fetched details for ${Object.keys(details).length} coins`);
+    console.log(` Fetched details for ${Object.keys(details).length} coins`);
     coinDetailCache = details;
     lastCoinDetailFetch = now;
     return details;
@@ -328,7 +328,7 @@ async function getPriceHistory(symbol, days = 30) {
         const data = await response.json();
         return data.prices.map(([timestamp, price]) => ({ timestamp, price }));
     } catch (err) {
-        console.warn(`⚠️ Price history fetch failed for ${symbol}:`, err.message);
+        console.warn(` Price history fetch failed for ${symbol}:`, err.message);
         return generateSyntheticHistory(upper, days);
     }
 }
@@ -370,7 +370,7 @@ async function getLatestNews() {
     const apiKey = process.env.NEWSAPI || process.env.NEWSAPI_KEY;
     
     if (!apiKey) {
-        console.warn("⚠️ NEWSAPI key not set, using mock news data");
+        console.warn(" NEWSAPI key not set, using mock news data");
         const mockNews = getMockNews();
         newsCacheData = mockNews;
         lastNewsFetch = now;
@@ -404,12 +404,12 @@ async function getLatestNews() {
                 urlToImage: a.urlToImage || null,
             }));
 
-        console.log(`📰 Fetched ${articles.length} REAL news articles from NewsAPI`);
+        console.log(` Fetched ${articles.length} REAL news articles from NewsAPI`);
         newsCacheData = articles;
         lastNewsFetch = now;
         return articles;
     } catch (err) {
-        console.warn("⚠️ NewsAPI fetch failed, using mock news:", err.message);
+        console.warn(" NewsAPI fetch failed, using mock news:", err.message);
         const mockNews = getMockNews();
         newsCacheData = mockNews;
         lastNewsFetch = now;

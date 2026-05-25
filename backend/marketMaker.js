@@ -108,7 +108,7 @@ async function placeQuote(symbol, isLong, midPrice, levelIdx) {
     const limitWei = priceWei(limitPrice);
     const collatWei = ethers.parseUnits(COLLATERAL, 18);
 
-    const tag = isLong ? "🟢 BID" : "🔴 ASK";
+    const tag = isLong ? " BID" : " ASK";
     try {
         const tx = await lob.store_order(
             wallet.address,
@@ -162,7 +162,7 @@ async function cycle() {
 
     try {
         const stats = await lob.get_stats();
-        console.log(`[MM] 📈 LOB stats: nextId=${stats[0]} placed=${stats[1]} filled=${stats[2]}`);
+        console.log(`[MM]  LOB stats: nextId=${stats[0]} placed=${stats[1]} filled=${stats[2]}`);
     } catch {}
 }
 

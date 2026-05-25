@@ -35,7 +35,7 @@ if (process.env.PRIVATE_KEY) {
     // Génération d'une nouvelle clé si rien n'existe
     agentWallet = ethers.Wallet.createRandom();
     fs.writeFileSync(AGENT_KEY_FILE, agentWallet.privateKey, { mode: 0o600 });
-    console.log("🔒 New Secure Agent Key generated and saved locally.");
+    console.log(" New Secure Agent Key generated and saved locally.");
 }
 
 const app = express();
@@ -251,7 +251,7 @@ app.post("/api/update-oracle", async (req, res) => {
     const { asset, price } = req.body;
     if (!asset || !price) return res.status(400).json({ error: "Asset and price are required" });
 
-    console.log(`\n🔮 [Oracle Service] Update request for ${asset} at $${price}`);
+    console.log(`\n [Oracle Service] Update request for ${asset} at $${price}`);
     
     const provider = new ethers.JsonRpcProvider("https://rpc.testnet.chain.robinhood.com");
     const signer = agentWallet.connect(provider);
@@ -261,26 +261,26 @@ app.post("/api/update-oracle", async (req, res) => {
     const oracle = new ethers.Contract(MOCK_ORACLE_ADDR, oracleAbi, signer);
 
     const priceWei = ethers.parseUnits(price.toString(), 18);
-    console.log(`🛰️  [Oracle Service] Sending TX to update ${asset}...`);
+    console.log(`  [Oracle Service] Sending TX to update ${asset}...`);
     
     // Let ethers handle the nonce automatically, but await strictly to avoid overlaps
     const tx = await oracle.setPrice(asset, priceWei);
-    console.log(`🔗 [Oracle Service] TX1 Sent: ${tx.hash}. Waiting...`);
+    console.log(` [Oracle Service] TX1 Sent: ${tx.hash}. Waiting...`);
     await tx.wait(); 
     
     // Also update the variant (e.g. if BTC, update BTC-PERP too)
     const variant = asset.includes("-PERP") ? asset.split("-")[0] : `${asset}-PERP`;
-    console.log(`🛰️  [Oracle Service] Sending TX to update variant ${variant}...`);
+    console.log(`  [Oracle Service] Sending TX to update variant ${variant}...`);
     
     const tx2 = await oracle.setPrice(variant, priceWei);
-    console.log(`🔗 [Oracle Service] TX2 Sent: ${tx2.hash}. Waiting...`);
+    console.log(` [Oracle Service] TX2 Sent: ${tx2.hash}. Waiting...`);
     await tx2.wait();
     
-    console.log(`✅ [Oracle Service] Oracle Updated successfully (Both ${asset} & ${variant})`);
+    console.log(` [Oracle Service] Oracle Updated successfully (Both ${asset} & ${variant})`);
 
     res.json({ status: "success", txHash: tx.hash });
   } catch (error) {
-    console.error("❌ [Oracle Service] Update error:", error);
+    console.error(" [Oracle Service] Update error:", error);
     res.status(500).json({ error: error.message });
   }
 });
@@ -402,7 +402,7 @@ const INTELLIGENCE_VAULT_ADDRESS = process.env.INTELLIGENCE_VAULT_ADDRESS || "0x
 app.post("/api/vault/analyze", async (req, res) => {
   try {
     const vaultAddr = req.body.vaultAddress || INTELLIGENCE_VAULT_ADDRESS;
-    console.log(`\n🧠 [Vault API] Strategy analysis requested for vault: ${vaultAddr}`);
+    console.log(`\n [Vault API] Strategy analysis requested for vault: ${vaultAddr}`);
 
     const result = await runAuraFundManager(vaultAddr, vaultProvider);
     res.json(result);
@@ -427,7 +427,7 @@ app.post("/api/vault/execute", async (req, res) => {
     const vaultAddr = vaultAddress || INTELLIGENCE_VAULT_ADDRESS;
     const executorWallet = agentWallet.connect(vaultProvider);
 
-    console.log(`\n⚡ [Vault API] Executing ${strategies.length} strategies on-chain...`);
+    console.log(`\n [Vault API] Executing ${strategies.length} strategies on-chain...`);
     const results = await executeStrategiesOnChain(strategies, vaultAddr, executorWallet);
 
     res.json({ status: "executed", results });
@@ -752,7 +752,7 @@ app.listen(PORT, '0.0.0.0', () => {
 });
 
 async function startAutonomousVaultAgent() {
-    console.log("🚀 Starting 24/7 Autonomous Vault Agent...");
+    console.log(" Starting 24/7 Autonomous Vault Agent...");
     const executorWallet = agentWallet.connect(vaultProvider);
     
     // Run every 30 minutes to stay within Gemini free-tier quota (20 RPD).
@@ -764,13 +764,13 @@ async function startAutonomousVaultAgent() {
             const result = await runAuraFundManager(INTELLIGENCE_VAULT_ADDRESS, vaultProvider);
             
             if (result.status === "approved" && result.encodedStrategies && result.encodedStrategies.length > 0) {
-                console.log(`⚡ [Auto-Pilot 24/7] Executing ${result.encodedStrategies.length} approved strategies...`);
+                console.log(` [Auto-Pilot 24/7] Executing ${result.encodedStrategies.length} approved strategies...`);
                 await executeStrategiesOnChain(result.encodedStrategies, INTELLIGENCE_VAULT_ADDRESS, executorWallet);
             } else {
-                console.log("💤 [Auto-Pilot 24/7] No actionable strategies this cycle. Going back to sleep.");
+                console.log(" [Auto-Pilot 24/7] No actionable strategies this cycle. Going back to sleep.");
             }
         } catch (error) {
-            console.error("❌ [Auto-Pilot 24/7] Error during autonomous cycle:", error.message);
+            console.error(" [Auto-Pilot 24/7] Error during autonomous cycle:", error.message);
         }
     };
 

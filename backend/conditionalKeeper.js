@@ -141,10 +141,10 @@ async function scanPerpsTriggersForAsset(asset, currentPrice) {
             }
 
             if (shouldExecute) {
-                console.log(`[CondKeeper] 🎯 Trigger hit! Position #${i} (${pos.isLong ? "LONG" : "SHORT"} ${asset}) @ $${currentPrice.toFixed(2)}`);
+                console.log(`[CondKeeper]  Trigger hit! Position #${i} (${pos.isLong ? "LONG" : "SHORT"} ${asset}) @ $${currentPrice.toFixed(2)}`);
                 const tx = await perps.executeTriggerOrder(i);
                 await tx.wait();
-                console.log(`[CondKeeper] ✅ Position #${i} closed via trigger | tx: ${tx.hash}`);
+                console.log(`[CondKeeper]  Position #${i} closed via trigger | tx: ${tx.hash}`);
                 executed++;
             }
         } catch (e) {
@@ -156,7 +156,7 @@ async function scanPerpsTriggersForAsset(asset, currentPrice) {
     }
 
     if (executed > 0) {
-        console.log(`[CondKeeper] 🔥 Executed ${executed} trigger(s) for ${asset}`);
+        console.log(`[CondKeeper]  Executed ${executed} trigger(s) for ${asset}`);
     }
 }
 
@@ -168,13 +168,13 @@ async function scanConditionalOrders(asset) {
         const executable = await com.getExecutableOrders(asset, 20);
         if (executable.length === 0) return;
 
-        console.log(`[CondKeeper] 📋 ${executable.length} conditional order(s) ready for ${asset}`);
+        console.log(`[CondKeeper]  ${executable.length} conditional order(s) ready for ${asset}`);
 
         for (const orderId of executable) {
             try {
                 const tx = await com.executeOrder(orderId);
                 await tx.wait();
-                console.log(`[CondKeeper] ✅ Conditional order #${orderId} executed | tx: ${tx.hash}`);
+                console.log(`[CondKeeper]  Conditional order #${orderId} executed | tx: ${tx.hash}`);
             } catch (e) {
                 console.warn(`[CondKeeper] Order #${orderId} execution failed:`, e.shortMessage || e.message);
             }
@@ -222,7 +222,7 @@ async function scanLiquidationRisk(asset, currentPrice) {
                 recentAlerts.set(i, Date.now());
 
                 console.log(
-                    `[Shield] ⚠️ Position #${i} (${pos.isLong ? "LONG" : "SHORT"} ${asset} ${pos.leverage}x) ` +
+                    `[Shield]  Position #${i} (${pos.isLong ? "LONG" : "SHORT"} ${asset} ${pos.leverage}x) ` +
                     `health=${(healthBps/100).toFixed(1)}% < ${(Number(m.thresholdBps)/100).toFixed(1)}% | ` +
                     `recommendedTopUp=${ethers.formatUnits(m.recommendedTopUp, 18)} aUSD`
                 );
@@ -251,7 +251,7 @@ async function scanLiquidationRisk(asset, currentPrice) {
                 try {
                     const tx = await shield.recordAlert(i, healthBps);
                     await tx.wait();
-                    console.log(`[Shield] ✅ Alert recorded on-chain (tx: ${tx.hash.slice(0, 10)}...)`);
+                    console.log(`[Shield]  Alert recorded on-chain (tx: ${tx.hash.slice(0, 10)}...)`);
                 } catch (e) {
                     console.warn(`[Shield] On-chain recordAlert failed for #${i}:`, e.shortMessage || e.message);
                 }

@@ -443,7 +443,7 @@ export default function Home() {
 
       sendTransaction(authTx, {
         onSuccess: () => {
-          addMessage({ id: generateId(), type: 'system', content: "✅ Aura Agent manually authorized successfully!", timestamp: new Date() });
+          addMessage({ id: generateId(), type: 'system', content: "Aura Agent manually authorized successfully!", timestamp: new Date() });
           refetchAiAgent();
         },
         onError: (err) => {
@@ -750,7 +750,7 @@ export default function Home() {
             addMessage({
                 id: generateId(),
                 type: 'system',
-                content: `🌉 Routing limit order to Stylus LOB on Arbitrum Sepolia (chain ${txParams.chainId})…`,
+                content: `Routing limit order to Stylus LOB on Arbitrum Sepolia (chain ${txParams.chainId})...`,
                 timestamp: new Date()
             });
 
@@ -778,7 +778,7 @@ export default function Home() {
                             return msg;
                         }));
                         if (receipt.status === 'success') {
-                            addMessage({ id: generateId(), type: 'system', content: `✅ Limit order placed in Stylus LOB. Block ${receipt.blockNumber}. TX: ${tx.transactionHash}`, timestamp: new Date() });
+                            addMessage({ id: generateId(), type: 'system', content: `Limit order placed in Stylus LOB. Block ${receipt.blockNumber}. TX: ${tx.transactionHash}`, timestamp: new Date() });
                         } else {
                             addMessage({ id: generateId(), type: 'system', content: `Limit order tx reverted on-chain. TX: ${tx.transactionHash}`, timestamp: new Date() });
                         }
