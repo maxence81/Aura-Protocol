@@ -169,7 +169,7 @@ Real numbers from `scripts/bench-large-scale.js` on Arbitrum Sepolia (60 resting
 
 ## Test Coverage
 
-**128 passing tests** across security-critical paths:
+**246 passing tests** across security-critical paths:
 
 ```
 Adversarial Security Tests (21 tests)
@@ -217,6 +217,25 @@ Aura Account Abstraction (6 tests)
    AuraAccount.executeBatch routing
    Factory deterministic deployments
    AI Agent guardrail enforcement
+
+AuraPerpsRouter — Extended Coverage (22 tests)
+   Cancel & Refund (collateral return, non-owner revert, double-cancel prevention)
+   Multi-Maker Routing (walks multiple makers, skips oversized makers, fallback)
+   Keeper matchAndExecute (crossed orders, access control, unregistered asset)
+   View Functions (book depth, sorted arrays, asset hash, supported count)
+   Parameter Validation (zero collateral, leverage >50, zero price, unregistered asset)
+   Admin Controls (setKeeper, registerAsset ownership)
+
+Stylus Guardrail — Fuzz & Edge Cases (17 tests)
+   Whitelist Enforcement (non-whitelisted, bad selector, removal blocks calls)
+   Leverage Bounds (0, 1, 50, 51 boundary + fuzz [1..50] + fuzz [51..200])
+   Volume & Position Size (zero collateral, OI tracking long/short, multi-asset isolation)
+
+AuraPerps — Edge Cases & Liquidation (17 tests)
+   addMargin (increase collateral, closed position revert, non-owner revert)
+   Trigger Orders TP/SL (set prices, SL execution, trigger-not-met revert, non-owner)
+   Partial Close (size reduction, zero size revert, oversized revert, non-owner)
+   Liquidation Edge Cases (bounty payout, safe position revert, double-liquidation, OI decrease)
 ```
 
 Run with: `npx hardhat test`
@@ -227,7 +246,7 @@ Run with: `npx hardhat test`
 
 | Criterion | Aura's Edge |
 |---|---|
-| **Smart Contract Quality** | 96 tests (adversarial, fuzz, invariant), OZ standards, ERC-4626 vault, EIP-4337 accounts, Stylus snake_case selector compatibility, gas-benched against Solidity |
+| **Smart Contract Quality** | 246 tests (adversarial, fuzz, invariant, edge-case), OZ standards, ERC-4626 vault, EIP-4337 accounts, Stylus snake_case selector compatibility, gas-benched against Solidity |
 | **Product-Market Fit** | Targets Robinhood Chain's massive retail audience. Gasless UX + chat = the same UX pattern as Robinhood, but with full self-custody and DeFi yields |
 | **Innovation & Creativity** | First project to combine Multi-Agent safety + Stylus LOB + EIP-4337. Cross-chain hybrid (Stylus = compute, Robinhood = settlement) is novel |
 | **Real Problem Solving** | Answers DeFi's three real barriers -- complexity, gas, trust -- without compromising self-custody |
@@ -276,7 +295,7 @@ All contract addresses are pre-filled with our live testnet deployments.
 
 ```bash
 npx hardhat compile
-npx hardhat test                    # 128 tests, all passing
+npx hardhat test                    # 246 tests, all passing
 ```
 
 ### 4. Run the Stylus vs Solidity Benchmark
@@ -331,7 +350,7 @@ arbitrum_hackathon/
     app/chat/           Multi-agent chat for swaps & DCA
     app/vault/          ERC-4626 deposit / withdraw
  scripts/                Hardhat deploy + bench scripts
- test/                   Hardhat test suite (128 tests)
+ test/                   Hardhat test suite (246 tests)
  ARCHITECTURE.md         Full architecture reference
 ```
 
