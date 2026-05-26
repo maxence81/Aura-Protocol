@@ -777,6 +777,19 @@ app.delete("/api/mcp-keys", async (req, res) => {
   }
 });
 
+app.post("/api/mcp-keys/resolve", async (req, res) => {
+  const { apiKey } = req.body;
+  if (!apiKey) return res.status(400).json({ error: "apiKey required" });
+  try {
+    const { resolveApiKey } = await import("./mcp-users.mjs");
+    const auraAccount = resolveApiKey(apiKey);
+    if (!auraAccount) return res.status(404).json({ error: "Unknown key" });
+    res.json({ auraAccount });
+  } catch (e) {
+    res.status(500).json({ error: e.message });
+  }
+});
+
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`Aura Backend (Non-Custodial) running on port ${PORT}`);

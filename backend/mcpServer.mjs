@@ -346,13 +346,23 @@ if (args.includes("--http")) {
     return s;
   }
 
-  // Resolve Bearer token to AuraAccount address
+  // Resolve Bearer token to AuraAccount address via main backend
+  const BACKEND_URL = process.env.BACKEND_URL || "https://aura-backend-backend.up.railway.app";
   async function resolveAuth(req) {
     const auth = req.headers?.authorization || "";
     const token = auth.startsWith("Bearer ") ? auth.slice(7) : null;
     if (!token) return null;
-    const { resolveApiKey } = await import("./mcp-users.mjs");
-    return resolveApiKey(token); // returns auraAccountAddress or null
+    try {
+      // Ask the main backend to resolve this token
+      const res = await fetch(`${BACKEND_URL}/api/mcp-keys/resolve`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ apiKey: token }),
+      });
+      if (!res.ok) return null;
+      const data = await res.json();
+      return data.auraAccount || null;
+    } catch { return null; }
   }
 
   app.get("/sse", async (req, res) => {
