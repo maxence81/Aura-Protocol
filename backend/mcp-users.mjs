@@ -12,11 +12,18 @@ import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const STORE_PATH = process.env.MCP_STORE_PATH || join(process.env.RAILWAY_VOLUME_MOUNT_PATH || __dirname, ".mcp-users.json");
+const STORE_PATH = process.env.MCP_STORE_PATH || join(__dirname, ".mcp-users.json");
 
 function loadStore() {
-  if (!existsSync(STORE_PATH)) return {};
-  return JSON.parse(readFileSync(STORE_PATH, "utf8"));
+  // Try file first
+  if (existsSync(STORE_PATH)) {
+    try { return JSON.parse(readFileSync(STORE_PATH, "utf8")); } catch {}
+  }
+  // Fallback: load from env var (persists across Railway deploys)
+  if (process.env.MCP_USERS_DATA) {
+    try { return JSON.parse(process.env.MCP_USERS_DATA); } catch {}
+  }
+  return {};
 }
 
 function saveStore(store) {
