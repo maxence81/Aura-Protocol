@@ -267,6 +267,19 @@ if (args.includes("--http")) {
   // If auraAccount is provided, write operations go through executeBatchByAgent
   function createServer(auraAccount) {
     const s = new McpServer({ name: "aura-perps", version: "1.0.0" });
+    let sessionAccount = auraAccount; // mutable — can be set by authenticate tool
+
+    const BACKEND_RESOLVE_URL = (process.env.BACKEND_URL || "https://aura-backend-backend.up.railway.app") + "/api/mcp-keys/resolve";
+
+    s.registerTool("authenticate", { description: "Authenticate with your Aura API key to trade with your own wallet. Get your key at https://aura-protocol-tawny.vercel.app/trade", inputSchema: z.object({ api_key: z.string().describe("Your Aura API key (aura_xxx...)") }) }, async ({ api_key }) => {
+      try {
+        const res = await fetch(BACKEND_RESOLVE_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ apiKey: api_key }) });
+        if (!res.ok) return { content: [{ type: "text", text: "Invalid API key. Generate one at https://aura-protocol-tawny.vercel.app/trade" }] };
+        const data = await res.json();
+        sessionAccount = data.auraAccount;
+        return { content: [{ type: "text", text: `Authenticated! Trading on AuraAccount ${sessionAccount}. All trades will execute via your account.` }] };
+      } catch (e) { return { content: [{ type: "text", text: `Auth failed: ${e.message}` }] }; }
+    });
 
     s.registerTool("get_price", { description: "Get real-time price for BTC, ETH, TSLA, AMZN, NFLX, AMD, PLTR from Pyth", inputSchema: z.object({ asset: z.string() }) }, async ({ asset }) => {
       const price = await fetchPythPrice(asset);
@@ -294,14 +307,14 @@ if (args.includes("--http")) {
       const price = await fetchPythPrice(asset);
       if (price) { const oracle = new ethers.Contract(MOCK_ORACLE_ADDRESS, ORACLE_ABI, agentWallet); await (await oracle.setPrice(asset.toUpperCase(), ethers.parseUnits(price.toFixed(2), 18))).wait(); }
 
-      if (auraAccount) {
+      if (sessionAccount) {
         // Per-user: execute via their AuraAccount using executeBatchByAgent
         const approveData = ausdIface.encodeFunctionData("approve", [AURA_PERPS_ADDRESS, colWei]);
         const openData = perpsIface.encodeFunctionData("openPosition", [asset.toUpperCase(), is_long, colWei, BigInt(leverage)]);
-        const account = new ethers.Contract(auraAccount, AURA_ACCOUNT_ABI, agentWallet);
+        const account = new ethers.Contract(sessionAccount, AURA_ACCOUNT_ABI, agentWallet);
         const tx = await account.executeBatchByAgent([AUSD_ADDRESS, AURA_PERPS_ADDRESS], [0n, 0n], [approveData, openData]);
         const receipt = await tx.wait();
-        return { content: [{ type: "text", text: JSON.stringify({ status: "opened", account: auraAccount, asset: asset.toUpperCase(), side: is_long ? "LONG" : "SHORT", collateral, leverage, entryPrice: price, txHash: receipt.hash }, null, 2) }] };
+        return { content: [{ type: "text", text: JSON.stringify({ status: "opened", account: sessionAccount, asset: asset.toUpperCase(), side: is_long ? "LONG" : "SHORT", collateral, leverage, entryPrice: price, txHash: receipt.hash }, null, 2) }] };
       }
 
       // Default: agent wallet directly
@@ -318,9 +331,9 @@ if (args.includes("--http")) {
       const perps = new ethers.Contract(AURA_PERPS_ADDRESS, PERPS_ABI, robinhoodProvider);
       const nextId = Number(await perps.nextPositionId());
       const positions = [];
-      const ownerFilter = auraAccount ? auraAccount.toLowerCase() : null;
+      const ownerFilter = sessionAccount ? sessionAccount.toLowerCase() : null;
       for (let i = 0; i < nextId && positions.length < 20; i++) { try { const pos = await perps.positions(i); if (pos.isOpen && (!ownerFilter || pos.owner.toLowerCase() === ownerFilter)) { const price = await fetchPythPrice(pos.asset); positions.push({ id: i, asset: pos.asset, side: pos.isLong ? "LONG" : "SHORT", collateral: Number(ethers.formatUnits(pos.collateralAmount, 18)), leverage: Number(pos.leverage), entryPrice: Number(ethers.formatUnits(pos.entryPrice, 18)), currentPrice: price }); } } catch { continue; } }
-      return { content: [{ type: "text", text: JSON.stringify({ account: auraAccount || "agent", positions, count: positions.length }, null, 2) }] };
+      return { content: [{ type: "text", text: JSON.stringify({ account: sessionAccount || "agent", positions, count: positions.length }, null, 2) }] };
     });
 
     s.registerTool("close_position", { description: "Close a position by ID", inputSchema: z.object({ position_id: z.number() }) }, async ({ position_id }) => {
@@ -330,12 +343,12 @@ if (args.includes("--http")) {
       const price = await fetchPythPrice(pos.asset);
       if (price) { const oracle = new ethers.Contract(MOCK_ORACLE_ADDRESS, ORACLE_ABI, agentWallet); await (await oracle.setPrice(pos.asset, ethers.parseUnits(price.toFixed(2), 18))).wait(); }
 
-      if (auraAccount) {
+      if (sessionAccount) {
         const closeData = perpsIface.encodeFunctionData("closePosition", [BigInt(position_id)]);
-        const account = new ethers.Contract(auraAccount, AURA_ACCOUNT_ABI, agentWallet);
+        const account = new ethers.Contract(sessionAccount, AURA_ACCOUNT_ABI, agentWallet);
         const tx = await account.executeBatchByAgent([AURA_PERPS_ADDRESS], [0n], [closeData]);
         const receipt = await tx.wait();
-        return { content: [{ type: "text", text: JSON.stringify({ status: "closed", account: auraAccount, positionId: position_id, asset: pos.asset, exitPrice: price, txHash: receipt.hash }, null, 2) }] };
+        return { content: [{ type: "text", text: JSON.stringify({ status: "closed", account: sessionAccount, positionId: position_id, asset: pos.asset, exitPrice: price, txHash: receipt.hash }, null, 2) }] };
       }
 
       const tx = await perps.closePosition(position_id);
