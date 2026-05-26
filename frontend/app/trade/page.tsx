@@ -104,6 +104,7 @@ export default function TradeDashboard() {
 
           <Link href="/portfolio" className="text-[9px] text-white/30 hover:text-[#00f0ff] font-bold uppercase tracking-widest transition ml-1">Portfolio</Link>
           <Link href="/perp-vault" className="text-[9px] text-white/30 hover:text-[#00f0ff] font-bold uppercase tracking-widest transition ml-1">Earn Yield</Link>
+          <Link href="/trade/account" className="text-[9px] text-white/30 hover:text-[#00f0ff] font-bold uppercase tracking-widest transition ml-1">Account</Link>
 
           {/* Market Selector */}
           <div className="border-l border-[#00f0ff]/20 pl-3 ml-1 hidden lg:flex items-center gap-4">
