@@ -263,8 +263,9 @@ if (args.includes("--http")) {
 
   const transports = {};
 
-  // Factory: create a fresh McpServer per SSE session (McpServer only supports 1 connection)
-  function createServer() {
+  // Factory: create a fresh McpServer per session
+  // If auraAccount is provided, write operations go through executeBatchByAgent
+  function createServer(auraAccount) {
     const s = new McpServer({ name: "aura-perps", version: "1.0.0" });
 
     s.registerTool("get_price", { description: "Get real-time price for BTC, ETH, TSLA, AMZN, NFLX, AMD, PLTR from Pyth", inputSchema: z.object({ asset: z.string() }) }, async ({ asset }) => {
@@ -292,6 +293,18 @@ if (args.includes("--http")) {
       const colWei = ethers.parseUnits(collateral.toString(), 18);
       const price = await fetchPythPrice(asset);
       if (price) { const oracle = new ethers.Contract(MOCK_ORACLE_ADDRESS, ORACLE_ABI, agentWallet); await (await oracle.setPrice(asset.toUpperCase(), ethers.parseUnits(price.toFixed(2), 18))).wait(); }
+
+      if (auraAccount) {
+        // Per-user: execute via their AuraAccount using executeBatchByAgent
+        const approveData = ausdIface.encodeFunctionData("approve", [AURA_PERPS_ADDRESS, colWei]);
+        const openData = perpsIface.encodeFunctionData("openPosition", [asset.toUpperCase(), is_long, colWei, BigInt(leverage)]);
+        const account = new ethers.Contract(auraAccount, AURA_ACCOUNT_ABI, agentWallet);
+        const tx = await account.executeBatchByAgent([AUSD_ADDRESS, AURA_PERPS_ADDRESS], [0n, 0n], [approveData, openData]);
+        const receipt = await tx.wait();
+        return { content: [{ type: "text", text: JSON.stringify({ status: "opened", account: auraAccount, asset: asset.toUpperCase(), side: is_long ? "LONG" : "SHORT", collateral, leverage, entryPrice: price, txHash: receipt.hash }, null, 2) }] };
+      }
+
+      // Default: agent wallet directly
       const ausd = new ethers.Contract(AUSD_ADDRESS, AUSD_ABI, agentWallet);
       const allowance = await ausd.allowance(agentWallet.address, AURA_PERPS_ADDRESS);
       if (allowance < colWei) await (await ausd.approve(AURA_PERPS_ADDRESS, ethers.MaxUint256)).wait();
@@ -305,8 +318,9 @@ if (args.includes("--http")) {
       const perps = new ethers.Contract(AURA_PERPS_ADDRESS, PERPS_ABI, robinhoodProvider);
       const nextId = Number(await perps.nextPositionId());
       const positions = [];
-      for (let i = 0; i < nextId && positions.length < 20; i++) { try { const pos = await perps.positions(i); if (pos.isOpen) { const price = await fetchPythPrice(pos.asset); positions.push({ id: i, asset: pos.asset, side: pos.isLong ? "LONG" : "SHORT", collateral: Number(ethers.formatUnits(pos.collateralAmount, 18)), leverage: Number(pos.leverage), entryPrice: Number(ethers.formatUnits(pos.entryPrice, 18)), currentPrice: price }); } } catch { continue; } }
-      return { content: [{ type: "text", text: JSON.stringify({ positions, count: positions.length }, null, 2) }] };
+      const ownerFilter = auraAccount ? auraAccount.toLowerCase() : null;
+      for (let i = 0; i < nextId && positions.length < 20; i++) { try { const pos = await perps.positions(i); if (pos.isOpen && (!ownerFilter || pos.owner.toLowerCase() === ownerFilter)) { const price = await fetchPythPrice(pos.asset); positions.push({ id: i, asset: pos.asset, side: pos.isLong ? "LONG" : "SHORT", collateral: Number(ethers.formatUnits(pos.collateralAmount, 18)), leverage: Number(pos.leverage), entryPrice: Number(ethers.formatUnits(pos.entryPrice, 18)), currentPrice: price }); } } catch { continue; } }
+      return { content: [{ type: "text", text: JSON.stringify({ account: auraAccount || "agent", positions, count: positions.length }, null, 2) }] };
     });
 
     s.registerTool("close_position", { description: "Close a position by ID", inputSchema: z.object({ position_id: z.number() }) }, async ({ position_id }) => {
@@ -315,6 +329,15 @@ if (args.includes("--http")) {
       if (!pos.isOpen) return { content: [{ type: "text", text: "Already closed." }] };
       const price = await fetchPythPrice(pos.asset);
       if (price) { const oracle = new ethers.Contract(MOCK_ORACLE_ADDRESS, ORACLE_ABI, agentWallet); await (await oracle.setPrice(pos.asset, ethers.parseUnits(price.toFixed(2), 18))).wait(); }
+
+      if (auraAccount) {
+        const closeData = perpsIface.encodeFunctionData("closePosition", [BigInt(position_id)]);
+        const account = new ethers.Contract(auraAccount, AURA_ACCOUNT_ABI, agentWallet);
+        const tx = await account.executeBatchByAgent([AURA_PERPS_ADDRESS], [0n], [closeData]);
+        const receipt = await tx.wait();
+        return { content: [{ type: "text", text: JSON.stringify({ status: "closed", account: auraAccount, positionId: position_id, asset: pos.asset, exitPrice: price, txHash: receipt.hash }, null, 2) }] };
+      }
+
       const tx = await perps.closePosition(position_id);
       const receipt = await tx.wait();
       return { content: [{ type: "text", text: JSON.stringify({ status: "closed", positionId: position_id, asset: pos.asset, exitPrice: price, txHash: receipt.hash }, null, 2) }] };
@@ -323,11 +346,21 @@ if (args.includes("--http")) {
     return s;
   }
 
+  // Resolve Bearer token to AuraAccount address
+  async function resolveAuth(req) {
+    const auth = req.headers?.authorization || "";
+    const token = auth.startsWith("Bearer ") ? auth.slice(7) : null;
+    if (!token) return null;
+    const { resolveApiKey } = await import("./mcp-users.mjs");
+    return resolveApiKey(token); // returns auraAccountAddress or null
+  }
+
   app.get("/sse", async (req, res) => {
+    const auraAccount = await resolveAuth(req);
     const transport = new SSEServerTransport("/messages", res);
     transports[transport.sessionId] = transport;
     res.on("close", () => { delete transports[transport.sessionId]; });
-    const s = createServer();
+    const s = createServer(auraAccount);
     await s.connect(transport);
   });
 
@@ -345,7 +378,8 @@ if (args.includes("--http")) {
   const { WebStandardStreamableHTTPServerTransport } = await import("@modelcontextprotocol/server");
 
   app.all("/mcp", express.json(), async (req, res) => {
-    const s = createServer();
+    const auraAccount = await resolveAuth(req);
+    const s = createServer(auraAccount);
     const transport = new WebStandardStreamableHTTPServerTransport({ sessionIdGenerator: undefined });
     await s.connect(transport);
 
