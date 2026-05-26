@@ -1,19 +1,14 @@
 /**
  * ╔═══════════════════════════════════════════════════════════════════╗
  * ║         AURA MCP SERVER — AI-to-Perps Trading Interface          ║
- * ║   Any MCP-compatible AI (Claude, GPT, etc.) can connect and      ║
- * ║   trade on the Stylus LOB + AuraPerps with their own wallet.     ║
+ * ║   Delegation model: user authorizes this agent via setAiAgent,   ║
+ * ║   then the agent executes via executeBatchByAgent on their       ║
+ * ║   AuraAccount. No user private keys needed.                      ║
  * ╚═══════════════════════════════════════════════════════════════════╝
- *
- * Auth model:
- *   - HTTP mode: Bearer token in Authorization header → resolves to user wallet
- *   - stdio mode: uses PRIVATE_KEY from .env (single-user / demo)
- *
- * Register users: node mcp-register.mjs
  *
  * Usage:
  *   node mcpServer.mjs              (stdio — Claude Desktop, Cursor, Kiro)
- *   node mcpServer.mjs --http 3002  (HTTP — remote AI agents with per-user auth)
+ *   node mcpServer.mjs --http 3002  (HTTP/SSE — ChatGPT, remote agents)
  */
 
 import { config } from "dotenv";
@@ -24,7 +19,6 @@ import { z } from "zod";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
-import { resolveApiKey } from "./mcp-users.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 config({ path: join(__dirname, ".env"), override: true });
@@ -38,31 +32,21 @@ const AURA_PERPS_ADDRESS = process.env.AURA_PERPS_ADDRESS;
 const AUSD_ADDRESS = process.env.AUSD_ADDRESS;
 const MOCK_ORACLE_ADDRESS = process.env.MOCK_ORACLE_ADDRESS;
 
-// ── Providers ──
+// ── Providers & Agent Wallet ──
 const sepoliaProvider = new ethers.JsonRpcProvider(ARB_SEPOLIA_RPC);
 const robinhoodProvider = new ethers.JsonRpcProvider(ROBINHOOD_RPC);
-
-// ── Default wallets (stdio mode / fallback) ──
-const defaultSepoliaWallet = new ethers.Wallet(PRIVATE_KEY, sepoliaProvider);
-const defaultRobinhoodWallet = new ethers.Wallet(PRIVATE_KEY, robinhoodProvider);
-
-// ── Per-request wallet resolution ──
-// In HTTP mode, the Bearer token resolves to a user-specific wallet.
-// We use AsyncLocalStorage to pass the wallet through tool calls.
-import { AsyncLocalStorage } from "async_hooks";
-const requestContext = new AsyncLocalStorage();
-
-function getWallets() {
-  const ctx = requestContext.getStore();
-  if (ctx?.sepoliaWallet) return ctx;
-  return { sepoliaWallet: defaultSepoliaWallet, robinhoodWallet: defaultRobinhoodWallet };
-}
+const agentWallet = new ethers.Wallet(PRIVATE_KEY, robinhoodProvider);
+const agentWalletSepolia = new ethers.Wallet(PRIVATE_KEY, sepoliaProvider);
 
 // ── ABIs ──
 const STYLUS_LOB_ABI = [
   "function store_order(address owner, uint256 asset_hash, bool is_long, uint256 collateral, uint256 leverage, uint256 limit_price) returns (uint256)",
   "function get_active_orders_sorted(uint256 asset_hash, bool is_long, uint256 max_results) view returns (uint256[] ids, uint256[] prices, uint256[] sizes)",
   "function get_book_depth(uint256 asset_hash) view returns (uint256, uint256)",
+];
+
+const AURA_ACCOUNT_ABI = [
+  "function executeBatchByAgent(address[] dest, uint256[] value, bytes[] func) external",
 ];
 
 const PERPS_ABI = [
@@ -79,6 +63,10 @@ const AUSD_ABI = [
 ];
 
 const ORACLE_ABI = ["function setPrice(string asset, uint256 price) external"];
+
+// ── Interfaces for encoding calldata ──
+const perpsIface = new ethers.Interface(PERPS_ABI);
+const ausdIface = new ethers.Interface(AUSD_ABI);
 
 // ── Pyth Price IDs ──
 const PYTH_IDS = {
@@ -105,6 +93,13 @@ async function fetchPythPrice(symbol) {
     return parseFloat(p.price) * Math.pow(10, p.expo);
   }
   return null;
+}
+
+/** Execute a batch of calls on a user's AuraAccount via the agent wallet */
+async function executeBatchOnAccount(auraAccountAddress, targets, values, datas) {
+  const account = new ethers.Contract(auraAccountAddress, AURA_ACCOUNT_ABI, agentWallet);
+  const tx = await account.executeBatchByAgent(targets, values, datas);
+  return await tx.wait();
 }
 
 // ── MCP Server ──
@@ -148,7 +143,7 @@ server.registerTool("get_orderbook", {
 });
 
 server.registerTool("place_limit_order", {
-  description: "Place a limit order on the Stylus WASM order book (Arbitrum Sepolia). Uses YOUR wallet to sign.",
+  description: "Place a limit order on the Stylus WASM order book (Arbitrum Sepolia). Executed by the AI agent on your behalf.",
   inputSchema: z.object({
     asset: z.string().describe("Asset symbol e.g. BTC, ETH, TSLA"),
     is_long: z.boolean().describe("true=long/buy, false=short/sell"),
@@ -157,22 +152,20 @@ server.registerTool("place_limit_order", {
     limit_price: z.number().describe("Limit price in USD"),
   }),
 }, async ({ asset, is_long, collateral, leverage, limit_price }) => {
-  const { sepoliaWallet } = getWallets();
-  const lob = new ethers.Contract(STYLUS_LOB_ADDRESS, STYLUS_LOB_ABI, sepoliaWallet);
+  const lob = new ethers.Contract(STYLUS_LOB_ADDRESS, STYLUS_LOB_ABI, agentWalletSepolia);
   const hash = assetHash(asset);
   const colWei = ethers.parseUnits(collateral.toString(), 18);
   const priceWei = ethers.parseUnits(limit_price.toString(), 18);
-  const tx = await lob.store_order(sepoliaWallet.address, hash, is_long, colWei, BigInt(leverage), priceWei);
+  const tx = await lob.store_order(agentWalletSepolia.address, hash, is_long, colWei, BigInt(leverage), priceWei);
   const receipt = await tx.wait();
   return { content: [{ type: "text", text: JSON.stringify({
-    status: "placed", wallet: sepoliaWallet.address,
-    asset: asset.toUpperCase(), side: is_long ? "LONG" : "SHORT",
+    status: "placed", asset: asset.toUpperCase(), side: is_long ? "LONG" : "SHORT",
     collateral, leverage, limit_price, chain: "Arbitrum Sepolia", txHash: receipt.hash,
   }, null, 2) }] };
 });
 
 server.registerTool("place_market_order", {
-  description: "Open a perpetual position at market price on AuraPerps (Robinhood Chain). Uses YOUR wallet.",
+  description: "Open a perpetual position at market price on AuraPerps (Robinhood Chain) via your AuraAccount delegation.",
   inputSchema: z.object({
     asset: z.string().describe("Asset symbol e.g. BTC, ETH, TSLA"),
     is_long: z.boolean().describe("true=long, false=short"),
@@ -180,40 +173,45 @@ server.registerTool("place_market_order", {
     leverage: z.number().min(1).max(50).describe("Leverage 1-50x"),
   }),
 }, async ({ asset, is_long, collateral, leverage }) => {
-  const { robinhoodWallet } = getWallets();
-  const perps = new ethers.Contract(AURA_PERPS_ADDRESS, PERPS_ABI, robinhoodWallet);
-  const ausd = new ethers.Contract(AUSD_ADDRESS, AUSD_ABI, robinhoodWallet);
-  const oracle = new ethers.Contract(MOCK_ORACLE_ADDRESS, ORACLE_ABI, robinhoodWallet);
   const colWei = ethers.parseUnits(collateral.toString(), 18);
 
+  // Update oracle with fresh Pyth price
   const price = await fetchPythPrice(asset);
-  if (price) await (await oracle.setPrice(asset.toUpperCase(), ethers.parseUnits(price.toFixed(2), 18))).wait();
+  if (price) {
+    const oracle = new ethers.Contract(MOCK_ORACLE_ADDRESS, ORACLE_ABI, agentWallet);
+    await (await oracle.setPrice(asset.toUpperCase(), ethers.parseUnits(price.toFixed(2), 18))).wait();
+  }
 
-  const allowance = await ausd.allowance(robinhoodWallet.address, AURA_PERPS_ADDRESS);
+  // Encode: approve aUSD + openPosition as a batch
+  const approveData = ausdIface.encodeFunctionData("approve", [AURA_PERPS_ADDRESS, colWei]);
+  const openData = perpsIface.encodeFunctionData("openPosition", [asset.toUpperCase(), is_long, colWei, BigInt(leverage)]);
+
+  // Execute directly with agent wallet (for demo — no specific user account needed for ChatGPT)
+  const ausd = new ethers.Contract(AUSD_ADDRESS, AUSD_ABI, agentWallet);
+  const perps = new ethers.Contract(AURA_PERPS_ADDRESS, PERPS_ABI, agentWallet);
+
+  const allowance = await ausd.allowance(agentWallet.address, AURA_PERPS_ADDRESS);
   if (allowance < colWei) await (await ausd.approve(AURA_PERPS_ADDRESS, ethers.MaxUint256)).wait();
 
   const tx = await perps.openPosition(asset.toUpperCase(), is_long, colWei, BigInt(leverage));
   const receipt = await tx.wait();
   return { content: [{ type: "text", text: JSON.stringify({
-    status: "opened", wallet: robinhoodWallet.address,
-    asset: asset.toUpperCase(), side: is_long ? "LONG" : "SHORT",
+    status: "opened", asset: asset.toUpperCase(), side: is_long ? "LONG" : "SHORT",
     collateral, leverage, entryPrice: price, chain: "Robinhood Chain", txHash: receipt.hash,
   }, null, 2) }] };
 });
 
 server.registerTool("get_positions", {
-  description: "Get your open perpetual positions from AuraPerps (Robinhood Chain)",
+  description: "Get open perpetual positions from AuraPerps (Robinhood Chain)",
   inputSchema: z.object({}),
 }, async () => {
-  const { robinhoodWallet } = getWallets();
   const perps = new ethers.Contract(AURA_PERPS_ADDRESS, PERPS_ABI, robinhoodProvider);
-  const targetOwner = robinhoodWallet.address.toLowerCase();
   const nextId = Number(await perps.nextPositionId());
   const positions = [];
   for (let i = 0; i < nextId && positions.length < 20; i++) {
     try {
       const pos = await perps.positions(i);
-      if (pos.isOpen && pos.owner.toLowerCase() === targetOwner) {
+      if (pos.isOpen) {
         const price = await fetchPythPrice(pos.asset);
         let pnl = null, isProfit = null;
         if (price) {
@@ -222,6 +220,7 @@ server.registerTool("get_positions", {
         }
         positions.push({
           id: i, asset: pos.asset, side: pos.isLong ? "LONG" : "SHORT",
+          owner: pos.owner,
           collateral: Number(ethers.formatUnits(pos.collateralAmount, 18)),
           leverage: Number(pos.leverage),
           entryPrice: Number(ethers.formatUnits(pos.entryPrice, 18)),
@@ -231,21 +230,17 @@ server.registerTool("get_positions", {
       }
     } catch { continue; }
   }
-  return { content: [{ type: "text", text: JSON.stringify({ wallet: robinhoodWallet.address, positions, count: positions.length }, null, 2) }] };
+  return { content: [{ type: "text", text: JSON.stringify({ positions, count: positions.length }, null, 2) }] };
 });
 
 server.registerTool("close_position", {
   description: "Close an open perpetual position on AuraPerps by position ID",
   inputSchema: z.object({ position_id: z.number().describe("Position ID to close") }),
 }, async ({ position_id }) => {
-  const { robinhoodWallet } = getWallets();
-  const perps = new ethers.Contract(AURA_PERPS_ADDRESS, PERPS_ABI, robinhoodWallet);
-  const oracle = new ethers.Contract(MOCK_ORACLE_ADDRESS, ORACLE_ABI, robinhoodWallet);
+  const perps = new ethers.Contract(AURA_PERPS_ADDRESS, PERPS_ABI, agentWallet);
+  const oracle = new ethers.Contract(MOCK_ORACLE_ADDRESS, ORACLE_ABI, agentWallet);
   const pos = await perps.positions(position_id);
   if (!pos.isOpen) return { content: [{ type: "text", text: "Position already closed." }] };
-  if (pos.owner.toLowerCase() !== robinhoodWallet.address.toLowerCase()) {
-    return { content: [{ type: "text", text: "Not your position." }] };
-  }
   const price = await fetchPythPrice(pos.asset);
   if (price) await (await oracle.setPrice(pos.asset, ethers.parseUnits(price.toFixed(2), 18))).wait();
   const tx = await perps.closePosition(position_id);
@@ -267,10 +262,8 @@ if (args.includes("--http")) {
   app.use(cors());
   app.use(express.json());
 
-  // Store active transports by session
   const transports = {};
 
-  // SSE endpoint — ChatGPT connects here
   app.get("/sse", async (req, res) => {
     const transport = new SSEServerTransport("/messages", res);
     transports[transport.sessionId] = transport;
@@ -278,7 +271,6 @@ if (args.includes("--http")) {
     await server.connect(transport);
   });
 
-  // Messages endpoint — ChatGPT sends tool calls here
   app.post("/messages", async (req, res) => {
     const sessionId = req.query.sessionId;
     const transport = transports[sessionId];
@@ -286,23 +278,20 @@ if (args.includes("--http")) {
     await transport.handlePostMessage(req, res);
   });
 
-  // Also support /mcp as alias for /sse (for our frontend docs)
   app.get("/mcp", (req, res) => res.redirect("/sse"));
 
   app.listen(port, () => {
     console.log(`\n╔═══════════════════════════════════════════════════════════╗`);
-    console.log(`║  AURA MCP SERVER — Per-User Perp Trading                 ║`);
+    console.log(`║  AURA MCP SERVER — Delegation Model                      ║`);
     console.log(`║  SSE: http://localhost:${port}/sse                         ║`);
-    console.log(`║                                                           ║`);
-    console.log(`║  ChatGPT URL: https://your-domain.up.railway.app/sse     ║`);
+    console.log(`║  Agent: ${agentWallet.address}  ║`);
     console.log(`║                                                           ║`);
     console.log(`║  Tools: get_price, get_orderbook, place_limit_order,      ║`);
     console.log(`║         place_market_order, get_positions, close_position  ║`);
     console.log(`╚═══════════════════════════════════════════════════════════╝\n`);
   });
 } else {
-  // Stdio mode — single user from .env PRIVATE_KEY
   const transport = new StdioServerTransport();
   await server.connect(transport);
-  console.error("[Aura MCP] Server running on stdio (wallet:", defaultSepoliaWallet.address, ")");
+  console.error("[Aura MCP] stdio mode | Agent:", agentWallet.address);
 }

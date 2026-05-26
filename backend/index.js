@@ -736,14 +736,14 @@ app.post("/api/gasless-execute", async (req, res) => {
 });
 
 // ── MCP Key Management API ──────────────────────────────────────────
-// Per-user API key for the MCP server (1 key per wallet)
+// Per-user API key for the MCP server (1 key per AuraAccount, delegation model)
 
 app.get("/api/mcp-keys", async (req, res) => {
   const { wallet } = req.query;
   if (!wallet) return res.status(400).json({ error: "wallet query param required" });
   try {
-    const { getKeyForWallet } = await import("./mcp-users.mjs");
-    const result = await getKeyForWallet(wallet);
+    const { getKeyForAccount } = await import("./mcp-users.mjs");
+    const result = getKeyForAccount(wallet);
     if (!result) return res.json({ hasKey: false });
     res.json({ hasKey: true, apiKeyPrefix: result.apiKey.slice(0, 12) + "..." });
   } catch (e) {
@@ -752,23 +752,14 @@ app.get("/api/mcp-keys", async (req, res) => {
 });
 
 app.post("/api/mcp-keys", async (req, res) => {
-  const { privateKey } = req.body;
-  if (!privateKey) return res.status(400).json({ error: "privateKey required" });
-  // Auto-generate MCP_MASTER_SECRET if missing
-  if (!process.env.MCP_MASTER_SECRET || process.env.MCP_MASTER_SECRET.length < 16) {
-    const crypto = require("crypto");
-    const secret = crypto.randomBytes(32).toString("hex");
-    const fs = require("fs");
-    const path = require("path");
-    fs.appendFileSync(path.join(__dirname, ".env"), `\nMCP_MASTER_SECRET=${secret}\n`);
-    process.env.MCP_MASTER_SECRET = secret;
-  }
+  const { auraAccountAddress } = req.body;
+  if (!auraAccountAddress) return res.status(400).json({ error: "auraAccountAddress required" });
   try {
     const { registerUser } = await import("./mcp-users.mjs");
-    const apiKey = await registerUser(privateKey);
+    const apiKey = registerUser(auraAccountAddress);
     res.json({ apiKey });
   } catch (e) {
-    if (e.message === "ALREADY_EXISTS") return res.status(409).json({ error: "This wallet already has an MCP key. Revoke it first." });
+    if (e.message === "ALREADY_EXISTS") return res.status(409).json({ error: "This account already has an MCP key. Revoke it first." });
     res.status(500).json({ error: e.message });
   }
 });
@@ -777,9 +768,9 @@ app.delete("/api/mcp-keys", async (req, res) => {
   const { wallet } = req.body;
   if (!wallet) return res.status(400).json({ error: "wallet required" });
   try {
-    const { deleteKeyForWallet } = await import("./mcp-users.mjs");
-    const deleted = await deleteKeyForWallet(wallet);
-    if (!deleted) return res.status(404).json({ error: "No key found for this wallet" });
+    const { deleteKeyForAccount } = await import("./mcp-users.mjs");
+    const deleted = deleteKeyForAccount(wallet);
+    if (!deleted) return res.status(404).json({ error: "No key found for this account" });
     res.json({ success: true });
   } catch (e) {
     res.status(500).json({ error: e.message });

@@ -6,11 +6,12 @@ declare global {
   }
 }
 
+import { useState, useEffect } from "react";
 import Link from "next/link";
 import { ArrowLeft, ChevronDown, Zap } from "lucide-react";
 import { ConnectButton } from "thirdweb/react";
 import { createWallet } from "thirdweb/wallets";
-import { defineChain } from "thirdweb";
+import { defineChain, readContract, getContract } from "thirdweb";
 import { client } from "../client";
 import { useTradeState } from "./useTradeState";
 import OrderPanel from "./OrderPanel";
@@ -19,6 +20,7 @@ import OrderBook from "./OrderBook";
 import SettlementToasts from "./SettlementToasts";
 import LiquidationAlerts from "./LiquidationAlerts";
 import McpKeyPanel from "./McpKeyPanel";
+import { API_URL } from "@/lib/config";
 
 const robinhoodChain = defineChain({
   id: 46630,
@@ -57,6 +59,24 @@ export default function TradeDashboard() {
     selectedMarket, setSelectedMarket, isDropdownOpen, setIsDropdownOpen,
     prices, account,
   } = state;
+
+  // MCP delegation: fetch AuraAccount + agent address
+  const [auraAccountAddress, setAuraAccountAddress] = useState("");
+  const [agentOperatorAddress, setAgentOperatorAddress] = useState("");
+
+  useEffect(() => {
+    if (!account?.address) { setAuraAccountAddress(""); return; }
+    const FACTORY = "0x95Aa20d53EB26f292a71D8B38515BBeC8905b550";
+    const chain = defineChain({ id: 46630, rpc: "https://rpc.testnet.chain.robinhood.com" });
+    const contract = getContract({ client, chain, address: FACTORY, abi: [{ inputs: [{ internalType: "address", name: "owner", type: "address" }], name: "getAccount", outputs: [{ internalType: "address", name: "", type: "address" }], stateMutability: "view", type: "function" }] as const });
+    readContract({ contract, method: "getAccount", params: [account.address] }).then((addr) => {
+      if (addr && addr !== "0x0000000000000000000000000000000000000000") setAuraAccountAddress(addr);
+    }).catch(() => {});
+  }, [account?.address]);
+
+  useEffect(() => {
+    fetch(`${API_URL}/agent-address`).then(r => r.json()).then(d => setAgentOperatorAddress(d.address)).catch(() => {});
+  }, []);
 
   const currentPrice = prices[selectedMarket] || prices[selectedMarket.split('-')[0]] || 0;
 
@@ -197,7 +217,7 @@ export default function TradeDashboard() {
           rawBalance={state.rawBalance}
           handleManualAction={state.handleManualAction}
         />
-        <McpKeyPanel walletAddress={account?.address} />
+        <McpKeyPanel walletAddress={account?.address} auraAccountAddress={auraAccountAddress} agentOperatorAddress={agentOperatorAddress} />
         </div>
       </main>
     </div>
