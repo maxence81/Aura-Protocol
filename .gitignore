@@ -17,6 +17,7 @@ backend/.env
 frontend/.env
 frontend/.env.local
 backend/.aura_agent_key
+backend/.mcp-users.enc.json
 
 # Logs
 *.log

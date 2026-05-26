@@ -271,6 +271,56 @@ Run with: `npx hardhat test`
 
 ---
 
+## MCP Server — Any AI Can Trade
+
+Aura exposes a **Model Context Protocol (MCP) server** so any AI agent (Claude Desktop, Cursor, Kiro, custom agents) can connect and trade perpetuals on the Stylus LOB + AuraPerps by simply adding a URL to their config.
+
+**No other DeFi project has this.**
+
+### Available Tools
+
+| Tool | Description |
+|---|---|
+| `get_price` | Real-time Pyth price for BTC, ETH, TSLA, AMZN, NFLX, AMD, PLTR |
+| `get_orderbook` | Live bids/asks from the Stylus WASM LOB (Arbitrum Sepolia) |
+| `place_limit_order` | Place a limit order on the Stylus LOB — matched by AI Keeper |
+| `place_market_order` | Open a perp position at market price (Robinhood Chain) |
+| `get_positions` | Read open positions with live PnL |
+| `close_position` | Close a position by ID |
+
+### Claude Desktop Config
+
+```json
+{
+  "mcpServers": {
+    "aura-perps": {
+      "command": "node",
+      "args": ["backend/mcpServer.mjs"],
+      "cwd": "/path/to/arbitrum_hackathon"
+    }
+  }
+}
+```
+
+### HTTP Mode (Remote Agents)
+
+```bash
+cd backend && node mcpServer.mjs --http 3002
+# → MCP endpoint: http://localhost:3002/mcp
+```
+
+Any MCP-compatible client can then connect to `http://your-server:3002/mcp` and trade.
+
+### Example Interaction
+
+```
+User → Claude: "Long BTC 10x with $100 collateral at limit price $95000"
+Claude → [calls place_limit_order tool via MCP]
+Claude → "Done! Limit order placed on Stylus LOB. TX: 0xabc..."
+```
+
+---
+
 ## Setup & Quickstart
 
 ### Prerequisites

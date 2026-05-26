@@ -18,6 +18,7 @@ import PositionsPanel from "./PositionsPanel";
 import OrderBook from "./OrderBook";
 import SettlementToasts from "./SettlementToasts";
 import LiquidationAlerts from "./LiquidationAlerts";
+import McpKeyPanel from "./McpKeyPanel";
 
 const robinhoodChain = defineChain({
   id: 46630,
@@ -167,7 +168,8 @@ export default function TradeDashboard() {
         {/* MIDDLE — Order Book */}
         <OrderBook currentPrice={currentPrice} selectedMarket={state.selectedMarket} />
 
-        {/* RIGHT — Order Panel */}
+        {/* RIGHT — Order Panel + MCP Key */}
+        <div className="bg-[#050505] flex flex-col h-[calc(100vh-48px)] overflow-y-auto">
         <OrderPanel
           tradingMode={state.tradingMode}
           setTradingMode={state.setTradingMode}
@@ -195,6 +197,8 @@ export default function TradeDashboard() {
           rawBalance={state.rawBalance}
           handleManualAction={state.handleManualAction}
         />
+        <McpKeyPanel walletAddress={account?.address} />
+        </div>
       </main>
     </div>
   );
