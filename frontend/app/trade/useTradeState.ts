@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import { ConnectButton, useActiveAccount } from "thirdweb/react";
 import { client } from "../client";
-import { createPublicClient, http, formatUnits, createWalletClient, custom, keccak256, toBytes } from "viem";
+import { createPublicClient, http, formatUnits, createWalletClient, custom, keccak256, toBytes, encodeFunctionData } from "viem";
 import { CONTRACT_ADDRESSES, AUSD_ABI, AURA_PERPS_ABI, AURA_ROUTER_ABI, STYLUS_LOB_ABI, CONDITIONAL_ORDER_MANAGER_ABI, LIQUIDATION_SHIELD_ABI } from "../../lib/contracts";
 import { API_URL } from "../../lib/config";
 
@@ -180,8 +180,23 @@ export function useTradeState() {
     addLog(`Closing position #${id}...`, "info");
     try {
       const wc = createWalletClient({ chain: { id: 46630, name: "Robinhood Testnet", nativeCurrency: { name: "ETH", symbol: "ETH", decimals: 18 }, rpcUrls: { default: { http: ["https://rpc.testnet.chain.robinhood.com"] } } } as any, account: account.address as `0x${string}`, transport: custom(window.ethereum as any) });
-      const tx = await wc.writeContract({ chain: null, address: CONTRACT_ADDRESSES.AURA_PERPS as `0x${string}`, abi: AURA_PERPS_ABI as any, functionName: "closePosition", args: [BigInt(id)] });
-      addLog(`Position closed (TX: ${tx.slice(0,6)}...${tx.slice(-4)})`, "action");
+
+      // Check if position is owned by AuraAccount — if so, route through executeBatch
+      const pos = await publicClient.readContract({ address: CONTRACT_ADDRESSES.AURA_PERPS as `0x${string}`, abi: AURA_PERPS_ABI as any, functionName: "positions", args: [BigInt(id)] }) as any;
+      const posOwner = (pos[0] as string).toLowerCase();
+      const FACTORY = "0x95Aa20d53EB26f292a71D8B38515BBeC8905b550";
+      let auraAcct = "";
+      try { const a = await publicClient.readContract({ address: FACTORY as `0x${string}`, abi: [{ inputs: [{ type: "address" }], name: "getAccount", outputs: [{ type: "address" }], stateMutability: "view", type: "function" }], functionName: "getAccount", args: [account.address as `0x${string}`] }) as string; if (a && a !== "0x0000000000000000000000000000000000000000") auraAcct = a.toLowerCase(); } catch {}
+
+      if (auraAcct && posOwner === auraAcct) {
+        // Route through AuraAccount.executeBatch
+        const closeData = encodeFunctionData({ abi: AURA_PERPS_ABI as any, functionName: "closePosition", args: [BigInt(id)] });
+        const tx = await wc.writeContract({ chain: null, address: auraAcct as `0x${string}`, abi: [{ inputs: [{ name: "dest", type: "address[]" }, { name: "value", type: "uint256[]" }, { name: "func", type: "bytes[]" }], name: "executeBatch", outputs: [], stateMutability: "nonpayable", type: "function" }] as any, functionName: "executeBatch", args: [[CONTRACT_ADDRESSES.AURA_PERPS], [0n], [closeData]] });
+        addLog(`Position closed via AuraAccount (TX: ${tx.slice(0,6)}...${tx.slice(-4)})`, "action");
+      } else {
+        const tx = await wc.writeContract({ chain: null, address: CONTRACT_ADDRESSES.AURA_PERPS as `0x${string}`, abi: AURA_PERPS_ABI as any, functionName: "closePosition", args: [BigInt(id)] });
+        addLog(`Position closed (TX: ${tx.slice(0,6)}...${tx.slice(-4)})`, "action");
+      }
       setActivePositions(prev => prev.filter(p => p.id !== id));
     } catch(e: any) { addLog(`Close failed: ${e.message.split("\n")[0].substring(0, 50)}...`, "alert"); }
   };
