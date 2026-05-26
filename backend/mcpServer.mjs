@@ -260,7 +260,6 @@ if (args.includes("--http")) {
 
   const app = express();
   app.use(cors());
-  app.use(express.json());
 
   const transports = {};
 
