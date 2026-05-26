@@ -110,6 +110,15 @@ export function useTradeState() {
             address: CONTRACT_ADDRESSES.AURA_PERPS as `0x${string}`,
             abi: AURA_PERPS_ABI as any, functionName: "nextPositionId",
           }) as bigint;
+
+          // Also match positions owned by the user's AuraAccount
+          let auraAcct = "";
+          try {
+            const FACTORY = "0x95Aa20d53EB26f292a71D8B38515BBeC8905b550";
+            const acct = await publicClient.readContract({ address: FACTORY as `0x${string}`, abi: [{ inputs: [{ type: "address" }], name: "getAccount", outputs: [{ type: "address" }], stateMutability: "view", type: "function" }], functionName: "getAccount", args: [account.address as `0x${string}`] }) as string;
+            if (acct && acct !== "0x0000000000000000000000000000000000000000") auraAcct = acct.toLowerCase();
+          } catch {}
+
           const positions: OnChainPosition[] = [];
           const history: OnChainPosition[] = [];
           const count = Number(nextPosId);
@@ -124,7 +133,7 @@ export function useTradeState() {
           const results = await Promise.all(calls);
           for (let i = 0; i < count; i++) {
             const pos = results[i] as any;
-            if (pos[0].toLowerCase() === account.address.toLowerCase()) {
+            if (pos[0].toLowerCase() === account.address.toLowerCase() || pos[0].toLowerCase() === auraAcct) {
               const d = {
                 id: i, asset: pos[1], isLong: pos[2],
                 collateral: Number(formatUnits(pos[3], 18)),
