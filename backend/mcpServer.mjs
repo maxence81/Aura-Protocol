@@ -271,6 +271,9 @@ if (args.includes("--http")) {
     await server.connect(transport);
   });
 
+  // Return 405 on POST /sse to force mcp-remote to use SSE transport
+  app.post("/sse", (req, res) => res.status(405).end());
+
   app.post("/messages", async (req, res) => {
     const sessionId = req.query.sessionId;
     const transport = transports[sessionId];
