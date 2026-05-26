@@ -263,6 +263,9 @@ if (args.includes("--http")) {
 
   const transports = {};
 
+  // Global store for authenticated sessions (persists across stateless /mcp requests)
+  const authenticatedAccounts = new Map(); // apiKey -> auraAccountAddress
+
   // Factory: create a fresh McpServer per session
   // If auraAccount is provided, write operations go through executeBatchByAgent
   function createServer(auraAccount) {
@@ -277,6 +280,7 @@ if (args.includes("--http")) {
         if (!res.ok) return { content: [{ type: "text", text: "Invalid API key. Generate one at https://aura-protocol-tawny.vercel.app/trade" }] };
         const data = await res.json();
         sessionAccount = data.auraAccount;
+        authenticatedAccounts.set(api_key, data.auraAccount); // persist globally
         return { content: [{ type: "text", text: `Authenticated! Trading on AuraAccount ${sessionAccount}. All trades will execute via your account.` }] };
       } catch (e) { return { content: [{ type: "text", text: `Auth failed: ${e.message}` }] }; }
     });
@@ -401,7 +405,12 @@ if (args.includes("--http")) {
   const { WebStandardStreamableHTTPServerTransport } = await import("@modelcontextprotocol/server");
 
   app.all("/mcp", express.json(), async (req, res) => {
-    const auraAccount = await resolveAuth(req);
+    let auraAccount = await resolveAuth(req);
+    // If no Bearer token, check if any recent auth exists (stateless workaround)
+    if (!auraAccount && authenticatedAccounts.size > 0) {
+      // Use the most recently authenticated account (single-user demo simplification)
+      auraAccount = [...authenticatedAccounts.values()].pop();
+    }
     const s = createServer(auraAccount);
     const transport = new WebStandardStreamableHTTPServerTransport({ sessionIdGenerator: undefined });
     await s.connect(transport);
