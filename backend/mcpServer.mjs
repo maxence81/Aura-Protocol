@@ -341,7 +341,47 @@ if (args.includes("--http")) {
     await transport.handlePostMessage(req, res);
   });
 
-  app.get("/mcp", (req, res) => res.redirect("/sse"));
+  // ── Streamable HTTP transport (for Claude.ai web) ──
+  const { WebStandardStreamableHTTPServerTransport } = await import("@modelcontextprotocol/server");
+
+  app.all("/mcp", express.json(), async (req, res) => {
+    const s = createServer();
+    const transport = new WebStandardStreamableHTTPServerTransport({ sessionIdGenerator: undefined });
+    await s.connect(transport);
+
+    // Convert Express req to Web Standard Request
+    const url = `http://localhost:${port}${req.originalUrl}`;
+    const headers = new Headers();
+    for (const [k, v] of Object.entries(req.headers)) { if (v) headers.set(k, Array.isArray(v) ? v[0] : v); }
+    const webReq = new Request(url, {
+      method: req.method,
+      headers,
+      body: req.method !== "GET" && req.method !== "HEAD" ? JSON.stringify(req.body) : undefined,
+    });
+
+    try {
+      const webRes = await transport.handleRequest(webReq);
+      res.status(webRes.status);
+      webRes.headers.forEach((v, k) => res.setHeader(k, v));
+      // Handle streaming response
+      if (webRes.body) {
+        const reader = webRes.body.getReader();
+        const pump = async () => {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) { res.end(); break; }
+            res.write(value);
+          }
+        };
+        await pump();
+      } else {
+        const text = await webRes.text();
+        res.send(text);
+      }
+    } catch (e) {
+      if (!res.headersSent) res.status(500).json({ error: e.message });
+    }
+  });
 
   app.listen(port, () => {
     console.log(`\n╔═══════════════════════════════════════════════════════════╗`);
