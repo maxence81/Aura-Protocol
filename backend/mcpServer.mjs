@@ -21,7 +21,9 @@ import { join, dirname } from "path";
 import { fileURLToPath } from "url";
 import { ethers } from "ethers";
 import { z } from "zod";
-import { McpServer, StdioServerTransport } from "@modelcontextprotocol/server";
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
 import { resolveApiKey } from "./mcp-users.mjs";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -259,46 +261,40 @@ const args = process.argv.slice(2);
 if (args.includes("--http")) {
   const port = parseInt(args[args.indexOf("--http") + 1]) || 3002;
   const express = (await import("express")).default;
+  const cors = (await import("cors")).default;
 
   const app = express();
+  app.use(cors());
   app.use(express.json());
 
-  app.all("/mcp", async (req, res) => {
-    // Extract Bearer token and resolve to user wallet
-    const authHeader = req.headers.authorization || "";
-    const token = authHeader.startsWith("Bearer ") ? authHeader.slice(7) : null;
+  // Store active transports by session
+  const transports = {};
 
-    let sepoliaWallet = defaultSepoliaWallet;
-    let robinhoodWallet = defaultRobinhoodWallet;
-
-    if (token) {
-      const privateKey = await resolveApiKey(token);
-      if (!privateKey) { return res.status(401).json({ error: "Invalid API key" }); }
-      sepoliaWallet = new ethers.Wallet(privateKey, sepoliaProvider);
-      robinhoodWallet = new ethers.Wallet(privateKey, robinhoodProvider);
-    }
-
-    // Run the MCP request within the user's wallet context
-    requestContext.run({ sepoliaWallet, robinhoodWallet }, async () => {
-      try {
-        // Use stdio-over-HTTP: serialize JSON-RPC request/response
-        const body = req.body;
-        // Forward to server's internal handler
-        const result = await server.handleRequest(body);
-        res.json(result);
-      } catch (e) {
-        res.status(500).json({ error: e.message });
-      }
-    });
+  // SSE endpoint — ChatGPT connects here
+  app.get("/sse", async (req, res) => {
+    const transport = new SSEServerTransport("/messages", res);
+    transports[transport.sessionId] = transport;
+    res.on("close", () => { delete transports[transport.sessionId]; });
+    await server.connect(transport);
   });
+
+  // Messages endpoint — ChatGPT sends tool calls here
+  app.post("/messages", async (req, res) => {
+    const sessionId = req.query.sessionId;
+    const transport = transports[sessionId];
+    if (!transport) return res.status(400).json({ error: "No active session" });
+    await transport.handlePostMessage(req, res);
+  });
+
+  // Also support /mcp as alias for /sse (for our frontend docs)
+  app.get("/mcp", (req, res) => res.redirect("/sse"));
 
   app.listen(port, () => {
     console.log(`\n╔═══════════════════════════════════════════════════════════╗`);
     console.log(`║  AURA MCP SERVER — Per-User Perp Trading                 ║`);
-    console.log(`║  HTTP: http://localhost:${port}/mcp                        ║`);
+    console.log(`║  SSE: http://localhost:${port}/sse                         ║`);
     console.log(`║                                                           ║`);
-    console.log(`║  Auth: Bearer <api_key> (from mcp-register.mjs)          ║`);
-    console.log(`║  Each user trades with their own wallet.                  ║`);
+    console.log(`║  ChatGPT URL: https://your-domain.up.railway.app/sse     ║`);
     console.log(`║                                                           ║`);
     console.log(`║  Tools: get_price, get_orderbook, place_limit_order,      ║`);
     console.log(`║         place_market_order, get_positions, close_position  ║`);
