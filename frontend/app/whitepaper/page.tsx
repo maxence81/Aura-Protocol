@@ -204,6 +204,46 @@ const sections = [
       </>
     ),
   },
+  {
+    num: "08",
+    title: "MCP Server — Any AI Can Trade",
+    icon: FileText,
+    iconColor: "text-neon-green",
+    glowClass: "cyber-glow-green",
+    content: (
+      <>
+        <p className="text-white/80 leading-relaxed">
+          Aura exposes a <strong className="text-neon-green">Model Context Protocol (MCP) server</strong> so any AI agent — Claude, ChatGPT, Cursor, or custom agents — can connect and trade perpetuals on the Stylus LOB + AuraPerps by simply adding a URL.
+        </p>
+        <ul className="mt-4 space-y-3">
+          <li className="flex items-start gap-3">
+            <div className="w-1.5 h-1.5 rounded-full bg-neon-green shadow-[0_0_5px_#39ff14] mt-2 shrink-0" />
+            <span className="text-white/80 leading-relaxed">
+              <strong className="text-neon-green">7 tools exposed:</strong> authenticate, get_price, get_orderbook, place_limit_order, place_market_order, get_positions, close_position.
+            </span>
+          </li>
+          <li className="flex items-start gap-3">
+            <div className="w-1.5 h-1.5 rounded-full bg-neon-green shadow-[0_0_5px_#39ff14] mt-2 shrink-0" />
+            <span className="text-white/80 leading-relaxed">
+              <strong className="text-neon-green">Delegation model:</strong> Users authorize the MCP agent via <code>setAiAgent()</code> on their AuraAccount. No private key is ever exposed. Revocable at any time.
+            </span>
+          </li>
+          <li className="flex items-start gap-3">
+            <div className="w-1.5 h-1.5 rounded-full bg-neon-green shadow-[0_0_5px_#39ff14] mt-2 shrink-0" />
+            <span className="text-white/80 leading-relaxed">
+              <strong className="text-neon-green">Multi-transport:</strong> SSE (Claude Code, ChatGPT) + Streamable HTTP (Claude.ai web) — compatible with all major AI platforms.
+            </span>
+          </li>
+          <li className="flex items-start gap-3">
+            <div className="w-1.5 h-1.5 rounded-full bg-neon-green shadow-[0_0_5px_#39ff14] mt-2 shrink-0" />
+            <span className="text-white/80 leading-relaxed">
+              <strong className="text-neon-green">No other DeFi project has this.</strong> Any AI in the world can read our Stylus order book and execute trades via a single URL endpoint.
+            </span>
+          </li>
+        </ul>
+      </>
+    ),
+  },
 ];
 
 const contracts = [
@@ -221,7 +261,7 @@ const contracts = [
   },
   {
     name: "AuraAuditTrail (Reasoning Proof)",
-    address: "0x527d54D8E534877B9713ADFA9b1f367e1bc964e9",
+    address: "0x42D141CBe4aDc46B082D702C2e1bD802236348C4",
     chain: "Robinhood Chain",
     explorer: "https://explorer.testnet.chain.robinhood.com/address/",
   },

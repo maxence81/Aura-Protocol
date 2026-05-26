@@ -101,7 +101,7 @@ The guardrail resets daily volume counters automatically using `block.timestamp 
 
 ### AuraAuditTrail (On-Chain Reasoning Proof)
 
-Deployed at `0x527d54D8E534877B9713ADFA9b1f367e1bc964e9` on Robinhood Chain. Before every gasless execution, the backend records a `keccak256` hash of the full AI reasoning (executor proposal + risk auditor verdict + macro analysis) on-chain.
+Deployed at `0x42D141CBe4aDc46B082D702C2e1bD802236348C4` on Robinhood Chain. Before every gasless execution, the backend records a `keccak256` hash of the full AI reasoning (executor proposal + risk auditor verdict + macro analysis) on-chain.
 
 | Property | Detail |
 |----------|--------|
@@ -219,8 +219,37 @@ Orders are keyed by `asset_hash = keccak256(symbol)`. The matching engine only p
 1. **MockOracle** has no access control on `setPrice` -- production would use Pyth's signed price updates
 2. **No timelock** on guardrail configuration changes -- production should add a delay
 3. **Single keeper EOA** for order matching -- production would use a decentralized keeper network
-4. **Gemini API dependency** -- if the API is down, the chat agent is unavailable (manual trading via /trade still works)
+4. **NVIDIA NIM API dependency** -- if the API is down, the chat agent is unavailable (manual trading via /trade still works)
 5. **No formal verification** -- invariants are tested but not mathematically proven
+
+---
+
+## MCP Server Security
+
+### Delegation Model (No Private Keys)
+
+The MCP server allows any AI (Claude, ChatGPT, etc.) to trade on behalf of a user **without ever accessing their private key**.
+
+| Property | Detail |
+|----------|--------|
+| Auth method | User signs `setAiAgent(mcpAgentAddress)` via MetaMask — on-chain delegation |
+| Execution | Agent calls `executeBatchByAgent` on the user's AuraAccount |
+| Revocation | User can call `setAiAgent(address(0))` at any time to revoke |
+| API key scope | Maps to an AuraAccount address only — cannot extract funds without on-chain authorization |
+| Private key exposure | Never — the MCP server uses its own agent wallet, authorized by the user's smart account |
+
+### What the MCP Agent CAN do (when authorized)
+
+- Execute trades on the user's AuraAccount via `executeBatchByAgent`
+- Read prices, order book, and positions (public data)
+- Place limit orders on the Stylus LOB
+
+### What the MCP Agent CANNOT do
+
+- Transfer arbitrary tokens (guardrail blocks non-whitelisted selectors)
+- Exceed leverage/position limits (Stylus Guardrail enforces on-chain)
+- Act without on-chain authorization (`setAiAgent` must be signed first)
+- Access the user's private key (delegation model — key never leaves the browser)
 
 ---
 
