@@ -264,11 +264,72 @@ if (args.includes("--http")) {
 
   const transports = {};
 
+  // Factory: create a fresh McpServer per SSE session (McpServer only supports 1 connection)
+  function createServer() {
+    const s = new McpServer({ name: "aura-perps", version: "1.0.0" });
+
+    s.registerTool("get_price", { description: "Get real-time price for BTC, ETH, TSLA, AMZN, NFLX, AMD, PLTR from Pyth", inputSchema: z.object({ asset: z.string() }) }, async ({ asset }) => {
+      const price = await fetchPythPrice(asset);
+      if (!price) return { content: [{ type: "text", text: `Unsupported: ${asset}` }] };
+      return { content: [{ type: "text", text: JSON.stringify({ asset: asset.toUpperCase(), price }) }] };
+    });
+
+    s.registerTool("get_orderbook", { description: "Get live bids/asks from Stylus WASM LOB on Arbitrum Sepolia", inputSchema: z.object({ asset: z.string(), depth: z.number().optional() }) }, async ({ asset, depth = 10 }) => {
+      const hash = assetHash(asset);
+      const lob = new ethers.Contract(STYLUS_LOB_ADDRESS, STYLUS_LOB_ABI, sepoliaProvider);
+      const [bidsRaw, asksRaw, bookDepth] = await Promise.all([lob.get_active_orders_sorted(hash, true, depth), lob.get_active_orders_sorted(hash, false, depth), lob.get_book_depth(hash)]);
+      const decode = (t) => { const o = []; for (let i = 0; i < t[0].length; i++) o.push({ price: Number(ethers.formatUnits(t[1][i], 18)), size: Number(ethers.formatUnits(t[2][i], 18)) }); return o; };
+      return { content: [{ type: "text", text: JSON.stringify({ asset: asset.toUpperCase(), bids: decode(bidsRaw), asks: decode(asksRaw), totalBids: Number(bookDepth[0]), totalAsks: Number(bookDepth[1]) }, null, 2) }] };
+    });
+
+    s.registerTool("place_limit_order", { description: "Place limit order on Stylus LOB", inputSchema: z.object({ asset: z.string(), is_long: z.boolean(), collateral: z.number(), leverage: z.number().min(1).max(50), limit_price: z.number() }) }, async ({ asset, is_long, collateral, leverage, limit_price }) => {
+      const lob = new ethers.Contract(STYLUS_LOB_ADDRESS, STYLUS_LOB_ABI, agentWalletSepolia);
+      const tx = await lob.store_order(agentWalletSepolia.address, assetHash(asset), is_long, ethers.parseUnits(collateral.toString(), 18), BigInt(leverage), ethers.parseUnits(limit_price.toString(), 18));
+      const receipt = await tx.wait();
+      return { content: [{ type: "text", text: JSON.stringify({ status: "placed", asset: asset.toUpperCase(), side: is_long ? "LONG" : "SHORT", collateral, leverage, limit_price, txHash: receipt.hash }, null, 2) }] };
+    });
+
+    s.registerTool("place_market_order", { description: "Open perp position at market price on AuraPerps", inputSchema: z.object({ asset: z.string(), is_long: z.boolean(), collateral: z.number(), leverage: z.number().min(1).max(50) }) }, async ({ asset, is_long, collateral, leverage }) => {
+      const colWei = ethers.parseUnits(collateral.toString(), 18);
+      const price = await fetchPythPrice(asset);
+      if (price) { const oracle = new ethers.Contract(MOCK_ORACLE_ADDRESS, ORACLE_ABI, agentWallet); await (await oracle.setPrice(asset.toUpperCase(), ethers.parseUnits(price.toFixed(2), 18))).wait(); }
+      const ausd = new ethers.Contract(AUSD_ADDRESS, AUSD_ABI, agentWallet);
+      const allowance = await ausd.allowance(agentWallet.address, AURA_PERPS_ADDRESS);
+      if (allowance < colWei) await (await ausd.approve(AURA_PERPS_ADDRESS, ethers.MaxUint256)).wait();
+      const perps = new ethers.Contract(AURA_PERPS_ADDRESS, PERPS_ABI, agentWallet);
+      const tx = await perps.openPosition(asset.toUpperCase(), is_long, colWei, BigInt(leverage));
+      const receipt = await tx.wait();
+      return { content: [{ type: "text", text: JSON.stringify({ status: "opened", asset: asset.toUpperCase(), side: is_long ? "LONG" : "SHORT", collateral, leverage, entryPrice: price, txHash: receipt.hash }, null, 2) }] };
+    });
+
+    s.registerTool("get_positions", { description: "Get open positions from AuraPerps", inputSchema: z.object({}) }, async () => {
+      const perps = new ethers.Contract(AURA_PERPS_ADDRESS, PERPS_ABI, robinhoodProvider);
+      const nextId = Number(await perps.nextPositionId());
+      const positions = [];
+      for (let i = 0; i < nextId && positions.length < 20; i++) { try { const pos = await perps.positions(i); if (pos.isOpen) { const price = await fetchPythPrice(pos.asset); positions.push({ id: i, asset: pos.asset, side: pos.isLong ? "LONG" : "SHORT", collateral: Number(ethers.formatUnits(pos.collateralAmount, 18)), leverage: Number(pos.leverage), entryPrice: Number(ethers.formatUnits(pos.entryPrice, 18)), currentPrice: price }); } } catch { continue; } }
+      return { content: [{ type: "text", text: JSON.stringify({ positions, count: positions.length }, null, 2) }] };
+    });
+
+    s.registerTool("close_position", { description: "Close a position by ID", inputSchema: z.object({ position_id: z.number() }) }, async ({ position_id }) => {
+      const perps = new ethers.Contract(AURA_PERPS_ADDRESS, PERPS_ABI, agentWallet);
+      const pos = await perps.positions(position_id);
+      if (!pos.isOpen) return { content: [{ type: "text", text: "Already closed." }] };
+      const price = await fetchPythPrice(pos.asset);
+      if (price) { const oracle = new ethers.Contract(MOCK_ORACLE_ADDRESS, ORACLE_ABI, agentWallet); await (await oracle.setPrice(pos.asset, ethers.parseUnits(price.toFixed(2), 18))).wait(); }
+      const tx = await perps.closePosition(position_id);
+      const receipt = await tx.wait();
+      return { content: [{ type: "text", text: JSON.stringify({ status: "closed", positionId: position_id, asset: pos.asset, exitPrice: price, txHash: receipt.hash }, null, 2) }] };
+    });
+
+    return s;
+  }
+
   app.get("/sse", async (req, res) => {
     const transport = new SSEServerTransport("/messages", res);
     transports[transport.sessionId] = transport;
     res.on("close", () => { delete transports[transport.sessionId]; });
-    await server.connect(transport);
+    const s = createServer();
+    await s.connect(transport);
   });
 
   // Return 405 on POST /sse to force mcp-remote to use SSE transport
