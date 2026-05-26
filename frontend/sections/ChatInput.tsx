@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { ArrowUp } from 'lucide-react';
+import { useState, useRef, useCallback } from 'react';
+import { ArrowUp, Mic } from 'lucide-react';
 
 interface ChatInputProps {
   onSendMessage: (text: string) => void;
@@ -8,6 +8,29 @@ interface ChatInputProps {
 
 export default function ChatInput({ onSendMessage, disabled }: ChatInputProps) {
   const [input, setInput] = useState('');
+  const [listening, setListening] = useState(false);
+  const recognitionRef = useRef<any>(null);
+
+  const toggleListening = useCallback(() => {
+    if (listening) {
+      recognitionRef.current?.stop();
+      return;
+    }
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SpeechRecognition) return alert('Speech recognition not supported in this browser.');
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'en-US';
+    recognition.interimResults = false;
+    recognition.onresult = (e: any) => {
+      const transcript = e.results[0][0].transcript;
+      setInput((prev) => (prev ? prev + ' ' + transcript : transcript));
+    };
+    recognition.onend = () => setListening(false);
+    recognition.onerror = () => setListening(false);
+    recognitionRef.current = recognition;
+    recognition.start();
+    setListening(true);
+  }, [listening]);
 
   const handleSend = () => {
     if (!input.trim() || disabled) return;
@@ -55,6 +78,19 @@ export default function ChatInput({ onSendMessage, disabled }: ChatInputProps) {
           disabled={disabled}
           className="flex-1 bg-[#050505] border border-[#00f0ff]/30 rounded-none px-4 py-3 font-mono text-[0.8rem] text-white placeholder:text-white/15 focus:outline-none focus:border-[#00f0ff] focus:shadow-[0_0_15px_rgba(255,255,255,0.15)] transition-all"
         />
+
+        <button
+          onClick={toggleListening}
+          disabled={disabled}
+          className={`p-2.5 rounded-none transition-all duration-300 shrink-0 cursor-pointer flex items-center justify-center border ${
+            listening
+              ? 'bg-red-500/20 text-red-400 border-red-500 animate-pulse'
+              : 'bg-white/5 text-white/40 border-white/10 hover:border-[#00f0ff] hover:text-white'
+          }`}
+          title={listening ? 'Stop listening' : 'Voice input'}
+        >
+          <Mic size={16} />
+        </button>
 
         <button
           onClick={handleSend}
