@@ -180,8 +180,8 @@ export default function PerpVaultPage() {
         </div>
       </header>
 
-      <main className="mx-auto max-w-4xl px-6 py-12">
-        <div className="mb-8">
+      <main className="mx-auto max-w-4xl px-6 py-12 relative z-10">
+        <div className="mb-8 bg-black/70 backdrop-blur-sm p-6 border border-[#00f0ff]/20">
           <Link href="/trade" className="group mb-8 inline-flex items-center gap-2 text-xs uppercase tracking-widest text-[#00f0ff]/60 transition hover:text-[#00f0ff]">
             <ArrowLeft className="h-4 w-4 transition-transform group-hover:-translate-x-1" /> Return to Trading
           </Link>
@@ -197,20 +197,20 @@ export default function PerpVaultPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
           {/* Stats Panel */}
           <div className="flex flex-col gap-4">
-            <div className="border border-[#00f0ff]/30 bg-[#0a0a0a] p-6">
-              <p className="text-xs uppercase tracking-widest text-white/40 mb-2">Total Value Locked (aUSD)</p>
+            <div className="border border-[#00f0ff]/30 bg-black/80 backdrop-blur-sm p-6">
+              <p className="text-xs uppercase tracking-widest text-white/70 mb-2">Total Value Locked (aUSD)</p>
               <h2 className="text-3xl font-bold text-[#00f0ff]">{isLoading ? "---" : tvl}</h2>
             </div>
             
-            <div className="border border-[#00f0ff]/30 bg-[#0a0a0a] p-6">
-              <p className="text-xs uppercase tracking-widest text-white/40 mb-2">Your Deposit (aUSD)</p>
+            <div className="border border-[#00f0ff]/30 bg-black/80 backdrop-blur-sm p-6">
+              <p className="text-xs uppercase tracking-widest text-white/70 mb-2">Your Deposit (aUSD)</p>
               <h2 className="text-3xl font-bold text-white">{isLoading ? "---" : userAssets}</h2>
-              <p className="mt-2 text-[10px] text-white/30 uppercase tracking-widest">Shares: {isLoading ? "---" : userShares}</p>
+              <p className="mt-2 text-[10px] text-white/50 uppercase tracking-widest">Shares: {isLoading ? "---" : userShares}</p>
             </div>
           </div>
 
           {/* Action Panel */}
-          <div className="border border-[#00f0ff] bg-[#0a0a0a]">
+          <div className="border border-[#00f0ff] bg-black/80 backdrop-blur-sm">
             <div className="grid grid-cols-2 border-b border-[#00f0ff]/30 bg-[#050505]">
               {(["deposit", "withdraw"] as const).map((t) => {
                 const isActive = tab === t;
@@ -231,7 +231,7 @@ export default function PerpVaultPage() {
             
             <div className="p-6 space-y-6">
               <div className="flex items-center justify-between text-xs">
-                <span className="uppercase tracking-widest text-white/50">{tab === "deposit" ? "Available aUSD" : "Deposited aUSD"}</span>
+                <span className="uppercase tracking-widest text-white/70">{tab === "deposit" ? "Available aUSD" : "Deposited aUSD"}</span>
                 <button 
                   onClick={() => setAmount(tab === "deposit" ? ausdRawBalance : userRawAssets)}
                   className="font-bold text-[#00f0ff] hover:text-[#00f0ff]/70 border-b border-[#00f0ff]/50"

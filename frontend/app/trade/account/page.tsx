@@ -118,7 +118,30 @@ export default function AccountPage() {
         {!account?.address ? (
           <div className="text-center py-20 text-white/30 text-sm">Connect your wallet to manage your AuraAccount</div>
         ) : !auraAccount ? (
-          <div className="text-center py-20 text-white/30 text-sm">No AuraAccount found. Deploy one from the /chat page first.</div>
+          <div className="text-center py-20 space-y-4">
+            <p className="text-white/30 text-sm">No AuraAccount found for this wallet.</p>
+            <button
+              onClick={async () => {
+                setLoading(true); setStatus("");
+                try {
+                  const wc = getWc();
+                  const tx = await wc.writeContract({ chain: null, address: FACTORY as `0x${string}`, abi: [{ inputs: [{ type: "address", name: "owner" }], name: "createAccount", outputs: [{ type: "address" }], stateMutability: "payable", type: "function" }] as any, functionName: "createAccount", args: [account.address as `0x${string}`], value: 0n });
+                  setStatus(`AuraAccount deployed! TX: ${tx.slice(0, 10)}...`);
+                  setTimeout(refresh, 3000);
+                } catch (e: any) { setStatus(`Deploy failed: ${e.message?.slice(0, 60)}`); }
+                setLoading(false);
+              }}
+              disabled={loading}
+              className="px-6 py-3 bg-[#00f0ff]/10 border border-[#00f0ff] text-[#00f0ff] text-xs font-bold uppercase tracking-widest hover:bg-[#00f0ff]/20 transition disabled:opacity-50"
+            >
+              {loading ? "Deploying..." : "Deploy AuraAccount"}
+            </button>
+            {status && (
+              <div className={`p-3 border text-[10px] font-mono ${status.includes("failed") ? "border-red-500/30 text-red-400 bg-red-500/5" : "border-[#00f0ff]/30 text-[#00f0ff] bg-[#00f0ff]/5"}`}>
+                {status}
+              </div>
+            )}
+          </div>
         ) : (
           <>
             {/* Account Info */}
