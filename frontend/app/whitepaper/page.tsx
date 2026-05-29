@@ -206,38 +206,44 @@ const sections = [
   },
   {
     num: "08",
-    title: "MCP Server — Any AI Can Trade",
+    title: "MCP Server — Any AI Can Trade (23 Tools)",
     icon: FileText,
     iconColor: "text-neon-green",
     glowClass: "cyber-glow-green",
     content: (
       <>
         <p className="text-white/80 leading-relaxed">
-          Aura exposes a <strong className="text-neon-green">Model Context Protocol (MCP) server</strong> so any AI agent — Claude, ChatGPT, Cursor, or custom agents — can connect and trade perpetuals on the Stylus LOB + AuraPerps by simply adding a URL.
+          Aura exposes a <strong className="text-neon-green">Model Context Protocol (MCP) server</strong> so any AI agent — Claude, ChatGPT, Cursor, Kiro, or custom agents — can connect and trade perpetuals, swap tokens, manage positions, and analyze markets by simply adding a URL.
         </p>
         <ul className="mt-4 space-y-3">
           <li className="flex items-start gap-3">
             <div className="w-1.5 h-1.5 rounded-full bg-neon-green shadow-[0_0_5px_#39ff14] mt-2 shrink-0" />
             <span className="text-white/80 leading-relaxed">
-              <strong className="text-neon-green">7 tools exposed:</strong> authenticate, get_price, get_orderbook, place_limit_order, place_market_order, get_positions, close_position.
+              <strong className="text-neon-green">23 tools exposed:</strong> get_price, get_orderbook, place_limit_order, place_market_order, get_positions, close_position, get_account_balance, set_stop_loss_take_profit, add_margin, get_market_analysis, get_funding_rate, partial_close, dca_order, cancel_dca, schedule_swap, get_audit_trail, get_pnl_summary, get_liquidation_price, get_supported_assets, cancel_limit_order, swap, deposit_vault, authenticate.
             </span>
           </li>
           <li className="flex items-start gap-3">
             <div className="w-1.5 h-1.5 rounded-full bg-neon-green shadow-[0_0_5px_#39ff14] mt-2 shrink-0" />
             <span className="text-white/80 leading-relaxed">
-              <strong className="text-neon-green">Delegation model:</strong> Users authorize the MCP agent via <code>setAiAgent()</code> on their AuraAccount. No private key is ever exposed. Revocable at any time.
+              <strong className="text-neon-green">Delegation model:</strong> Users authorize the MCP agent via <code>setAiAgent()</code> on their AuraAccount. No private key is ever exposed. Revocable at any time. Per-user API keys for authenticated trading.
             </span>
           </li>
           <li className="flex items-start gap-3">
             <div className="w-1.5 h-1.5 rounded-full bg-neon-green shadow-[0_0_5px_#39ff14] mt-2 shrink-0" />
             <span className="text-white/80 leading-relaxed">
-              <strong className="text-neon-green">Multi-transport:</strong> SSE (Claude Code, ChatGPT) + Streamable HTTP (Claude.ai web) — compatible with all major AI platforms.
+              <strong className="text-neon-green">On-chain audit trail:</strong> Every trade executed via MCP automatically records a reasoning hash + AI confidence score (0-100) on-chain in the AuraAuditTrail contract — verifiable proof of AI decision-making.
             </span>
           </li>
           <li className="flex items-start gap-3">
             <div className="w-1.5 h-1.5 rounded-full bg-neon-green shadow-[0_0_5px_#39ff14] mt-2 shrink-0" />
             <span className="text-white/80 leading-relaxed">
-              <strong className="text-neon-green">No other DeFi project has this.</strong> Any AI in the world can read our Stylus order book and execute trades via a single URL endpoint.
+              <strong className="text-neon-green">Multi-transport:</strong> SSE (Claude Code, Cursor) + Streamable HTTP (Claude.ai web, ChatGPT) — compatible with all major AI platforms.
+            </span>
+          </li>
+          <li className="flex items-start gap-3">
+            <div className="w-1.5 h-1.5 rounded-full bg-neon-green shadow-[0_0_5px_#39ff14] mt-2 shrink-0" />
+            <span className="text-white/80 leading-relaxed">
+              <strong className="text-neon-green">No other DeFi project has this.</strong> The most complete DeFi MCP server ever built. Any AI in the world can read our Stylus order book, execute trades, manage risk, and earn yield via a single URL endpoint.
             </span>
           </li>
         </ul>
@@ -469,7 +475,7 @@ export default function Whitepaper() {
               </h3>
             </div>
             <p className="text-sm text-neon-green/80 leading-relaxed">
-              Deployed natively on the Robinhood Testnet. Leveraging Account Abstraction (EIP-4337), LangChain Multi-Agent frameworks, and Arbitrum Stylus (Rust) for on-chain risk management.
+              Deployed natively on the Robinhood Testnet + Arbitrum Sepolia. 265 passing tests (adversarial, fuzz, invariant). 23 MCP tools. 34% gas savings (Stylus). Leveraging Account Abstraction (EIP-4337), LangChain Multi-Agent frameworks, Pyth Network oracles, and Arbitrum Stylus (Rust/WASM) for on-chain risk management.
             </p>
           </motion.div>
         </div>
