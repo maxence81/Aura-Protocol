@@ -261,7 +261,11 @@ export default function AccountPage() {
                   Withdraw
                 </button>
               </div>
-              <p className="text-[9px] text-white/30 mt-2">Available: <span className="text-[#00f0ff]">{tokenBalance} {withdrawToken}</span></p>
+              <p className="text-[9px] text-white/30 mt-2">Available: <span className="text-[#00f0ff]">{tokenBalance} {withdrawToken}</span>
+                <button onClick={() => setWithdrawAmount((parseFloat(tokenBalance) * 0.25).toFixed(4))} className="ml-2 px-1.5 py-0.5 text-[8px] border border-[#00f0ff]/20 text-[#00f0ff]/60 hover:bg-[#00f0ff]/10">25%</button>
+                <button onClick={() => setWithdrawAmount((parseFloat(tokenBalance) * 0.5).toFixed(4))} className="ml-1 px-1.5 py-0.5 text-[8px] border border-[#00f0ff]/20 text-[#00f0ff]/60 hover:bg-[#00f0ff]/10">50%</button>
+                <button onClick={() => setWithdrawAmount(tokenBalance)} className="ml-1 px-1.5 py-0.5 text-[8px] border border-[#00f0ff]/20 text-[#00f0ff]/60 hover:bg-[#00f0ff]/10">MAX</button>
+              </p>
             </div>
 
             {status && (
