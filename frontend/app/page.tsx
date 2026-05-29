@@ -339,20 +339,20 @@ export default function LandingPage() {
                     <span className="font-kanji text-[10px] text-white/40">多重エージェント</span>
                   </div>
                 </div>
-                <div className="glass-card-cyber px-5 py-3 flex items-center gap-3 border-l-2 border-[#00ff88]">
+                <div className="glass-card-cyber px-5 py-3 flex items-center gap-3 border-l-2 border-neon-cyan">
                   <div className="flex flex-col">
-                    <span className="font-mono-label text-[10px] text-[#00ff88] tracking-wider uppercase">
+                    <span className="font-mono-label text-[10px] text-neon-cyan tracking-wider uppercase">
                       AI Decisions On-Chain
                     </span>
-                    <span className="font-mono text-lg font-bold text-[#00ff88]">{aiDecisions}</span>
+                    <span className="font-kanji text-[10px] text-white/40">{aiDecisions} verified</span>
                   </div>
                 </div>
-                <div className="glass-card-cyber px-5 py-3 flex items-center gap-3 border-l-2 border-[#ff6b00]">
+                <div className="glass-card-cyber px-5 py-3 flex items-center gap-3 border-l-2 border-neon-cyan/70">
                   <div className="flex flex-col">
-                    <span className="font-mono-label text-[10px] text-[#ff6b00] tracking-wider uppercase">
+                    <span className="font-mono-label text-[10px] text-neon-cyan/90 tracking-wider uppercase">
                       Powered by Stylus
                     </span>
-                    <span className="font-mono text-[11px] font-bold text-[#ff6b00]/80">34% gas saved</span>
+                    <span className="font-kanji text-[10px] text-white/40">34% gas saved</span>
                   </div>
                 </div>
               </div>
