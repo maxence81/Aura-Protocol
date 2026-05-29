@@ -310,16 +310,24 @@ server.registerTool("get_market_analysis", {
   // Fetch multiple prices for correlation context
   const allPrices = {};
   for (const sym of Object.keys(PYTH_IDS)) { try { allPrices[sym] = await fetchPythPrice(sym); } catch {} }
-  // Simple sentiment from Fear & Greed via CoinMarketCap
-  let sentiment = { sentiment: "NEUTRAL", score: 0, summary: "Market data only" };
+  // Try CoinMarketCap Fear & Greed
+  let sentiment = null;
   try {
     const cmcKey = process.env.COINMARKETCAP;
     if (cmcKey) {
       const res = await fetch("https://pro-api.coinmarketcap.com/v3/fear-and-greed/latest", { headers: { "X-CMC_PRO_API_KEY": cmcKey, Accept: "application/json" } });
-      if (res.ok) { const d = await res.json(); const v = d.data?.value || 50; const c = d.data?.value_classification || "Neutral"; sentiment = { sentiment: v > 60 ? "BULLISH" : v < 40 ? "BEARISH" : "NEUTRAL", score: (v - 50) * 2, summary: `Fear & Greed: ${v}/100 (${c})` }; }
+      if (res.ok) { const d = await res.json(); const v = d.data?.value || 50; const c = d.data?.value_classification || "Neutral"; sentiment = { sentiment: v > 60 ? "BULLISH" : v < 40 ? "BEARISH" : "NEUTRAL", score: v, summary: `Fear & Greed Index: ${v}/100 (${c})` }; }
     }
   } catch {}
-  return { content: [{ type: "text", text: JSON.stringify({ asset: asset.toUpperCase(), currentPrice: price, marketSentiment: sentiment.sentiment, sentimentScore: sentiment.score, analysis: sentiment.summary, allPrices, source: "pyth_hermes + coinmarketcap_fear_greed" }, null, 2) }] };
+  // Fallback: use Alternative.me Fear & Greed (free, no key)
+  if (!sentiment) {
+    try {
+      const res = await fetch("https://api.alternative.me/fng/?limit=1");
+      if (res.ok) { const d = await res.json(); const v = parseInt(d.data?.[0]?.value || "50"); const c = d.data?.[0]?.value_classification || "Neutral"; sentiment = { sentiment: v > 60 ? "BULLISH" : v < 40 ? "BEARISH" : "NEUTRAL", score: v, summary: `Crypto Fear & Greed: ${v}/100 (${c})` }; }
+    } catch {}
+  }
+  if (!sentiment) sentiment = { sentiment: "NEUTRAL", score: 50, summary: "Sentiment data unavailable" };
+  return { content: [{ type: "text", text: JSON.stringify({ asset: asset.toUpperCase(), currentPrice: price, marketSentiment: sentiment.sentiment, sentimentScore: sentiment.score, analysis: sentiment.summary, allPrices, source: "pyth_hermes + fear_greed_index" }, null, 2) }] };
 });
 
 server.registerTool("get_funding_rate", {
@@ -439,12 +447,12 @@ if (args.includes("--http")) {
       return { content: [{ type: "text", text: JSON.stringify({ status: "opened", asset: asset.toUpperCase(), side: is_long ? "LONG" : "SHORT", collateral, leverage, entryPrice: price, txHash: receipt.hash }, null, 2) }] };
     });
 
-    s.registerTool("get_positions", { description: "Get open positions from AuraPerps", inputSchema: z.object({}) }, async () => {
+    s.registerTool("get_positions", { description: "Get open positions from AuraPerps. Shows your AuraAccount positions by default, or all positions if owner is specified.", inputSchema: z.object({ owner: z.string().optional().describe("Filter by owner address (optional, defaults to your AuraAccount)"), show_all: z.boolean().optional().describe("Show all open positions regardless of owner") }) }, async ({ owner, show_all }) => {
       const perps = new ethers.Contract(AURA_PERPS_ADDRESS, PERPS_ABI, robinhoodProvider);
       const nextId = Number(await perps.nextPositionId());
       const positions = [];
-      const ownerFilter = sessionAccount ? sessionAccount.toLowerCase() : null;
-      for (let i = 0; i < nextId && positions.length < 20; i++) { try { const pos = await perps.positions(i); if (pos.isOpen && (!ownerFilter || pos.owner.toLowerCase() === ownerFilter)) { const price = await fetchPythPrice(pos.asset); positions.push({ id: i, asset: pos.asset, side: pos.isLong ? "LONG" : "SHORT", collateral: Number(ethers.formatUnits(pos.collateralAmount, 18)), leverage: Number(pos.leverage), entryPrice: Number(ethers.formatUnits(pos.entryPrice, 18)), currentPrice: price }); } } catch { continue; } }
+      const ownerFilter = show_all ? null : (owner ? owner.toLowerCase() : (sessionAccount ? sessionAccount.toLowerCase() : null));
+      for (let i = 0; i < nextId && positions.length < 20; i++) { try { const pos = await perps.positions(i); if (pos.isOpen && (!ownerFilter || pos.owner.toLowerCase() === ownerFilter)) { const price = await fetchPythPrice(pos.asset); positions.push({ id: i, owner: pos.owner, asset: pos.asset, side: pos.isLong ? "LONG" : "SHORT", collateral: Number(ethers.formatUnits(pos.collateralAmount, 18)), leverage: Number(pos.leverage), entryPrice: Number(ethers.formatUnits(pos.entryPrice, 18)), currentPrice: price }); } } catch { continue; } }
       return { content: [{ type: "text", text: JSON.stringify({ account: sessionAccount || "agent", positions, count: positions.length }, null, 2) }] };
     });
 
@@ -516,15 +524,19 @@ if (args.includes("--http")) {
       const price = await fetchPythPrice(asset);
       const allPrices = {};
       for (const sym of Object.keys(PYTH_IDS)) { try { allPrices[sym] = await fetchPythPrice(sym); } catch {} }
-      let sentiment = { sentiment: "NEUTRAL", score: 0, summary: "Market data only" };
+      let sentiment = null;
       try {
         const cmcKey = process.env.COINMARKETCAP;
         if (cmcKey) {
           const res = await fetch("https://pro-api.coinmarketcap.com/v3/fear-and-greed/latest", { headers: { "X-CMC_PRO_API_KEY": cmcKey, Accept: "application/json" } });
-          if (res.ok) { const d = await res.json(); const v = d.data?.value || 50; const c = d.data?.value_classification || "Neutral"; sentiment = { sentiment: v > 60 ? "BULLISH" : v < 40 ? "BEARISH" : "NEUTRAL", score: (v - 50) * 2, summary: `Fear & Greed: ${v}/100 (${c})` }; }
+          if (res.ok) { const d = await res.json(); const v = d.data?.value || 50; const c = d.data?.value_classification || "Neutral"; sentiment = { sentiment: v > 60 ? "BULLISH" : v < 40 ? "BEARISH" : "NEUTRAL", score: v, summary: `Fear & Greed Index: ${v}/100 (${c})` }; }
         }
       } catch {}
-      return { content: [{ type: "text", text: JSON.stringify({ asset: asset.toUpperCase(), currentPrice: price, marketSentiment: sentiment.sentiment, sentimentScore: sentiment.score, analysis: sentiment.summary, allPrices, source: "pyth_hermes + coinmarketcap_fear_greed" }, null, 2) }] };
+      if (!sentiment) {
+        try { const res = await fetch("https://api.alternative.me/fng/?limit=1"); if (res.ok) { const d = await res.json(); const v = parseInt(d.data?.[0]?.value || "50"); const c = d.data?.[0]?.value_classification || "Neutral"; sentiment = { sentiment: v > 60 ? "BULLISH" : v < 40 ? "BEARISH" : "NEUTRAL", score: v, summary: `Crypto Fear & Greed: ${v}/100 (${c})` }; } } catch {}
+      }
+      if (!sentiment) sentiment = { sentiment: "NEUTRAL", score: 50, summary: "Sentiment data unavailable" };
+      return { content: [{ type: "text", text: JSON.stringify({ asset: asset.toUpperCase(), currentPrice: price, marketSentiment: sentiment.sentiment, sentimentScore: sentiment.score, analysis: sentiment.summary, allPrices, source: "pyth_hermes + fear_greed_index" }, null, 2) }] };
     });
 
     s.registerTool("get_funding_rate", { description: "Get funding rate and open interest for an asset", inputSchema: z.object({ asset: z.string() }) }, async ({ asset }) => {
