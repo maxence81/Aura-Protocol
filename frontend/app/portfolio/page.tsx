@@ -93,18 +93,28 @@ export default function PortfolioPage() {
     setLoading(false);
   }, [account?.address]);
 
-  // Fetch prices
+  // Fetch prices from Pyth Hermes (real-time)
   const fetchPrices = useCallback(async () => {
     try {
-      const assets = ["BTC", "ETH", "AMZN", "TSLA", "AMD", "NFLX", "PLTR"];
+      const PYTH_IDS: Record<string, string> = {
+        BTC: "e62df6c8b4a85fe1a67db44dc12de5db330f7ac66b72dc658afedf0f4a415b43",
+        ETH: "ff61491a931112ddf1bd8147cd1b641375f79f5825126d665480874634fd0ace",
+        TSLA: "16dad506d7db8da01c87581c87ca897a012a153557d4d578c3b9c9e1bc0632f1",
+        AMZN: "62731dfcc8b8542e52753f208248c3e73fab2ec15422d6f65c2decda71ccea0d",
+        NFLX: "8376cfd7ca8bcdf372ced05307b24dced1f15b1afafdeff715664598f15a3dd2",
+        AMD: "6969003ef4c5fbb3b57a6be3883102362d05572c2dc7f72b767ad48f4206204b",
+        PLTR: "11a70634863ddffb71f2b11f2cff29f73f3db8f6d0b78c49f2b5f4ad36e885f0",
+      };
+      const ids = Object.values(PYTH_IDS).map(id => `ids[]=${id}`).join("&");
+      const res = await fetch(`https://hermes.pyth.network/v2/updates/price/latest?${ids}`);
+      const data = await res.json();
       const results: PriceMap = {};
-      for (const a of assets) {
-        const p = await publicClient.readContract({
-          address: CONTRACT_ADDRESSES.MOCK_ORACLE as `0x${string}`,
-          abi: [{ type: "function", name: "getPrice", inputs: [{ name: "asset", type: "string" }], outputs: [{ type: "uint256" }], stateMutability: "view" }] as const,
-          functionName: "getPrice", args: [a],
-        }) as bigint;
-        results[a] = Number(formatUnits(p, 18));
+      const symbols = Object.keys(PYTH_IDS);
+      if (data.parsed) {
+        data.parsed.forEach((item: any, idx: number) => {
+          const p = item.price;
+          results[symbols[idx]] = parseFloat(p.price) * Math.pow(10, p.expo);
+        });
       }
       setPrices(results);
     } catch (e) { console.error("Price fetch error:", e); }
