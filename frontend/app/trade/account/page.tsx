@@ -29,6 +29,7 @@ export default function AccountPage() {
   const [copied, setCopied] = useState(false);
   const [withdrawToken, setWithdrawToken] = useState("AUSD");
   const [withdrawAmount, setWithdrawAmount] = useState("");
+  const [tokenBalance, setTokenBalance] = useState("0");
 
   const refresh = useCallback(async () => {
     if (!account?.address) return;
@@ -97,6 +98,15 @@ export default function AccountPage() {
   const copyAddress = () => { navigator.clipboard.writeText(auraAccount); setCopied(true); setTimeout(() => setCopied(false), 2000); };
 
   const TOKEN_MAP: Record<string, string> = { AUSD: CONTRACT_ADDRESSES.AUSD, TSLA: "0xC9f9c86933092BbbfFF3CCb4b105A4A94bf3Bd4E", AMZN: "0x5884aD2f920c162CFBbACc88C9C51AA75eC09E02", NFLX: "0x3b8262A63d25f0477c4DDE23F83cfe22Cb768C93", AMD: "0x71178BAc73cBeb415514eB542a8995b82669778d", PLTR: "0x1FBE1a0e43594b3455993B5dE5Fd0A7A266298d0" };
+
+  useEffect(() => {
+    if (!auraAccount || !withdrawToken) return;
+    const addr = TOKEN_MAP[withdrawToken];
+    if (!addr) return;
+    publicClient.readContract({ address: addr as `0x${string}`, abi: AUSD_ABI as any, functionName: "balanceOf", args: [auraAccount as `0x${string}`] })
+      .then((bal: any) => setTokenBalance(Number(formatUnits(bal as bigint, 18)).toFixed(4)))
+      .catch(() => setTokenBalance("0"));
+  }, [withdrawToken, auraAccount, status]);
 
   const handleWithdrawToken = async () => {
     if (!withdrawAmount || !auraAccount) return;
@@ -251,6 +261,7 @@ export default function AccountPage() {
                   Withdraw
                 </button>
               </div>
+              <p className="text-[9px] text-white/30 mt-2">Available: <span className="text-[#00f0ff]">{tokenBalance} {withdrawToken}</span></p>
             </div>
 
             {status && (
