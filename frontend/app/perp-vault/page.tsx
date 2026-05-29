@@ -157,28 +157,20 @@ export default function PerpVaultPage() {
     <div className="min-h-screen bg-[#050505] font-mono text-white selection:bg-[#00f0ff]/30 selection:text-[#00f0ff] relative overflow-hidden">
       <img src="/assets/fond_chat.png" className="fixed inset-0 w-full h-full object-cover opacity-40 pointer-events-none z-0" alt="" />
       {/* Header */}
-      <header className="sticky top-0 z-50 border-b border-[#00f0ff]/30 bg-[#050505]/95 px-6 py-4 backdrop-blur-md">
-        <div className="mx-auto flex max-w-7xl items-center justify-between">
-          <div className="flex items-center gap-6">
-            <Link href="/" className="group flex items-center gap-2">
-              <span className="text-[#00f0ff] opacity-80 transition-opacity group-hover:opacity-100">&lt;</span>
-              <span className="font-bold tracking-widest text-white transition-colors group-hover:text-[#00f0ff]">AURA</span>
-            </Link>
-            <div className="flex gap-4 border-l border-[#00f0ff]/30 pl-6">
-              <Link href="/trade" className="text-xs font-bold uppercase tracking-widest text-white/40 transition hover:text-[#00f0ff]">Trade</Link>
-              <Link href="/portfolio" className="text-xs font-bold uppercase tracking-widest text-white/40 transition hover:text-[#00f0ff]">Portfolio</Link>
-              <span className="text-xs font-bold uppercase tracking-widest text-[#00f0ff]">Earn Yield</span>
-              <Link href="/trade/account" className="text-xs font-bold uppercase tracking-widest text-white/40 transition hover:text-[#00f0ff]">Account</Link>
-            </div>
-          </div>
-          <div className="flex items-center gap-4">
-            <div className="hidden items-center gap-2 rounded-none border border-[#00f0ff]/30 bg-[#00f0ff]/5 px-3 py-1.5 md:flex">
-              <div className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#00f0ff]" />
-              <span className="text-[10px] uppercase tracking-widest text-[#00f0ff]">Robinhood Testnet</span>
-            </div>
-            <ConnectButton client={client} theme="dark" />
+      <header className="h-[48px] border-b border-[#00f0ff]/30 flex items-center justify-between px-4 bg-[#050505] relative z-50">
+        <div className="flex items-center gap-3">
+          <Link href="/" className="text-white/40 hover:text-[#00f0ff] transition flex items-center gap-1.5">
+            <ArrowLeft className="w-3.5 h-3.5" />
+            <span className="font-mono text-[10px] font-bold uppercase tracking-widest">AURA</span>
+          </Link>
+          <div className="border-l border-[#00f0ff]/20 pl-3 ml-1 flex items-center gap-3">
+            <Link href="/trade" className="text-[9px] text-white/30 hover:text-[#00f0ff] font-bold uppercase tracking-widest transition">Trade</Link>
+            <Link href="/portfolio" className="text-[9px] text-white/30 hover:text-[#00f0ff] font-bold uppercase tracking-widest transition">Portfolio</Link>
+            <span className="text-[9px] text-[#00f0ff] font-bold uppercase tracking-widest bg-[#00f0ff]/10 border border-[#00f0ff]/30 px-2 py-0.5">Earn Yield</span>
+            <Link href="/trade/account" className="text-[9px] text-white/30 hover:text-[#00f0ff] font-bold uppercase tracking-widest transition">Account</Link>
           </div>
         </div>
+        <ConnectButton client={client} theme="dark" />
       </header>
 
       <main className="mx-auto max-w-4xl px-6 py-12 relative z-10">
