@@ -66,9 +66,22 @@ const PERPS_ABI = [
 const AUSD_ABI = [
   "function approve(address spender, uint256 amount) returns (bool)",
   "function allowance(address owner, address spender) view returns (uint256)",
+  "function balanceOf(address) view returns (uint256)",
 ];
 
 const ORACLE_ABI = ["function setPrice(string asset, uint256 price) external"];
+
+const AUDIT_TRAIL_ADDRESS = "0x42D141CBe4aDc46B082D702C2e1bD802236348C4";
+const AUDIT_TRAIL_ABI = [
+  "function totalRecords() view returns (uint256)",
+  "function lastConfidenceScore(address agent, address user) view returns (uint8)",
+  "function getAgentReputation(address agent) view returns (uint256 trades, uint256 avgScore)",
+  "event ReasoningRecorded(address indexed agent, address indexed user, bytes32 reasoningHash, uint256 timestamp, string action)",
+  "event ReasoningRecordedWithScore(address indexed agent, address indexed user, bytes32 reasoningHash, uint256 timestamp, string action, uint8 confidenceScore)",
+];
+
+// ── DCA Store (in-memory) ──
+const activeDCAs = new Map(); // dcaId -> { interval, remaining, asset, amount, ... }
 
 // ── Interfaces for encoding calldata ──
 const perpsIface = new ethers.Interface(PERPS_ABI);
@@ -366,6 +379,118 @@ server.registerTool("partial_close", {
   return { content: [{ type: "text", text: JSON.stringify({ status: "partially_closed", positionId: position_id, closedSize: close_size, remainingSize: Number(ethers.formatUnits(pos.positionSize - sizeWei, 18)), exitPrice: price, txHash: receipt.hash }, null, 2) }] };
 });
 
+server.registerTool("dca_order", {
+  description: "Schedule a Dollar-Cost-Average strategy: automatically open positions at regular intervals. Max 10 orders, min 5 min interval.",
+  inputSchema: z.object({
+    asset: z.string().describe("Asset symbol e.g. BTC, ETH, TSLA"),
+    amount: z.number().describe("Collateral per order in aUSD"),
+    interval_minutes: z.number().min(5).describe("Minutes between each order"),
+    num_orders: z.number().min(2).max(10).describe("Total number of orders to execute"),
+    is_long: z.boolean().optional().describe("Direction (default: true/long)"),
+    leverage: z.number().min(1).max(50).optional().describe("Leverage (default: 1)"),
+  }),
+}, async ({ asset, amount, interval_minutes, num_orders, is_long = true, leverage = 1 }) => {
+  const dcaId = `dca_${Date.now()}`;
+  let executed = 0;
+  const txHashes = [];
+
+  const executeOne = async () => {
+    try {
+      const colWei = ethers.parseUnits(amount.toString(), 18);
+      const price = await fetchPythPrice(asset);
+      if (price) { const oracle = new ethers.Contract(MOCK_ORACLE_ADDRESS, ORACLE_ABI, agentWallet); await (await oracle.setPrice(asset.toUpperCase(), ethers.parseUnits(price.toFixed(2), 18))).wait(); }
+      const ausd = new ethers.Contract(AUSD_ADDRESS, AUSD_ABI, agentWallet);
+      const allowance = await ausd.allowance(agentWallet.address, AURA_PERPS_ADDRESS);
+      if (allowance < colWei) await (await ausd.approve(AURA_PERPS_ADDRESS, ethers.MaxUint256)).wait();
+      const perps = new ethers.Contract(AURA_PERPS_ADDRESS, PERPS_ABI, agentWallet);
+      const tx = await perps.openPosition(asset.toUpperCase(), is_long, colWei, BigInt(leverage));
+      const receipt = await tx.wait();
+      executed++;
+      txHashes.push(receipt.hash);
+      if (executed >= num_orders) { clearInterval(dca.timer); activeDCAs.delete(dcaId); }
+      else { const d = activeDCAs.get(dcaId); if (d) d.executed = executed; }
+    } catch (e) { console.error(`[DCA ${dcaId}] Order ${executed + 1} failed:`, e.message); }
+  };
+
+  // Execute first order immediately
+  await executeOne();
+  // Schedule remaining
+  const timer = setInterval(executeOne, interval_minutes * 60 * 1000);
+  const dca = { timer, asset: asset.toUpperCase(), amount, interval_minutes, num_orders, is_long, leverage, executed, startedAt: Date.now() };
+  activeDCAs.set(dcaId, dca);
+
+  return { content: [{ type: "text", text: JSON.stringify({ status: "dca_started", dcaId, asset: asset.toUpperCase(), amountPerOrder: amount, interval: `${interval_minutes} min`, totalOrders: num_orders, executed: 1, nextIn: `${interval_minutes} min`, firstTx: txHashes[0] || null }, null, 2) }] };
+});
+
+server.registerTool("cancel_dca", {
+  description: "Cancel an active DCA strategy by its ID",
+  inputSchema: z.object({ dca_id: z.string().describe("DCA ID to cancel (e.g. dca_1716...)") }),
+}, async ({ dca_id }) => {
+  const dca = activeDCAs.get(dca_id);
+  if (!dca) return { content: [{ type: "text", text: "DCA not found or already completed." }] };
+  clearInterval(dca.timer);
+  const result = { status: "cancelled", dcaId: dca_id, executed: dca.executed, remaining: dca.num_orders - dca.executed };
+  activeDCAs.delete(dca_id);
+  return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
+});
+
+server.registerTool("get_audit_trail", {
+  description: "Get the on-chain AI audit trail: total records, agent reputation, and recent reasoning events from AuraAuditTrail contract",
+  inputSchema: z.object({}),
+}, async () => {
+  const audit = new ethers.Contract(AUDIT_TRAIL_ADDRESS, AUDIT_TRAIL_ABI, robinhoodProvider);
+  const [totalRecords, reputation] = await Promise.all([
+    audit.totalRecords(),
+    audit.getAgentReputation(agentWallet.address),
+  ]);
+  // Fetch recent events (last 500 blocks)
+  const currentBlock = await robinhoodProvider.getBlockNumber();
+  const fromBlock = Math.max(0, currentBlock - 500);
+  let recentEvents = [];
+  try {
+    const filter = audit.filters.ReasoningRecordedWithScore(agentWallet.address);
+    const logs = await audit.queryFilter(filter, fromBlock, currentBlock);
+    recentEvents = logs.slice(-10).map(l => ({ user: l.args[1], hash: l.args[2], timestamp: Number(l.args[3]), action: l.args[4], confidenceScore: Number(l.args[5]) }));
+  } catch {}
+  return { content: [{ type: "text", text: JSON.stringify({ contract: AUDIT_TRAIL_ADDRESS, chain: "Robinhood Chain", totalRecords: Number(totalRecords), agentAddress: agentWallet.address, agentReputation: { totalTrades: Number(reputation[0]), avgConfidenceScore: Number(reputation[1]) }, recentDecisions: recentEvents }, null, 2) }] };
+});
+
+server.registerTool("get_pnl_summary", {
+  description: "Get a PnL summary across all positions: total PnL, win rate, best/worst trade, total volume",
+  inputSchema: z.object({}),
+}, async () => {
+  const perps = new ethers.Contract(AURA_PERPS_ADDRESS, PERPS_ABI, robinhoodProvider);
+  const nextId = Number(await perps.nextPositionId());
+  let totalPnl = 0, wins = 0, losses = 0, bestPnl = -Infinity, worstPnl = Infinity, totalVolume = 0, openCount = 0;
+  for (let i = 0; i < nextId && i < 100; i++) {
+    try {
+      const pos = await perps.positions(i);
+      const size = Number(ethers.formatUnits(pos.positionSize, 18));
+      totalVolume += size;
+      if (pos.isOpen) {
+        openCount++;
+        const price = await fetchPythPrice(pos.asset);
+        if (price) {
+          const [pnl, isProfit] = await perps.calculatePnL(i, ethers.parseUnits(price.toFixed(2), 18));
+          const pnlNum = Number(ethers.formatUnits(pnl, 18)) * (isProfit ? 1 : -1);
+          totalPnl += pnlNum;
+          if (pnlNum > 0) wins++; else losses++;
+          if (pnlNum > bestPnl) bestPnl = pnlNum;
+          if (pnlNum < worstPnl) worstPnl = pnlNum;
+        }
+      } else {
+        const pnlNum = Number(ethers.formatUnits(pos.realizedPnl, 18)) * (pos.isProfitRealized ? 1 : -1);
+        totalPnl += pnlNum;
+        if (pnlNum > 0) wins++; else losses++;
+        if (pnlNum > bestPnl) bestPnl = pnlNum;
+        if (pnlNum < worstPnl) worstPnl = pnlNum;
+      }
+    } catch { continue; }
+  }
+  const totalTrades = wins + losses;
+  return { content: [{ type: "text", text: JSON.stringify({ totalPnl: totalPnl.toFixed(2), winRate: totalTrades > 0 ? `${((wins / totalTrades) * 100).toFixed(1)}%` : "N/A", wins, losses, bestTrade: bestPnl === -Infinity ? "N/A" : bestPnl.toFixed(2), worstTrade: worstPnl === Infinity ? "N/A" : worstPnl.toFixed(2), openPositions: openCount, totalVolume: totalVolume.toFixed(2), totalTrades }, null, 2) }] };
+});
+
 // ── Start ──
 const args = process.argv.slice(2);
 
@@ -568,6 +693,69 @@ if (args.includes("--http")) {
       const tx = await perps.closePositionPartially(BigInt(position_id), sizeWei);
       const receipt = await tx.wait();
       return { content: [{ type: "text", text: JSON.stringify({ status: "partially_closed", positionId: position_id, closedSize: close_size, exitPrice: price, txHash: receipt.hash }, null, 2) }] };
+    });
+
+    s.registerTool("dca_order", { description: "Schedule a DCA: auto-open positions at intervals. Max 10 orders, min 5 min.", inputSchema: z.object({ asset: z.string(), amount: z.number(), interval_minutes: z.number().min(5), num_orders: z.number().min(2).max(10), is_long: z.boolean().optional(), leverage: z.number().min(1).max(50).optional() }) }, async ({ asset, amount, interval_minutes, num_orders, is_long = true, leverage = 1 }) => {
+      const dcaId = `dca_${Date.now()}`;
+      let executed = 0;
+      const executeOne = async () => {
+        try {
+          const colWei = ethers.parseUnits(amount.toString(), 18);
+          const price = await fetchPythPrice(asset);
+          if (price) { const oracle = new ethers.Contract(MOCK_ORACLE_ADDRESS, ORACLE_ABI, agentWallet); await (await oracle.setPrice(asset.toUpperCase(), ethers.parseUnits(price.toFixed(2), 18))).wait(); }
+          if (sessionAccount) {
+            const approveData = ausdIface.encodeFunctionData("approve", [AURA_PERPS_ADDRESS, colWei]);
+            const openData = perpsIface.encodeFunctionData("openPosition", [asset.toUpperCase(), is_long, colWei, BigInt(leverage)]);
+            const account = new ethers.Contract(sessionAccount, AURA_ACCOUNT_ABI, agentWallet);
+            await (await account.executeBatchByAgent([AUSD_ADDRESS, AURA_PERPS_ADDRESS], [0n, 0n], [approveData, openData])).wait();
+          } else {
+            const ausd = new ethers.Contract(AUSD_ADDRESS, AUSD_ABI, agentWallet);
+            const allowance = await ausd.allowance(agentWallet.address, AURA_PERPS_ADDRESS);
+            if (allowance < colWei) await (await ausd.approve(AURA_PERPS_ADDRESS, ethers.MaxUint256)).wait();
+            const perps = new ethers.Contract(AURA_PERPS_ADDRESS, PERPS_ABI, agentWallet);
+            await (await perps.openPosition(asset.toUpperCase(), is_long, colWei, BigInt(leverage))).wait();
+          }
+          executed++;
+          if (executed >= num_orders) { clearInterval(dca.timer); activeDCAs.delete(dcaId); }
+          else { const d = activeDCAs.get(dcaId); if (d) d.executed = executed; }
+        } catch (e) { console.error(`[DCA ${dcaId}] failed:`, e.message); }
+      };
+      await executeOne();
+      const timer = setInterval(executeOne, interval_minutes * 60 * 1000);
+      const dca = { timer, asset: asset.toUpperCase(), amount, interval_minutes, num_orders, is_long, leverage, executed, startedAt: Date.now() };
+      activeDCAs.set(dcaId, dca);
+      return { content: [{ type: "text", text: JSON.stringify({ status: "dca_started", dcaId, asset: asset.toUpperCase(), amountPerOrder: amount, interval: `${interval_minutes} min`, totalOrders: num_orders, executed: 1, nextIn: `${interval_minutes} min` }, null, 2) }] };
+    });
+
+    s.registerTool("cancel_dca", { description: "Cancel an active DCA by ID", inputSchema: z.object({ dca_id: z.string() }) }, async ({ dca_id }) => {
+      const dca = activeDCAs.get(dca_id);
+      if (!dca) return { content: [{ type: "text", text: "DCA not found or already completed." }] };
+      clearInterval(dca.timer);
+      const result = { status: "cancelled", dcaId: dca_id, executed: dca.executed, remaining: dca.num_orders - dca.executed };
+      activeDCAs.delete(dca_id);
+      return { content: [{ type: "text", text: JSON.stringify(result, null, 2) }] };
+    });
+
+    s.registerTool("get_audit_trail", { description: "Get on-chain AI audit trail: total records, agent reputation, recent decisions", inputSchema: z.object({}) }, async () => {
+      const audit = new ethers.Contract(AUDIT_TRAIL_ADDRESS, AUDIT_TRAIL_ABI, robinhoodProvider);
+      const [totalRecords, reputation] = await Promise.all([audit.totalRecords(), audit.getAgentReputation(agentWallet.address)]);
+      const currentBlock = await robinhoodProvider.getBlockNumber();
+      let recentEvents = [];
+      try {
+        const filter = audit.filters.ReasoningRecordedWithScore(agentWallet.address);
+        const logs = await audit.queryFilter(filter, Math.max(0, currentBlock - 500), currentBlock);
+        recentEvents = logs.slice(-10).map(l => ({ user: l.args[1], hash: l.args[2], timestamp: Number(l.args[3]), action: l.args[4], confidenceScore: Number(l.args[5]) }));
+      } catch {}
+      return { content: [{ type: "text", text: JSON.stringify({ contract: AUDIT_TRAIL_ADDRESS, chain: "Robinhood Chain", totalRecords: Number(totalRecords), agentAddress: agentWallet.address, agentReputation: { totalTrades: Number(reputation[0]), avgConfidenceScore: Number(reputation[1]) }, recentDecisions: recentEvents }, null, 2) }] };
+    });
+
+    s.registerTool("get_pnl_summary", { description: "Get PnL summary: total PnL, win rate, best/worst trade", inputSchema: z.object({}) }, async () => {
+      const perps = new ethers.Contract(AURA_PERPS_ADDRESS, PERPS_ABI, robinhoodProvider);
+      const nextId = Number(await perps.nextPositionId());
+      let totalPnl = 0, wins = 0, losses = 0, bestPnl = -Infinity, worstPnl = Infinity, totalVolume = 0, openCount = 0;
+      for (let i = 0; i < nextId && i < 100; i++) { try { const pos = await perps.positions(i); const size = Number(ethers.formatUnits(pos.positionSize, 18)); totalVolume += size; if (pos.isOpen) { openCount++; const price = await fetchPythPrice(pos.asset); if (price) { const [pnl, isProfit] = await perps.calculatePnL(i, ethers.parseUnits(price.toFixed(2), 18)); const pnlNum = Number(ethers.formatUnits(pnl, 18)) * (isProfit ? 1 : -1); totalPnl += pnlNum; if (pnlNum > 0) wins++; else losses++; if (pnlNum > bestPnl) bestPnl = pnlNum; if (pnlNum < worstPnl) worstPnl = pnlNum; } } else { const pnlNum = Number(ethers.formatUnits(pos.realizedPnl, 18)) * (pos.isProfitRealized ? 1 : -1); totalPnl += pnlNum; if (pnlNum > 0) wins++; else losses++; if (pnlNum > bestPnl) bestPnl = pnlNum; if (pnlNum < worstPnl) worstPnl = pnlNum; } } catch { continue; } }
+      const totalTrades = wins + losses;
+      return { content: [{ type: "text", text: JSON.stringify({ totalPnl: totalPnl.toFixed(2), winRate: totalTrades > 0 ? `${((wins / totalTrades) * 100).toFixed(1)}%` : "N/A", wins, losses, bestTrade: bestPnl === -Infinity ? "N/A" : bestPnl.toFixed(2), worstTrade: worstPnl === Infinity ? "N/A" : worstPnl.toFixed(2), openPositions: openCount, totalVolume: totalVolume.toFixed(2), totalTrades }, null, 2) }] };
     });
 
     return s;
