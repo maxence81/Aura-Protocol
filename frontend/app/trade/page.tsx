@@ -20,6 +20,7 @@ import OrderBook from "./OrderBook";
 import SettlementToasts from "./SettlementToasts";
 import LiquidationAlerts from "./LiquidationAlerts";
 import McpKeyPanel from "./McpKeyPanel";
+import AuditTrailWidget from "./AuditTrailWidget";
 import { API_URL } from "@/lib/config";
 
 const robinhoodChain = defineChain({
@@ -219,6 +220,7 @@ export default function TradeDashboard() {
           handleManualAction={state.handleManualAction}
         />
         <McpKeyPanel walletAddress={account?.address} auraAccountAddress={auraAccountAddress} agentOperatorAddress={agentOperatorAddress} />
+        <AuditTrailWidget />
         </div>
       </main>
     </div>

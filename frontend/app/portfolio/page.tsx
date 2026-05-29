@@ -42,6 +42,7 @@ export default function PortfolioPage() {
   const [prices, setPrices] = useState<PriceMap>({});
   const [closing, setClosing] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
+  const [pnlStats, setPnlStats] = useState<{ wins: number; losses: number; bestTrade: number; worstTrade: number; totalVolume: number } | null>(null);
 
   // Fetch positions
   const fetchPositions = useCallback(async () => {
@@ -135,6 +136,9 @@ export default function PortfolioPage() {
   // Total PnL
   const totalPnl = positions.reduce((sum, p) => sum + calcPnl(p).pnl, 0);
   const totalCollateral = positions.reduce((sum, p) => sum + p.collateral, 0);
+  const winRate = positions.length > 0 ? positions.filter(p => calcPnl(p).pnl > 0).length / positions.length * 100 : 0;
+  const bestTrade = positions.length > 0 ? Math.max(...positions.map(p => calcPnl(p).pnl)) : 0;
+  const worstTrade = positions.length > 0 ? Math.min(...positions.map(p => calcPnl(p).pnl)) : 0;
 
   return (
     <div className="min-h-screen bg-[#020204] text-white font-mono relative overflow-hidden">
@@ -178,6 +182,25 @@ export default function PortfolioPage() {
             </p>
           </div>
         </div>
+
+        {/* PnL Summary */}
+        {positions.length > 0 && (
+          <div className="grid grid-cols-3 gap-4 mb-8">
+            <div className="bg-[#0a0a0a] border border-[#00f0ff]/20 p-4">
+              <p className="text-[9px] text-white/30 uppercase tracking-widest mb-1">Win Rate</p>
+              <p className="text-2xl font-bold text-[#00f0ff]">{winRate.toFixed(0)}%</p>
+              <p className="text-[9px] text-white/20 mt-1">{positions.filter(p => calcPnl(p).pnl > 0).length}W / {positions.filter(p => calcPnl(p).pnl <= 0).length}L</p>
+            </div>
+            <div className="bg-[#0a0a0a] border border-[#00f0ff]/20 p-4">
+              <p className="text-[9px] text-white/30 uppercase tracking-widest mb-1">Best Trade</p>
+              <p className="text-2xl font-bold text-[#00ff88]">+{bestTrade.toFixed(2)}</p>
+            </div>
+            <div className="bg-[#0a0a0a] border border-[#00f0ff]/20 p-4">
+              <p className="text-[9px] text-white/30 uppercase tracking-widest mb-1">Worst Trade</p>
+              <p className="text-2xl font-bold text-[#ff2a6d]">{worstTrade.toFixed(2)}</p>
+            </div>
+          </div>
+        )}
 
         {/* Positions */}
         {!account?.address ? (

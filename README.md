@@ -186,7 +186,7 @@ Real numbers from `scripts/bench-guardrail.js` on Arbitrum Sepolia:
 
 ## Test Coverage
 
-**260 passing tests** across security-critical paths:
+**265 passing tests** across security-critical paths:
 
 ```
 Adversarial Security Tests (21 tests)
@@ -264,7 +264,7 @@ Run with: `npx hardhat test`
 
 | Criterion | Aura's Edge |
 |---|---|
-| **Smart Contract Quality** | 260 tests (adversarial, fuzz, invariant, edge-case), OZ standards, ERC-4626 vault, EIP-4337 accounts, Stylus snake_case selector compatibility, gas-benched against Solidity |
+| **Smart Contract Quality** | 265 tests (adversarial, fuzz, invariant, edge-case), OZ standards, ERC-4626 vault, EIP-4337 accounts, Stylus snake_case selector compatibility, gas-benched against Solidity |
 | **Product-Market Fit** | Targets Robinhood Chain's massive retail audience. Gasless UX + chat = the same UX pattern as Robinhood, but with full self-custody and DeFi yields |
 | **Innovation & Creativity** | First project to combine Multi-Agent safety + Stylus LOB + EIP-4337. Cross-chain hybrid (Stylus = compute, Robinhood = settlement) is novel |
 | **Real Problem Solving** | Answers DeFi's three real barriers -- complexity, gas, trust -- without compromising self-custody |
@@ -284,9 +284,20 @@ Aura exposes a **Model Context Protocol (MCP) server** so any AI agent (Claude D
 | `get_price` | Real-time Pyth price for BTC, ETH, TSLA, AMZN, NFLX, AMD, PLTR |
 | `get_orderbook` | Live bids/asks from the Stylus WASM LOB (Arbitrum Sepolia) |
 | `place_limit_order` | Place a limit order on the Stylus LOB — matched by AI Keeper |
-| `place_market_order` | Open a perp position at market price (Robinhood Chain) |
+| `place_market_order` | Open a perp position at market price (Robinhood Chain) + records audit trail on-chain |
 | `get_positions` | Read open positions with live PnL |
 | `close_position` | Close a position by ID |
+| `get_account_balance` | Get aUSD and ETH balance for your AuraAccount |
+| `set_stop_loss_take_profit` | Set TP/SL trigger prices on an open position |
+| `add_margin` | Add collateral to reduce liquidation risk |
+| `get_market_analysis` | AI macro analysis: Pyth prices + Fear & Greed sentiment + cross-asset correlations |
+| `get_funding_rate` | Funding rate, open interest, and long/short skew per asset |
+| `partial_close` | Partially close a position (take profit on a portion) |
+| `dca_order` | Schedule a Dollar-Cost-Average strategy (auto-open positions at intervals) |
+| `cancel_dca` | Cancel an active DCA strategy |
+| `get_audit_trail` | Read on-chain AI audit trail: reasoning hashes, confidence scores, agent reputation |
+| `get_pnl_summary` | Portfolio analytics: total PnL, win rate, best/worst trade, volume |
+| `authenticate` | (HTTP mode) Authenticate with your Aura API key for per-user trading |
 
 ### Claude Desktop Config
 
@@ -363,7 +374,7 @@ All contract addresses are pre-filled with our live testnet deployments.
 
 ```bash
 npx hardhat compile
-npx hardhat test                    # 260 tests, all passing
+npx hardhat test                    # 265 tests, all passing
 ```
 
 ### 4. Run the Stylus vs Solidity Benchmark
@@ -418,7 +429,7 @@ arbitrum_hackathon/
     app/chat/           Multi-agent chat for swaps & DCA
     app/vault/          ERC-4626 deposit / withdraw
  scripts/                Hardhat deploy + bench scripts
- test/                   Hardhat test suite (260 tests)
+ test/                   Hardhat test suite (265 tests)
  ARCHITECTURE.md         Full architecture reference
 ```
 
