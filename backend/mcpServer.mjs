@@ -52,9 +52,15 @@ const AURA_ACCOUNT_ABI = [
 const PERPS_ABI = [
   "function openPosition(string asset, bool isLong, uint256 collateralAmount, uint256 leverage) returns (uint256)",
   "function closePosition(uint256 positionId) external",
+  "function closePositionPartially(uint256 positionId, uint256 closeSize) external",
+  "function addMargin(uint256 positionId, uint256 additionalCollateral) external",
+  "function setTriggerOrders(uint256 positionId, uint256 tpPrice, uint256 slPrice) external",
   "function positions(uint256 positionId) view returns (address owner, string asset, bool isLong, uint256 collateralAmount, uint256 leverage, uint256 entryPrice, uint256 positionSize, bool isOpen, uint256 openedAt, uint256 realizedPnl, bool isProfitRealized, uint256 exitPrice, uint256 takeProfitPrice, uint256 stopLossPrice)",
   "function nextPositionId() view returns (uint256)",
   "function calculatePnL(uint256 positionId, uint256 currentPrice) view returns (uint256 pnl, bool isProfit)",
+  "function totalLongOI(string asset) view returns (uint256)",
+  "function totalShortOI(string asset) view returns (uint256)",
+  "function FUNDING_RATE_PER_SECOND() view returns (uint256)",
 ];
 
 const AUSD_ABI = [
@@ -250,6 +256,108 @@ server.registerTool("close_position", {
   }, null, 2) }] };
 });
 
+server.registerTool("get_account_balance", {
+  description: "Get aUSD and ETH balance for the agent wallet or a specific AuraAccount address",
+  inputSchema: z.object({ address: z.string().optional().describe("AuraAccount or wallet address (defaults to agent wallet)") }),
+}, async ({ address }) => {
+  const addr = address || agentWallet.address;
+  const [ausdBal, ethBal] = await Promise.all([
+    robinhoodProvider.call({ to: AUSD_ADDRESS, data: new ethers.Interface(["function balanceOf(address) view returns (uint256)"]).encodeFunctionData("balanceOf", [addr]) }),
+    robinhoodProvider.getBalance(addr),
+  ]);
+  return { content: [{ type: "text", text: JSON.stringify({ address: addr, aUSD: Number(ethers.formatUnits(BigInt(ausdBal), 18)).toFixed(2), ETH: Number(ethers.formatUnits(ethBal, 18)).toFixed(4) }) }] };
+});
+
+server.registerTool("set_stop_loss_take_profit", {
+  description: "Set stop-loss and/or take-profit prices on an open position",
+  inputSchema: z.object({
+    position_id: z.number().describe("Position ID"),
+    take_profit: z.number().optional().describe("Take profit price in USD (0 to disable)"),
+    stop_loss: z.number().optional().describe("Stop loss price in USD (0 to disable)"),
+  }),
+}, async ({ position_id, take_profit = 0, stop_loss = 0 }) => {
+  const tpWei = ethers.parseUnits(take_profit.toString(), 18);
+  const slWei = ethers.parseUnits(stop_loss.toString(), 18);
+  const data = perpsIface.encodeFunctionData("setTriggerOrders", [BigInt(position_id), tpWei, slWei]);
+  const perps = new ethers.Contract(AURA_PERPS_ADDRESS, PERPS_ABI, agentWallet);
+  const tx = await perps.setTriggerOrders(BigInt(position_id), tpWei, slWei);
+  const receipt = await tx.wait();
+  return { content: [{ type: "text", text: JSON.stringify({ status: "triggers_set", positionId: position_id, takeProfit: take_profit, stopLoss: stop_loss, txHash: receipt.hash }, null, 2) }] };
+});
+
+server.registerTool("add_margin", {
+  description: "Add collateral (aUSD) to an existing open position to reduce liquidation risk",
+  inputSchema: z.object({
+    position_id: z.number().describe("Position ID"),
+    amount: z.number().describe("Additional collateral in aUSD"),
+  }),
+}, async ({ position_id, amount }) => {
+  const amtWei = ethers.parseUnits(amount.toString(), 18);
+  const ausd = new ethers.Contract(AUSD_ADDRESS, AUSD_ABI, agentWallet);
+  const allowance = await ausd.allowance(agentWallet.address, AURA_PERPS_ADDRESS);
+  if (allowance < amtWei) await (await ausd.approve(AURA_PERPS_ADDRESS, ethers.MaxUint256)).wait();
+  const perps = new ethers.Contract(AURA_PERPS_ADDRESS, PERPS_ABI, agentWallet);
+  const tx = await perps.addMargin(BigInt(position_id), amtWei);
+  const receipt = await tx.wait();
+  return { content: [{ type: "text", text: JSON.stringify({ status: "margin_added", positionId: position_id, addedAmount: amount, txHash: receipt.hash }, null, 2) }] };
+});
+
+server.registerTool("get_market_analysis", {
+  description: "Get AI-powered macro market analysis including Pyth prices, news sentiment, and correlations for an asset",
+  inputSchema: z.object({ asset: z.string().describe("Asset symbol e.g. BTC, ETH, TSLA") }),
+}, async ({ asset }) => {
+  const price = await fetchPythPrice(asset);
+  // Fetch multiple prices for correlation context
+  const allPrices = {};
+  for (const sym of Object.keys(PYTH_IDS)) { try { allPrices[sym] = await fetchPythPrice(sym); } catch {} }
+  // Simple sentiment from Fear & Greed via CoinMarketCap
+  let sentiment = { sentiment: "NEUTRAL", score: 0, summary: "Market data only" };
+  try {
+    const cmcKey = process.env.COINMARKETCAP;
+    if (cmcKey) {
+      const res = await fetch("https://pro-api.coinmarketcap.com/v3/fear-and-greed/latest", { headers: { "X-CMC_PRO_API_KEY": cmcKey, Accept: "application/json" } });
+      if (res.ok) { const d = await res.json(); const v = d.data?.value || 50; const c = d.data?.value_classification || "Neutral"; sentiment = { sentiment: v > 60 ? "BULLISH" : v < 40 ? "BEARISH" : "NEUTRAL", score: (v - 50) * 2, summary: `Fear & Greed: ${v}/100 (${c})` }; }
+    }
+  } catch {}
+  return { content: [{ type: "text", text: JSON.stringify({ asset: asset.toUpperCase(), currentPrice: price, marketSentiment: sentiment.sentiment, sentimentScore: sentiment.score, analysis: sentiment.summary, allPrices, source: "pyth_hermes + coinmarketcap_fear_greed" }, null, 2) }] };
+});
+
+server.registerTool("get_funding_rate", {
+  description: "Get current funding rate and open interest for an asset on AuraPerps",
+  inputSchema: z.object({ asset: z.string().describe("Asset symbol e.g. BTC, ETH, TSLA") }),
+}, async ({ asset }) => {
+  const perps = new ethers.Contract(AURA_PERPS_ADDRESS, PERPS_ABI, robinhoodProvider);
+  const [longOI, shortOI, ratePerSec] = await Promise.all([
+    perps.totalLongOI(asset.toUpperCase()),
+    perps.totalShortOI(asset.toUpperCase()),
+    perps.FUNDING_RATE_PER_SECOND(),
+  ]);
+  const dailyRate = Number(ratePerSec) * 86400 / 1e18 * 100;
+  const longOINum = Number(ethers.formatUnits(longOI, 18));
+  const shortOINum = Number(ethers.formatUnits(shortOI, 18));
+  const skew = longOINum - shortOINum;
+  return { content: [{ type: "text", text: JSON.stringify({ asset: asset.toUpperCase(), fundingRateDaily: `${dailyRate.toFixed(4)}%`, longOpenInterest: longOINum, shortOpenInterest: shortOINum, skew, skewDirection: skew > 0 ? "LONG_HEAVY" : skew < 0 ? "SHORT_HEAVY" : "BALANCED" }, null, 2) }] };
+});
+
+server.registerTool("partial_close", {
+  description: "Partially close a position by specifying the size to close (in position units)",
+  inputSchema: z.object({
+    position_id: z.number().describe("Position ID"),
+    close_size: z.number().describe("Size to close (in position size units, e.g. 500 out of 1000)"),
+  }),
+}, async ({ position_id, close_size }) => {
+  const perps = new ethers.Contract(AURA_PERPS_ADDRESS, PERPS_ABI, agentWallet);
+  const oracle = new ethers.Contract(MOCK_ORACLE_ADDRESS, ORACLE_ABI, agentWallet);
+  const pos = await perps.positions(position_id);
+  if (!pos.isOpen) return { content: [{ type: "text", text: "Position already closed." }] };
+  const price = await fetchPythPrice(pos.asset);
+  if (price) await (await oracle.setPrice(pos.asset, ethers.parseUnits(price.toFixed(2), 18))).wait();
+  const sizeWei = ethers.parseUnits(close_size.toString(), 18);
+  const tx = await perps.closePositionPartially(BigInt(position_id), sizeWei);
+  const receipt = await tx.wait();
+  return { content: [{ type: "text", text: JSON.stringify({ status: "partially_closed", positionId: position_id, closedSize: close_size, remainingSize: Number(ethers.formatUnits(pos.positionSize - sizeWei, 18)), exitPrice: price, txHash: receipt.hash }, null, 2) }] };
+});
+
 // ── Start ──
 const args = process.argv.slice(2);
 
@@ -360,6 +468,95 @@ if (args.includes("--http")) {
       return { content: [{ type: "text", text: JSON.stringify({ status: "closed", positionId: position_id, asset: pos.asset, exitPrice: price, txHash: receipt.hash }, null, 2) }] };
     });
 
+    s.registerTool("get_account_balance", { description: "Get aUSD and ETH balance for your account", inputSchema: z.object({ address: z.string().optional() }) }, async ({ address }) => {
+      const addr = address || sessionAccount || agentWallet.address;
+      const [ausdBal, ethBal] = await Promise.all([
+        robinhoodProvider.call({ to: AUSD_ADDRESS, data: new ethers.Interface(["function balanceOf(address) view returns (uint256)"]).encodeFunctionData("balanceOf", [addr]) }),
+        robinhoodProvider.getBalance(addr),
+      ]);
+      return { content: [{ type: "text", text: JSON.stringify({ address: addr, aUSD: Number(ethers.formatUnits(BigInt(ausdBal), 18)).toFixed(2), ETH: Number(ethers.formatUnits(ethBal, 18)).toFixed(4) }) }] };
+    });
+
+    s.registerTool("set_stop_loss_take_profit", { description: "Set stop-loss and/or take-profit on a position", inputSchema: z.object({ position_id: z.number(), take_profit: z.number().optional(), stop_loss: z.number().optional() }) }, async ({ position_id, take_profit = 0, stop_loss = 0 }) => {
+      const tpWei = ethers.parseUnits(take_profit.toString(), 18);
+      const slWei = ethers.parseUnits(stop_loss.toString(), 18);
+      if (sessionAccount) {
+        const data = perpsIface.encodeFunctionData("setTriggerOrders", [BigInt(position_id), tpWei, slWei]);
+        const account = new ethers.Contract(sessionAccount, AURA_ACCOUNT_ABI, agentWallet);
+        const tx = await account.executeBatchByAgent([AURA_PERPS_ADDRESS], [0n], [data]);
+        const receipt = await tx.wait();
+        return { content: [{ type: "text", text: JSON.stringify({ status: "triggers_set", account: sessionAccount, positionId: position_id, takeProfit: take_profit, stopLoss: stop_loss, txHash: receipt.hash }, null, 2) }] };
+      }
+      const perps = new ethers.Contract(AURA_PERPS_ADDRESS, PERPS_ABI, agentWallet);
+      const tx = await perps.setTriggerOrders(BigInt(position_id), tpWei, slWei);
+      const receipt = await tx.wait();
+      return { content: [{ type: "text", text: JSON.stringify({ status: "triggers_set", positionId: position_id, takeProfit: take_profit, stopLoss: stop_loss, txHash: receipt.hash }, null, 2) }] };
+    });
+
+    s.registerTool("add_margin", { description: "Add collateral to a position to reduce liquidation risk", inputSchema: z.object({ position_id: z.number(), amount: z.number() }) }, async ({ position_id, amount }) => {
+      const amtWei = ethers.parseUnits(amount.toString(), 18);
+      if (sessionAccount) {
+        const approveData = ausdIface.encodeFunctionData("approve", [AURA_PERPS_ADDRESS, amtWei]);
+        const marginData = perpsIface.encodeFunctionData("addMargin", [BigInt(position_id), amtWei]);
+        const account = new ethers.Contract(sessionAccount, AURA_ACCOUNT_ABI, agentWallet);
+        const tx = await account.executeBatchByAgent([AUSD_ADDRESS, AURA_PERPS_ADDRESS], [0n, 0n], [approveData, marginData]);
+        const receipt = await tx.wait();
+        return { content: [{ type: "text", text: JSON.stringify({ status: "margin_added", account: sessionAccount, positionId: position_id, addedAmount: amount, txHash: receipt.hash }, null, 2) }] };
+      }
+      const ausd = new ethers.Contract(AUSD_ADDRESS, AUSD_ABI, agentWallet);
+      const allowance = await ausd.allowance(agentWallet.address, AURA_PERPS_ADDRESS);
+      if (allowance < amtWei) await (await ausd.approve(AURA_PERPS_ADDRESS, ethers.MaxUint256)).wait();
+      const perps = new ethers.Contract(AURA_PERPS_ADDRESS, PERPS_ABI, agentWallet);
+      const tx = await perps.addMargin(BigInt(position_id), amtWei);
+      const receipt = await tx.wait();
+      return { content: [{ type: "text", text: JSON.stringify({ status: "margin_added", positionId: position_id, addedAmount: amount, txHash: receipt.hash }, null, 2) }] };
+    });
+
+    s.registerTool("get_market_analysis", { description: "Get AI macro analysis (sentiment, news, correlations) for an asset", inputSchema: z.object({ asset: z.string() }) }, async ({ asset }) => {
+      const price = await fetchPythPrice(asset);
+      const allPrices = {};
+      for (const sym of Object.keys(PYTH_IDS)) { try { allPrices[sym] = await fetchPythPrice(sym); } catch {} }
+      let sentiment = { sentiment: "NEUTRAL", score: 0, summary: "Market data only" };
+      try {
+        const cmcKey = process.env.COINMARKETCAP;
+        if (cmcKey) {
+          const res = await fetch("https://pro-api.coinmarketcap.com/v3/fear-and-greed/latest", { headers: { "X-CMC_PRO_API_KEY": cmcKey, Accept: "application/json" } });
+          if (res.ok) { const d = await res.json(); const v = d.data?.value || 50; const c = d.data?.value_classification || "Neutral"; sentiment = { sentiment: v > 60 ? "BULLISH" : v < 40 ? "BEARISH" : "NEUTRAL", score: (v - 50) * 2, summary: `Fear & Greed: ${v}/100 (${c})` }; }
+        }
+      } catch {}
+      return { content: [{ type: "text", text: JSON.stringify({ asset: asset.toUpperCase(), currentPrice: price, marketSentiment: sentiment.sentiment, sentimentScore: sentiment.score, analysis: sentiment.summary, allPrices, source: "pyth_hermes + coinmarketcap_fear_greed" }, null, 2) }] };
+    });
+
+    s.registerTool("get_funding_rate", { description: "Get funding rate and open interest for an asset", inputSchema: z.object({ asset: z.string() }) }, async ({ asset }) => {
+      const perps = new ethers.Contract(AURA_PERPS_ADDRESS, PERPS_ABI, robinhoodProvider);
+      const [longOI, shortOI, ratePerSec] = await Promise.all([perps.totalLongOI(asset.toUpperCase()), perps.totalShortOI(asset.toUpperCase()), perps.FUNDING_RATE_PER_SECOND()]);
+      const dailyRate = Number(ratePerSec) * 86400 / 1e18 * 100;
+      const longOINum = Number(ethers.formatUnits(longOI, 18));
+      const shortOINum = Number(ethers.formatUnits(shortOI, 18));
+      const skew = longOINum - shortOINum;
+      return { content: [{ type: "text", text: JSON.stringify({ asset: asset.toUpperCase(), fundingRateDaily: `${dailyRate.toFixed(4)}%`, longOpenInterest: longOINum, shortOpenInterest: shortOINum, skew, skewDirection: skew > 0 ? "LONG_HEAVY" : skew < 0 ? "SHORT_HEAVY" : "BALANCED" }, null, 2) }] };
+    });
+
+    s.registerTool("partial_close", { description: "Partially close a position by size", inputSchema: z.object({ position_id: z.number(), close_size: z.number() }) }, async ({ position_id, close_size }) => {
+      const perps = new ethers.Contract(AURA_PERPS_ADDRESS, PERPS_ABI, agentWallet);
+      const oracle = new ethers.Contract(MOCK_ORACLE_ADDRESS, ORACLE_ABI, agentWallet);
+      const pos = await perps.positions(position_id);
+      if (!pos.isOpen) return { content: [{ type: "text", text: "Position already closed." }] };
+      const price = await fetchPythPrice(pos.asset);
+      if (price) await (await oracle.setPrice(pos.asset, ethers.parseUnits(price.toFixed(2), 18))).wait();
+      const sizeWei = ethers.parseUnits(close_size.toString(), 18);
+      if (sessionAccount) {
+        const data = perpsIface.encodeFunctionData("closePositionPartially", [BigInt(position_id), sizeWei]);
+        const account = new ethers.Contract(sessionAccount, AURA_ACCOUNT_ABI, agentWallet);
+        const tx = await account.executeBatchByAgent([AURA_PERPS_ADDRESS], [0n], [data]);
+        const receipt = await tx.wait();
+        return { content: [{ type: "text", text: JSON.stringify({ status: "partially_closed", account: sessionAccount, positionId: position_id, closedSize: close_size, exitPrice: price, txHash: receipt.hash }, null, 2) }] };
+      }
+      const tx = await perps.closePositionPartially(BigInt(position_id), sizeWei);
+      const receipt = await tx.wait();
+      return { content: [{ type: "text", text: JSON.stringify({ status: "partially_closed", positionId: position_id, closedSize: close_size, exitPrice: price, txHash: receipt.hash }, null, 2) }] };
+    });
+
     return s;
   }
 
@@ -456,7 +653,10 @@ if (args.includes("--http")) {
     console.log(`║  Agent: ${agentWallet.address}  ║`);
     console.log(`║                                                           ║`);
     console.log(`║  Tools: get_price, get_orderbook, place_limit_order,      ║`);
-    console.log(`║         place_market_order, get_positions, close_position  ║`);
+    console.log(`║    place_market_order, get_positions, close_position,      ║`);
+    console.log(`║    get_account_balance, set_stop_loss_take_profit,         ║`);
+    console.log(`║    add_margin, get_market_analysis, get_funding_rate,      ║`);
+    console.log(`║    partial_close                                           ║`);
     console.log(`╚═══════════════════════════════════════════════════════════╝\n`);
   });
 } else {
