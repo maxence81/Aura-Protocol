@@ -48,6 +48,17 @@ export default function PortfolioPage() {
   const fetchPositions = useCallback(async () => {
     if (!account?.address) { setPositions([]); setLoading(false); return; }
     try {
+      // Also get AuraAccount address
+      let auraAccount = "";
+      try {
+        const acct = await publicClient.readContract({
+          address: "0x95Aa20d53EB26f292a71D8B38515BBeC8905b550" as `0x${string}`,
+          abi: [{ inputs: [{ type: "address" }], name: "getAccount", outputs: [{ type: "address" }], stateMutability: "view", type: "function" }] as const,
+          functionName: "getAccount", args: [account.address as `0x${string}`],
+        });
+        if (acct && acct !== "0x0000000000000000000000000000000000000000") auraAccount = acct.toLowerCase();
+      } catch {}
+
       const nextId = await publicClient.readContract({
         address: CONTRACT_ADDRESSES.AURA_PERPS as `0x${string}`,
         abi: AURA_PERPS_ABI as any, functionName: "nextPositionId",
@@ -61,9 +72,11 @@ export default function PortfolioPage() {
       );
       const results = await Promise.all(calls);
       const open: Position[] = [];
+      const ownerLower = account.address.toLowerCase();
       for (let i = 0; i < count; i++) {
         const pos = results[i] as any;
-        if (pos[0].toLowerCase() === account.address.toLowerCase() && pos[7]) {
+        const posOwner = pos[0].toLowerCase();
+        if ((posOwner === ownerLower || posOwner === auraAccount) && pos[7]) {
           open.push({
             id: i, asset: pos[1], isLong: pos[2],
             collateral: Number(formatUnits(pos[3], 18)),
