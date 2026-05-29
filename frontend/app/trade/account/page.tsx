@@ -27,6 +27,8 @@ export default function AccountPage() {
   const [depositAmount, setDepositAmount] = useState("");
   const [transferAmount, setTransferAmount] = useState("");
   const [copied, setCopied] = useState(false);
+  const [withdrawToken, setWithdrawToken] = useState("AUSD");
+  const [withdrawAmount, setWithdrawAmount] = useState("");
 
   const refresh = useCallback(async () => {
     if (!account?.address) return;
@@ -93,6 +95,24 @@ export default function AccountPage() {
   };
 
   const copyAddress = () => { navigator.clipboard.writeText(auraAccount); setCopied(true); setTimeout(() => setCopied(false), 2000); };
+
+  const TOKEN_MAP: Record<string, string> = { AUSD: CONTRACT_ADDRESSES.AUSD, TSLA: "0xC9f9c86933092BbbfFF3CCb4b105A4A94bf3Bd4E", AMZN: "0x5884aD2f920c162CFBbACc88C9C51AA75eC09E02", NFLX: "0x3b8262A63d25f0477c4DDE23F83cfe22Cb768C93", AMD: "0x71178BAc73cBeb415514eB542a8995b82669778d", PLTR: "0x1FBE1a0e43594b3455993B5dE5Fd0A7A266298d0" };
+
+  const handleWithdrawToken = async () => {
+    if (!withdrawAmount || !auraAccount) return;
+    setLoading(true); setStatus("");
+    try {
+      const wc = getWc();
+      const tokenAddr = TOKEN_MAP[withdrawToken];
+      const amount = parseUnits(withdrawAmount, 18);
+      const transferData = `0xa9059cbb${account!.address.slice(2).padStart(64, "0")}${amount.toString(16).padStart(64, "0")}`;
+      const tx = await wc.writeContract({ chain: null, address: auraAccount as `0x${string}`, abi: [{ inputs: [{ name: "dest", type: "address[]" }, { name: "value", type: "uint256[]" }, { name: "func", type: "bytes[]" }], name: "executeBatch", outputs: [], stateMutability: "nonpayable", type: "function" }] as any, functionName: "executeBatch", args: [[tokenAddr], [0n], [transferData]] });
+      setStatus(`Withdrawn ${withdrawAmount} ${withdrawToken}! TX: ${tx.slice(0, 10)}...`);
+      setWithdrawAmount("");
+      setTimeout(refresh, 3000);
+    } catch (e: any) { setStatus(`Withdraw failed: ${e.message.slice(0, 60)}`); }
+    setLoading(false);
+  };
 
   return (
     <div className="min-h-screen bg-[#020204] text-white font-mono relative overflow-hidden">
@@ -210,6 +230,24 @@ export default function AccountPage() {
               <div className="flex gap-2">
                 <input type="number" value={transferAmount} onChange={e => setTransferAmount(e.target.value)} placeholder="Amount (aUSD)" className="flex-1 bg-[#050505] border border-[#00f0ff]/20 px-3 py-2 text-[11px] font-mono text-white placeholder:text-white/20 focus:outline-none focus:border-[#00f0ff]" />
                 <button onClick={handleTransferBack} disabled={loading || !transferAmount} className="px-4 py-2 bg-[#00f0ff]/10 border border-[#00f0ff]/30 text-[#00f0ff] text-[9px] font-bold uppercase tracking-widest hover:bg-[#00f0ff]/20 transition disabled:opacity-50">
+                  Withdraw
+                </button>
+              </div>
+            </div>
+
+            {/* Withdraw Any Token */}
+            <div className="bg-[#0a0a0a] border border-[#00f0ff]/20 p-5">
+              <div className="flex items-center gap-2 mb-3">
+                <Send className="w-4 h-4 text-[#00f0ff]" />
+                <span className="text-[10px] font-bold uppercase tracking-widest text-[#00f0ff]">Withdraw Tokens</span>
+              </div>
+              <p className="text-[9px] text-white/40 mb-3">Transfer any token (TSLA, AMZN, NFLX, AMD, PLTR) from AuraAccount to your EOA</p>
+              <div className="flex gap-2">
+                <select value={withdrawToken} onChange={e => setWithdrawToken(e.target.value)} className="bg-[#050505] border border-[#00f0ff]/20 px-2 py-2 text-[11px] font-mono text-[#00f0ff] focus:outline-none focus:border-[#00f0ff]">
+                  {Object.keys(TOKEN_MAP).map(t => <option key={t} value={t}>{t}</option>)}
+                </select>
+                <input type="number" value={withdrawAmount} onChange={e => setWithdrawAmount(e.target.value)} placeholder="Amount" className="flex-1 bg-[#050505] border border-[#00f0ff]/20 px-3 py-2 text-[11px] font-mono text-white placeholder:text-white/20 focus:outline-none focus:border-[#00f0ff]" />
+                <button onClick={handleWithdrawToken} disabled={loading || !withdrawAmount} className="px-4 py-2 bg-[#00f0ff]/10 border border-[#00f0ff]/30 text-[#00f0ff] text-[9px] font-bold uppercase tracking-widest hover:bg-[#00f0ff]/20 transition disabled:opacity-50">
                   Withdraw
                 </button>
               </div>
