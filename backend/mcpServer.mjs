@@ -447,12 +447,12 @@ if (args.includes("--http")) {
       return { content: [{ type: "text", text: JSON.stringify({ status: "opened", asset: asset.toUpperCase(), side: is_long ? "LONG" : "SHORT", collateral, leverage, entryPrice: price, txHash: receipt.hash }, null, 2) }] };
     });
 
-    s.registerTool("get_positions", { description: "Get open positions from AuraPerps. Shows your AuraAccount positions by default, or all positions if owner is specified.", inputSchema: z.object({ owner: z.string().optional().describe("Filter by owner address (optional, defaults to your AuraAccount)"), show_all: z.boolean().optional().describe("Show all open positions regardless of owner") }) }, async ({ owner, show_all }) => {
+    s.registerTool("get_positions", { description: "Get all open positions from AuraPerps. Returns all positions by default, or filter by a specific owner address.", inputSchema: z.object({ owner: z.string().optional().describe("Filter by owner address (optional — shows all positions if omitted)") }) }, async ({ owner }) => {
       const perps = new ethers.Contract(AURA_PERPS_ADDRESS, PERPS_ABI, robinhoodProvider);
       const nextId = Number(await perps.nextPositionId());
       const positions = [];
-      const ownerFilter = show_all ? null : (owner ? owner.toLowerCase() : (sessionAccount ? sessionAccount.toLowerCase() : null));
-      for (let i = 0; i < nextId && positions.length < 20; i++) { try { const pos = await perps.positions(i); if (pos.isOpen && (!ownerFilter || pos.owner.toLowerCase() === ownerFilter)) { const price = await fetchPythPrice(pos.asset); positions.push({ id: i, owner: pos.owner, asset: pos.asset, side: pos.isLong ? "LONG" : "SHORT", collateral: Number(ethers.formatUnits(pos.collateralAmount, 18)), leverage: Number(pos.leverage), entryPrice: Number(ethers.formatUnits(pos.entryPrice, 18)), currentPrice: price }); } } catch { continue; } }
+      const ownerFilter = owner ? owner.toLowerCase() : null;
+      for (let i = 0; i < nextId && positions.length < 30; i++) { try { const pos = await perps.positions(i); if (pos.isOpen && (!ownerFilter || pos.owner.toLowerCase() === ownerFilter)) { const price = await fetchPythPrice(pos.asset); positions.push({ id: i, owner: pos.owner, asset: pos.asset, side: pos.isLong ? "LONG" : "SHORT", collateral: Number(ethers.formatUnits(pos.collateralAmount, 18)), leverage: Number(pos.leverage), entryPrice: Number(ethers.formatUnits(pos.entryPrice, 18)), currentPrice: price }); } } catch { continue; } }
       return { content: [{ type: "text", text: JSON.stringify({ account: sessionAccount || "agent", positions, count: positions.length }, null, 2) }] };
     });
 
