@@ -41,6 +41,7 @@ const agentWalletSepolia = new ethers.Wallet(PRIVATE_KEY, sepoliaProvider);
 // ── ABIs ──
 const STYLUS_LOB_ABI = [
   "function store_order(address owner, uint256 asset_hash, bool is_long, uint256 collateral, uint256 leverage, uint256 limit_price) returns (uint256)",
+  "function cancel_order(uint256 order_id, address caller) returns (bool)",
   "function get_active_orders_sorted(uint256 asset_hash, bool is_long, uint256 max_results) view returns (uint256[] ids, uint256[] prices, uint256[] sizes)",
   "function get_book_depth(uint256 asset_hash) view returns (uint256, uint256)",
 ];
@@ -506,6 +507,45 @@ server.registerTool("get_pnl_summary", {
   return { content: [{ type: "text", text: JSON.stringify({ totalPnl: totalPnl.toFixed(2), winRate: totalTrades > 0 ? `${((wins / totalTrades) * 100).toFixed(1)}%` : "N/A", wins, losses, bestTrade: bestPnl === -Infinity ? "N/A" : bestPnl.toFixed(2), worstTrade: worstPnl === Infinity ? "N/A" : worstPnl.toFixed(2), openPositions: openCount, totalVolume: totalVolume.toFixed(2), totalTrades }, null, 2) }] };
 });
 
+server.registerTool("get_supported_assets", {
+  description: "List all supported trading assets with their current Pyth prices",
+  inputSchema: z.object({}),
+}, async () => {
+  const assets = [];
+  for (const [sym, id] of Object.entries(PYTH_IDS)) {
+    const price = await fetchPythPrice(sym);
+    assets.push({ symbol: sym, price, pythId: id });
+  }
+  return { content: [{ type: "text", text: JSON.stringify({ supported: assets, count: assets.length, chains: { limitOrders: "Arbitrum Sepolia (Stylus LOB)", marketOrders: "Robinhood Chain (AuraPerps)" } }, null, 2) }] };
+});
+
+server.registerTool("cancel_limit_order", {
+  description: "Cancel an active limit order on the Stylus LOB (Arbitrum Sepolia)",
+  inputSchema: z.object({ order_id: z.number().describe("Order ID to cancel") }),
+}, async ({ order_id }) => {
+  const lob = new ethers.Contract(STYLUS_LOB_ADDRESS, STYLUS_LOB_ABI, agentWalletSepolia);
+  const tx = await lob.cancel_order(BigInt(order_id), agentWalletSepolia.address);
+  const receipt = await tx.wait();
+  return { content: [{ type: "text", text: JSON.stringify({ status: "cancelled", orderId: order_id, chain: "Arbitrum Sepolia", txHash: receipt.hash }, null, 2) }] };
+});
+
+server.registerTool("get_liquidation_price", {
+  description: "Calculate the liquidation price for an open position",
+  inputSchema: z.object({ position_id: z.number().describe("Position ID") }),
+}, async ({ position_id }) => {
+  const perps = new ethers.Contract(AURA_PERPS_ADDRESS, PERPS_ABI, robinhoodProvider);
+  const pos = await perps.positions(position_id);
+  if (!pos.isOpen) return { content: [{ type: "text", text: "Position is closed." }] };
+  const entry = Number(ethers.formatUnits(pos.entryPrice, 18));
+  const collateral = Number(ethers.formatUnits(pos.collateralAmount, 18));
+  const size = Number(ethers.formatUnits(pos.positionSize, 18));
+  // Liquidation when loss >= collateral: liqPrice = entry * (1 - collateral/size) for long, entry * (1 + collateral/size) for short
+  const liqPrice = pos.isLong ? entry * (1 - collateral / size) : entry * (1 + collateral / size);
+  const currentPrice = await fetchPythPrice(pos.asset);
+  const distancePct = currentPrice ? ((currentPrice - liqPrice) / currentPrice * 100 * (pos.isLong ? 1 : -1)).toFixed(2) : "N/A";
+  return { content: [{ type: "text", text: JSON.stringify({ positionId: position_id, asset: pos.asset, side: pos.isLong ? "LONG" : "SHORT", entryPrice: entry, collateral, leverage: Number(pos.leverage), liquidationPrice: parseFloat(liqPrice.toFixed(2)), currentPrice, distanceToLiquidation: `${distancePct}%` }, null, 2) }] };
+});
+
 // ── Start ──
 const args = process.argv.slice(2);
 
@@ -773,6 +813,32 @@ if (args.includes("--http")) {
       for (let i = 0; i < nextId && i < 100; i++) { try { const pos = await perps.positions(i); const size = Number(ethers.formatUnits(pos.positionSize, 18)); totalVolume += size; if (pos.isOpen) { openCount++; const price = await fetchPythPrice(pos.asset); if (price) { const [pnl, isProfit] = await perps.calculatePnL(i, ethers.parseUnits(price.toFixed(2), 18)); const pnlNum = Number(ethers.formatUnits(pnl, 18)) * (isProfit ? 1 : -1); totalPnl += pnlNum; if (pnlNum > 0) wins++; else losses++; if (pnlNum > bestPnl) bestPnl = pnlNum; if (pnlNum < worstPnl) worstPnl = pnlNum; } } else { const pnlNum = Number(ethers.formatUnits(pos.realizedPnl, 18)) * (pos.isProfitRealized ? 1 : -1); totalPnl += pnlNum; if (pnlNum > 0) wins++; else losses++; if (pnlNum > bestPnl) bestPnl = pnlNum; if (pnlNum < worstPnl) worstPnl = pnlNum; } } catch { continue; } }
       const totalTrades = wins + losses;
       return { content: [{ type: "text", text: JSON.stringify({ totalPnl: totalPnl.toFixed(2), winRate: totalTrades > 0 ? `${((wins / totalTrades) * 100).toFixed(1)}%` : "N/A", wins, losses, bestTrade: bestPnl === -Infinity ? "N/A" : bestPnl.toFixed(2), worstTrade: worstPnl === Infinity ? "N/A" : worstPnl.toFixed(2), openPositions: openCount, totalVolume: totalVolume.toFixed(2), totalTrades }, null, 2) }] };
+    });
+
+    s.registerTool("get_supported_assets", { description: "List all supported trading assets with current prices", inputSchema: z.object({}) }, async () => {
+      const assets = [];
+      for (const [sym] of Object.entries(PYTH_IDS)) { const price = await fetchPythPrice(sym); assets.push({ symbol: sym, price }); }
+      return { content: [{ type: "text", text: JSON.stringify({ supported: assets, count: assets.length }, null, 2) }] };
+    });
+
+    s.registerTool("cancel_limit_order", { description: "Cancel a limit order on Stylus LOB", inputSchema: z.object({ order_id: z.number() }) }, async ({ order_id }) => {
+      const lob = new ethers.Contract(STYLUS_LOB_ADDRESS, STYLUS_LOB_ABI, agentWalletSepolia);
+      const tx = await lob.cancel_order(BigInt(order_id), agentWalletSepolia.address);
+      const receipt = await tx.wait();
+      return { content: [{ type: "text", text: JSON.stringify({ status: "cancelled", orderId: order_id, txHash: receipt.hash }, null, 2) }] };
+    });
+
+    s.registerTool("get_liquidation_price", { description: "Calculate liquidation price for a position", inputSchema: z.object({ position_id: z.number() }) }, async ({ position_id }) => {
+      const perps = new ethers.Contract(AURA_PERPS_ADDRESS, PERPS_ABI, robinhoodProvider);
+      const pos = await perps.positions(position_id);
+      if (!pos.isOpen) return { content: [{ type: "text", text: "Position is closed." }] };
+      const entry = Number(ethers.formatUnits(pos.entryPrice, 18));
+      const collateral = Number(ethers.formatUnits(pos.collateralAmount, 18));
+      const size = Number(ethers.formatUnits(pos.positionSize, 18));
+      const liqPrice = pos.isLong ? entry * (1 - collateral / size) : entry * (1 + collateral / size);
+      const currentPrice = await fetchPythPrice(pos.asset);
+      const distancePct = currentPrice ? ((currentPrice - liqPrice) / currentPrice * 100 * (pos.isLong ? 1 : -1)).toFixed(2) : "N/A";
+      return { content: [{ type: "text", text: JSON.stringify({ positionId: position_id, asset: pos.asset, side: pos.isLong ? "LONG" : "SHORT", entryPrice: entry, liquidationPrice: parseFloat(liqPrice.toFixed(2)), currentPrice, distanceToLiquidation: `${distancePct}%` }, null, 2) }] };
     });
 
     return s;

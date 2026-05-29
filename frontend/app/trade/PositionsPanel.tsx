@@ -154,6 +154,7 @@ export default function PositionsPanel({
                 <th className="pb-1.5 font-medium">Collateral</th>
                 <th className="pb-1.5 font-medium">Size</th>
                 <th className="pb-1.5 font-medium">Entry</th>
+                {activeTab === "positions" && <th className="pb-1.5 font-medium">Liq.</th>}
                 {activeTab === "positions" && <th className="pb-1.5 font-medium">TP / SL</th>}
                 <th className="pb-1.5 font-medium">PnL</th>
                 <th className="pb-1.5 font-medium">Opened</th>
@@ -187,6 +188,14 @@ export default function PositionsPanel({
                     <td className="py-2 text-white/60">${pos.collateral.toFixed(2)}</td>
                     <td className="py-2 text-white/60">${pos.size.toFixed(2)}</td>
                     <td className="py-2 text-white/60">${pos.entryPrice.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                    {activeTab === "positions" && (
+                      <td className="py-2 text-[#FF2A6D]/70 text-[9px]">
+                        ${(pos.isLong
+                          ? pos.entryPrice * (1 - pos.collateral / pos.size)
+                          : pos.entryPrice * (1 + pos.collateral / pos.size)
+                        ).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </td>
+                    )}
                     {activeTab === "positions" && (
                       <td className="py-2">
                         <div className="flex flex-col gap-0.5 w-16">
