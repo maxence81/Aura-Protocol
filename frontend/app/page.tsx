@@ -67,6 +67,15 @@ export default function LandingPage() {
   const ctaRef = useRef<HTMLDivElement>(null);
 
   const [coins, setCoins] = useState<any>({});
+  const [aiDecisions, setAiDecisions] = useState(0);
+
+  useEffect(() => {
+    // Fetch AI audit trail count from on-chain
+    fetch("https://rpc.testnet.chain.robinhood.com", {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "eth_call", params: [{ to: "0x42D141CBe4aDc46B082D702C2e1bD802236348C4", data: "0x125f8974" }, "latest"] }) // totalRecords()
+    }).then(r => r.json()).then(d => { if (d.result) setAiDecisions(parseInt(d.result, 16)); }).catch(() => {});
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -328,6 +337,22 @@ export default function LandingPage() {
                       Multi-Agent Core
                     </span>
                     <span className="font-kanji text-[10px] text-white/40">多重エージェント</span>
+                  </div>
+                </div>
+                <div className="glass-card-cyber px-5 py-3 flex items-center gap-3 border-l-2 border-[#00ff88]">
+                  <div className="flex flex-col">
+                    <span className="font-mono-label text-[10px] text-[#00ff88] tracking-wider uppercase">
+                      AI Decisions On-Chain
+                    </span>
+                    <span className="font-mono text-lg font-bold text-[#00ff88]">{aiDecisions}</span>
+                  </div>
+                </div>
+                <div className="glass-card-cyber px-5 py-3 flex items-center gap-3 border-l-2 border-[#ff6b00]">
+                  <div className="flex flex-col">
+                    <span className="font-mono-label text-[10px] text-[#ff6b00] tracking-wider uppercase">
+                      Powered by Stylus
+                    </span>
+                    <span className="font-mono text-[11px] font-bold text-[#ff6b00]/80">34% gas saved</span>
                   </div>
                 </div>
               </div>

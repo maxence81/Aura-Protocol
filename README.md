@@ -297,6 +297,11 @@ Aura exposes a **Model Context Protocol (MCP) server** so any AI agent (Claude D
 | `cancel_dca` | Cancel an active DCA strategy |
 | `get_audit_trail` | Read on-chain AI audit trail: reasoning hashes, confidence scores, agent reputation |
 | `get_pnl_summary` | Portfolio analytics: total PnL, win rate, best/worst trade, volume |
+| `get_liquidation_price` | Calculate exact liquidation price for any open position |
+| `get_supported_assets` | List all tradeable assets with live prices |
+| `cancel_limit_order` | Cancel an active limit order on the Stylus LOB |
+| `swap` | Swap tokens via Synthra V3 Router (Robinhood Chain) |
+| `deposit_vault` | Deposit aUSD into the ERC-4626 Perp Vault to earn yield |
 | `authenticate` | (HTTP mode) Authenticate with your Aura API key for per-user trading |
 
 ### Claude Desktop Config

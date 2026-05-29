@@ -260,6 +260,7 @@ export default function PortfolioPage() {
                     <div className="flex gap-4 mt-1 text-[10px] text-white/40">
                       <span>Entry: ${pos.entryPrice.toFixed(2)}</span>
                       <span>Mark: ${currentPrice.toFixed(2)}</span>
+                      <span className="text-[#FF2A6D]/60">Liq: ${(pos.isLong ? pos.entryPrice * (1 - pos.collateral / pos.size) : pos.entryPrice * (1 + pos.collateral / pos.size)).toFixed(2)}</span>
                       <span>Size: ${pos.size.toFixed(2)}</span>
                       <span>Opened: {pos.openedAt}</span>
                     </div>

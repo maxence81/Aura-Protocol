@@ -546,6 +546,49 @@ server.registerTool("get_liquidation_price", {
   return { content: [{ type: "text", text: JSON.stringify({ positionId: position_id, asset: pos.asset, side: pos.isLong ? "LONG" : "SHORT", entryPrice: entry, collateral, leverage: Number(pos.leverage), liquidationPrice: parseFloat(liqPrice.toFixed(2)), currentPrice, distanceToLiquidation: `${distancePct}%` }, null, 2) }] };
 });
 
+const SYNTHRA_ROUTER = process.env.ROUTER_ADDRESS || "0x6F308B834595312f734e65e273F2210f43Fc48F8";
+const WETH_ADDRESS = "0x5e42AE7F37B71A3E2FfFe7375832B9fFc4b3b5E3";
+const AURA_VAULT_ADDRESS = "0x4Ae6Ab5BCAb4F0f2FAcAA47aD2ea5832eBDF5792";
+
+server.registerTool("swap", {
+  description: "Swap ETH for a tokenized stock (TSLA, AMZN, NFLX, AMD, PLTR) via Synthra V3 Router on Robinhood Chain",
+  inputSchema: z.object({
+    amount_eth: z.number().describe("Amount of ETH to swap (e.g. 0.001)"),
+    token_out: z.string().describe("Token to receive: TSLA, AMZN, NFLX, AMD, or PLTR"),
+  }),
+}, async ({ amount_eth, token_out }) => {
+  const TOKEN_MAP = { TSLA: "0xC9f9c86933092BbbfFF3CCb4b105A4A94bf3Bd4E", AMZN: "0x5884aD2f920c162CFBbACc88C9C51AA75eC09E02", NFLX: "0x3b8262A63d25f0477c4DDE23F83cfe22Cb768C93", AMD: "0x71178BAc73cBeb415514eB542a8995b82669778d", PLTR: "0x1FBE1a0e43594b3455993B5dE5Fd0A7A266298d0" };
+  const tokenAddr = TOKEN_MAP[token_out.toUpperCase()];
+  if (!tokenAddr) return { content: [{ type: "text", text: `Unsupported token: ${token_out}. Supported: ${Object.keys(TOKEN_MAP).join(", ")}` }] };
+  const amountWei = ethers.parseEther(amount_eth.toString());
+  const routerIface = new ethers.Interface(["function execute(bytes calldata commands, bytes[] calldata inputs, uint256 deadline) external payable"]);
+  const commands = "0x0b00";
+  const wrapInput = ethers.AbiCoder.defaultAbiCoder().encode(["uint256", "uint256"], [2, amountWei]);
+  const path = ethers.solidityPacked(["address", "uint24", "address"], [WETH_ADDRESS, 3000, tokenAddr]);
+  const swapInput = ethers.AbiCoder.defaultAbiCoder().encode(["address", "uint256", "uint256", "bytes", "bool"], [agentWallet.address, amountWei, 0n, path, false]);
+  const deadline = Math.floor(Date.now() / 1000) + 1800;
+  const tx = await agentWallet.sendTransaction({ to: SYNTHRA_ROUTER, data: routerIface.encodeFunctionData("execute", [commands, [wrapInput, swapInput], deadline]), value: amountWei });
+  const receipt = await tx.wait();
+  return { content: [{ type: "text", text: JSON.stringify({ status: "swapped", amountIn: `${amount_eth} ETH`, tokenOut: token_out.toUpperCase(), chain: "Robinhood Chain", txHash: receipt.hash }, null, 2) }] };
+});
+
+server.registerTool("deposit_vault", {
+  description: "Deposit aUSD into the ERC-4626 Perp Vault to earn yield from trading fees",
+  inputSchema: z.object({ amount: z.number().describe("Amount of aUSD to deposit") }),
+}, async ({ amount }) => {
+  const amtWei = ethers.parseUnits(amount.toString(), 18);
+  const vaultIface = new ethers.Interface(["function deposit(uint256 assets, address receiver) returns (uint256)"]);
+  // Approve aUSD to vault
+  const ausd = new ethers.Contract(AUSD_ADDRESS, AUSD_ABI, agentWallet);
+  const allowance = await ausd.allowance(agentWallet.address, AURA_VAULT_ADDRESS);
+  if (allowance < amtWei) await (await ausd.approve(AURA_VAULT_ADDRESS, ethers.MaxUint256)).wait();
+  // Deposit
+  const vault = new ethers.Contract(AURA_VAULT_ADDRESS, ["function deposit(uint256 assets, address receiver) returns (uint256)"], agentWallet);
+  const tx = await vault.deposit(amtWei, agentWallet.address);
+  const receipt = await tx.wait();
+  return { content: [{ type: "text", text: JSON.stringify({ status: "deposited", amount, vault: AURA_VAULT_ADDRESS, chain: "Robinhood Chain", txHash: receipt.hash }, null, 2) }] };
+});
+
 // ── Start ──
 const args = process.argv.slice(2);
 
@@ -839,6 +882,41 @@ if (args.includes("--http")) {
       const currentPrice = await fetchPythPrice(pos.asset);
       const distancePct = currentPrice ? ((currentPrice - liqPrice) / currentPrice * 100 * (pos.isLong ? 1 : -1)).toFixed(2) : "N/A";
       return { content: [{ type: "text", text: JSON.stringify({ positionId: position_id, asset: pos.asset, side: pos.isLong ? "LONG" : "SHORT", entryPrice: entry, liquidationPrice: parseFloat(liqPrice.toFixed(2)), currentPrice, distanceToLiquidation: `${distancePct}%` }, null, 2) }] };
+    });
+
+    s.registerTool("swap", { description: "Swap ETH for tokenized stock via Synthra V3 Router", inputSchema: z.object({ amount_eth: z.number(), token_out: z.string() }) }, async ({ amount_eth, token_out }) => {
+      const TOKEN_MAP = { TSLA: "0xC9f9c86933092BbbfFF3CCb4b105A4A94bf3Bd4E", AMZN: "0x5884aD2f920c162CFBbACc88C9C51AA75eC09E02", NFLX: "0x3b8262A63d25f0477c4DDE23F83cfe22Cb768C93", AMD: "0x71178BAc73cBeb415514eB542a8995b82669778d", PLTR: "0x1FBE1a0e43594b3455993B5dE5Fd0A7A266298d0" };
+      const tokenAddr = TOKEN_MAP[token_out.toUpperCase()];
+      if (!tokenAddr) return { content: [{ type: "text", text: `Unsupported: ${token_out}` }] };
+      const amountWei = ethers.parseEther(amount_eth.toString());
+      const routerIface = new ethers.Interface(["function execute(bytes calldata commands, bytes[] calldata inputs, uint256 deadline) external payable"]);
+      const wrapInput = ethers.AbiCoder.defaultAbiCoder().encode(["uint256", "uint256"], [2, amountWei]);
+      const path = ethers.solidityPacked(["address", "uint24", "address"], [WETH_ADDRESS, 3000, tokenAddr]);
+      const recipient = sessionAccount || agentWallet.address;
+      const swapInput = ethers.AbiCoder.defaultAbiCoder().encode(["address", "uint256", "uint256", "bytes", "bool"], [recipient, amountWei, 0n, path, false]);
+      const deadline = Math.floor(Date.now() / 1000) + 1800;
+      const tx = await agentWallet.sendTransaction({ to: SYNTHRA_ROUTER, data: routerIface.encodeFunctionData("execute", ["0x0b00", [wrapInput, swapInput], deadline]), value: amountWei });
+      const receipt = await tx.wait();
+      return { content: [{ type: "text", text: JSON.stringify({ status: "swapped", amountIn: `${amount_eth} ETH`, tokenOut: token_out.toUpperCase(), recipient, txHash: receipt.hash }, null, 2) }] };
+    });
+
+    s.registerTool("deposit_vault", { description: "Deposit aUSD into ERC-4626 Perp Vault to earn yield", inputSchema: z.object({ amount: z.number() }) }, async ({ amount }) => {
+      const amtWei = ethers.parseUnits(amount.toString(), 18);
+      if (sessionAccount) {
+        const approveData = ausdIface.encodeFunctionData("approve", [AURA_VAULT_ADDRESS, amtWei]);
+        const depositData = new ethers.Interface(["function deposit(uint256 assets, address receiver) returns (uint256)"]).encodeFunctionData("deposit", [amtWei, sessionAccount]);
+        const account = new ethers.Contract(sessionAccount, AURA_ACCOUNT_ABI, agentWallet);
+        const tx = await account.executeBatchByAgent([AUSD_ADDRESS, AURA_VAULT_ADDRESS], [0n, 0n], [approveData, depositData]);
+        const receipt = await tx.wait();
+        return { content: [{ type: "text", text: JSON.stringify({ status: "deposited", amount, account: sessionAccount, txHash: receipt.hash }, null, 2) }] };
+      }
+      const ausd = new ethers.Contract(AUSD_ADDRESS, AUSD_ABI, agentWallet);
+      const allowance = await ausd.allowance(agentWallet.address, AURA_VAULT_ADDRESS);
+      if (allowance < amtWei) await (await ausd.approve(AURA_VAULT_ADDRESS, ethers.MaxUint256)).wait();
+      const vault = new ethers.Contract(AURA_VAULT_ADDRESS, ["function deposit(uint256 assets, address receiver) returns (uint256)"], agentWallet);
+      const tx = await vault.deposit(amtWei, agentWallet.address);
+      const receipt = await tx.wait();
+      return { content: [{ type: "text", text: JSON.stringify({ status: "deposited", amount, txHash: receipt.hash }, null, 2) }] };
     });
 
     return s;
