@@ -166,8 +166,9 @@ export default function PerpVaultPage() {
             </Link>
             <div className="flex gap-4 border-l border-[#00f0ff]/30 pl-6">
               <Link href="/trade" className="text-xs font-bold uppercase tracking-widest text-white/40 transition hover:text-[#00f0ff]">Trade</Link>
+              <Link href="/portfolio" className="text-xs font-bold uppercase tracking-widest text-white/40 transition hover:text-[#00f0ff]">Portfolio</Link>
               <span className="text-xs font-bold uppercase tracking-widest text-[#00f0ff]">Earn Yield</span>
-              <Link href="/vault" className="text-xs font-bold uppercase tracking-widest text-white/40 transition hover:text-[#00f0ff]">AI Vault</Link>
+              <Link href="/trade/account" className="text-xs font-bold uppercase tracking-widest text-white/40 transition hover:text-[#00f0ff]">Account</Link>
             </div>
           </div>
           <div className="flex items-center gap-4">
