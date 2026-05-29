@@ -589,6 +589,45 @@ server.registerTool("deposit_vault", {
   return { content: [{ type: "text", text: JSON.stringify({ status: "deposited", amount, vault: AURA_VAULT_ADDRESS, chain: "Robinhood Chain", txHash: receipt.hash }, null, 2) }] };
 });
 
+server.registerTool("schedule_swap", {
+  description: "Schedule recurring ETH-to-token swaps (Custom Schedule / DCA swaps). Automatically swaps ETH for a tokenized stock at regular intervals.",
+  inputSchema: z.object({
+    token_out: z.string().describe("Token to buy: TSLA, AMZN, NFLX, AMD, or PLTR"),
+    amount_eth: z.number().describe("ETH amount per swap (e.g. 0.0001)"),
+    interval_minutes: z.number().min(5).describe("Minutes between each swap"),
+    num_swaps: z.number().min(2).max(10).describe("Total number of swaps"),
+  }),
+}, async ({ token_out, amount_eth, interval_minutes, num_swaps }) => {
+  const TOKEN_MAP = { TSLA: "0xC9f9c86933092BbbfFF3CCb4b105A4A94bf3Bd4E", AMZN: "0x5884aD2f920c162CFBbACc88C9C51AA75eC09E02", NFLX: "0x3b8262A63d25f0477c4DDE23F83cfe22Cb768C93", AMD: "0x71178BAc73cBeb415514eB542a8995b82669778d", PLTR: "0x1FBE1a0e43594b3455993B5dE5Fd0A7A266298d0" };
+  const tokenAddr = TOKEN_MAP[token_out.toUpperCase()];
+  if (!tokenAddr) return { content: [{ type: "text", text: `Unsupported: ${token_out}` }] };
+  const dcaId = `swap_dca_${Date.now()}`;
+  let executed = 0;
+
+  const executeOneSwap = async () => {
+    try {
+      const amountWei = ethers.parseEther(amount_eth.toString());
+      const routerIface = new ethers.Interface(["function execute(bytes calldata commands, bytes[] calldata inputs, uint256 deadline) external payable"]);
+      const wrapInput = ethers.AbiCoder.defaultAbiCoder().encode(["uint256", "uint256"], [2, amountWei]);
+      const path = ethers.solidityPacked(["address", "uint24", "address"], [WETH_ADDRESS, 3000, tokenAddr]);
+      const swapInput = ethers.AbiCoder.defaultAbiCoder().encode(["address", "uint256", "uint256", "bytes", "bool"], [agentWallet.address, amountWei, 0n, path, false]);
+      const deadline = Math.floor(Date.now() / 1000) + 1800;
+      const tx = await agentWallet.sendTransaction({ to: SYNTHRA_ROUTER, data: routerIface.encodeFunctionData("execute", ["0x0b00", [wrapInput, swapInput], deadline]), value: amountWei });
+      await tx.wait();
+      executed++;
+      if (executed >= num_swaps) { clearInterval(dca.timer); activeDCAs.delete(dcaId); }
+      else { const d = activeDCAs.get(dcaId); if (d) d.executed = executed; }
+    } catch (e) { console.error(`[SwapDCA ${dcaId}] failed:`, e.message); }
+  };
+
+  await executeOneSwap();
+  const timer = setInterval(executeOneSwap, interval_minutes * 60 * 1000);
+  const dca = { timer, asset: token_out.toUpperCase(), amount: amount_eth, interval_minutes, num_orders: num_swaps, executed, startedAt: Date.now(), type: "swap" };
+  activeDCAs.set(dcaId, dca);
+
+  return { content: [{ type: "text", text: JSON.stringify({ status: "swap_dca_started", dcaId, tokenOut: token_out.toUpperCase(), ethPerSwap: amount_eth, interval: `${interval_minutes} min`, totalSwaps: num_swaps, executed: 1, nextIn: `${interval_minutes} min` }, null, 2) }] };
+});
+
 // ── Start ──
 const args = process.argv.slice(2);
 
@@ -917,6 +956,35 @@ if (args.includes("--http")) {
       const tx = await vault.deposit(amtWei, agentWallet.address);
       const receipt = await tx.wait();
       return { content: [{ type: "text", text: JSON.stringify({ status: "deposited", amount, txHash: receipt.hash }, null, 2) }] };
+    });
+
+    s.registerTool("schedule_swap", { description: "Schedule recurring ETH-to-token swaps (DCA swaps)", inputSchema: z.object({ token_out: z.string(), amount_eth: z.number(), interval_minutes: z.number().min(5), num_swaps: z.number().min(2).max(10) }) }, async ({ token_out, amount_eth, interval_minutes, num_swaps }) => {
+      const TOKEN_MAP = { TSLA: "0xC9f9c86933092BbbfFF3CCb4b105A4A94bf3Bd4E", AMZN: "0x5884aD2f920c162CFBbACc88C9C51AA75eC09E02", NFLX: "0x3b8262A63d25f0477c4DDE23F83cfe22Cb768C93", AMD: "0x71178BAc73cBeb415514eB542a8995b82669778d", PLTR: "0x1FBE1a0e43594b3455993B5dE5Fd0A7A266298d0" };
+      const tokenAddr = TOKEN_MAP[token_out.toUpperCase()];
+      if (!tokenAddr) return { content: [{ type: "text", text: `Unsupported: ${token_out}` }] };
+      const dcaId = `swap_dca_${Date.now()}`;
+      let executed = 0;
+      const executeOneSwap = async () => {
+        try {
+          const amountWei = ethers.parseEther(amount_eth.toString());
+          const routerIface = new ethers.Interface(["function execute(bytes calldata commands, bytes[] calldata inputs, uint256 deadline) external payable"]);
+          const wrapInput = ethers.AbiCoder.defaultAbiCoder().encode(["uint256", "uint256"], [2, amountWei]);
+          const path = ethers.solidityPacked(["address", "uint24", "address"], [WETH_ADDRESS, 3000, tokenAddr]);
+          const recipient = sessionAccount || agentWallet.address;
+          const swapInput = ethers.AbiCoder.defaultAbiCoder().encode(["address", "uint256", "uint256", "bytes", "bool"], [recipient, amountWei, 0n, path, false]);
+          const deadline = Math.floor(Date.now() / 1000) + 1800;
+          const tx = await agentWallet.sendTransaction({ to: SYNTHRA_ROUTER, data: routerIface.encodeFunctionData("execute", ["0x0b00", [wrapInput, swapInput], deadline]), value: amountWei });
+          await tx.wait();
+          executed++;
+          if (executed >= num_swaps) { clearInterval(dca.timer); activeDCAs.delete(dcaId); }
+          else { const d = activeDCAs.get(dcaId); if (d) d.executed = executed; }
+        } catch (e) { console.error(`[SwapDCA ${dcaId}] failed:`, e.message); }
+      };
+      await executeOneSwap();
+      const timer = setInterval(executeOneSwap, interval_minutes * 60 * 1000);
+      const dca = { timer, asset: token_out.toUpperCase(), amount: amount_eth, interval_minutes, num_orders: num_swaps, executed, startedAt: Date.now(), type: "swap" };
+      activeDCAs.set(dcaId, dca);
+      return { content: [{ type: "text", text: JSON.stringify({ status: "swap_dca_started", dcaId, tokenOut: token_out.toUpperCase(), ethPerSwap: amount_eth, interval: `${interval_minutes} min`, totalSwaps: num_swaps, executed: 1, nextIn: `${interval_minutes} min` }, null, 2) }] };
     });
 
     return s;
