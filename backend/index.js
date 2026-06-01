@@ -17,6 +17,7 @@ const {
 } = require("./automation");
 const { getMarketContext, getCorrelationMatrix, getAllPrices, getCoinDetails, getLatestNews } = require("./market");
 const { getQuickSentiment } = require("./macroAnalyzer");
+const { getStrategies, getStrategyById, getFollowerPosition } = require("./socialTrading");
 
 const fs = require("fs");
 const path = require("path");
@@ -54,6 +55,11 @@ console.log("-----------------------------------------");
 app.get("/agent-address", (req, res) => {
     res.json({ address: agentWallet.address });
 });
+
+// ── Social Trading ──────────────────────────────────────────────────────────
+app.get("/api/social/strategies", getStrategies);
+app.get("/api/social/strategy/:id", getStrategyById);
+app.get("/api/social/position/:strategyId/:follower", getFollowerPosition);
 
 app.post("/chat", async (req, res) => {
   try {

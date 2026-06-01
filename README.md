@@ -184,6 +184,42 @@ Real numbers from `scripts/bench-guardrail.js` on Arbitrum Sepolia:
 
 ---
 
+## Social Trading — On-Chain Copy Trading
+
+> **The first on-chain copy trading protocol on Robinhood Chain.** No other hackathon project has this.
+
+Aura's Social Trading layer lets any user follow a top strategist and automatically copy their trades on-chain.
+
+### How it works
+
+| Role | Action | Reward |
+|---|---|---|
+| **Strategist** | Publishes a strategy with a name, description, and performance fee (max 20%) | Earns fees on profits above high-water mark |
+| **Follower** | Deposits aUSD capital into a strategy | Capital grows when strategist wins |
+| **Keeper** | Calls `executeForFollowers` to batch-copy trades | — |
+
+### Key properties
+- **No lock-up** — followers can `unfollow` and withdraw at any time
+- **High-water mark** — performance fee only charged on new all-time highs (no double-dipping)
+- **Gas-bounded** — max 100 followers per strategy, O(1) swap-and-pop removal
+- **Guardrails** — max 50x leverage, max 20% fee, ReentrancyGuard on all state changes
+- **339 tests total** (265 existing + 74 new social trading tests)
+
+### Deployed Contract (Robinhood Chain Testnet)
+| Contract | Address |
+|---|---|
+| AuraSocialTrading | `TBD — run deploy-social-trading.js` |
+
+### Deploy
+```bash
+npx hardhat run scripts/deploy-social-trading.js --network robinhoodTestnet
+```
+
+### Frontend
+Navigate to `/social` to see the live leaderboard of strategists with PnL, follower count, AUM, and a Follow button.
+
+---
+
 ## Test Coverage
 
 **265 passing tests** across security-critical paths:
