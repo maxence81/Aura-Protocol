@@ -436,6 +436,51 @@ async function getGlobalStats(req, res) {
   }
 }
 
+const fs = require("fs");
+const path = require("path");
+const COPY_TRADES_FILE = path.join(__dirname, "copy_trades.json");
+
+function getCopyTrades() {
+  if (fs.existsSync(COPY_TRADES_FILE)) {
+    try { return JSON.parse(fs.readFileSync(COPY_TRADES_FILE, "utf8")); } catch(e) {}
+  }
+  return {};
+}
+
+function saveCopyTrades(data) {
+  fs.writeFileSync(COPY_TRADES_FILE, JSON.stringify(data, null, 2));
+}
+
+async function handleCopyTrade(req, res) {
+  const { followerAuraAccount, targetTrader, amount } = req.body;
+  if (!followerAuraAccount || !targetTrader) return res.status(400).json({ error: "Missing parameters" });
+  
+  const trades = getCopyTrades();
+  const lowerTarget = targetTrader.toLowerCase();
+  if (!trades[lowerTarget]) trades[lowerTarget] = [];
+  
+  const existingIndex = trades[lowerTarget].findIndex(f => f.followerAuraAccount.toLowerCase() === followerAuraAccount.toLowerCase());
+  if (existingIndex > -1) {
+    trades[lowerTarget][existingIndex].amount = amount;
+  } else {
+    trades[lowerTarget].push({ followerAuraAccount, amount });
+  }
+  
+  saveCopyTrades(trades);
+  res.json({ success: true, message: `Now auto-copying trades from ${targetTrader} via AI Agent` });
+}
+
+async function getCopyStatus(req, res) {
+  const follower = req.params.account.toLowerCase();
+  const trades = getCopyTrades();
+  let following = [];
+  for (const [target, followers] of Object.entries(trades)) {
+    const found = followers.find(f => f.followerAuraAccount.toLowerCase() === follower);
+    if (found) following.push({ targetTrader: target, amount: found.amount });
+  }
+  res.json({ following });
+}
+
 module.exports = {
   getStrategies,
   getStrategyById,
@@ -444,4 +489,6 @@ module.exports = {
   getTraderProfile,
   getTraderHistory,
   getGlobalStats,
+  handleCopyTrade,
+  getCopyStatus,
 };

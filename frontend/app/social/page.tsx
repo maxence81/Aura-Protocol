@@ -618,60 +618,45 @@ export default function SocialPage() {
       <div className="fixed bottom-0 right-1/4 w-[500px] h-[500px] bg-neon-purple/[0.04] rounded-full blur-[120px] pointer-events-none" />
 
       {/* ═══════════ HEADER ═══════════ */}
-      <header className="relative z-10 border-b border-white/[0.06] backdrop-blur-xl bg-cyber-black/80">
-        <div className="max-w-[1600px] mx-auto px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Link
-              href="/"
-              className="p-2 rounded-xl hover:bg-white/5 text-gray-500 hover:text-neon-cyan transition-all group"
-            >
-              <ArrowLeft
-                size={20}
-                className="group-hover:-translate-x-0.5 transition-transform"
-              />
-            </Link>
-            <div>
-              <h1 className="text-2xl font-bold font-display flex items-center gap-3">
-                <div className="p-2 rounded-xl bg-neon-cyan/10 border border-neon-cyan/20">
-                  <Trophy size={20} className="text-neon-cyan" />
-                </div>
-                <span>
-                  Social{" "}
-                  <span className="text-neon-cyan cyber-glow-cyan">
-                    Trading
-                  </span>
-                </span>
-              </h1>
-              <p className="text-xs text-gray-500 mt-0.5 ml-[52px]">
-                Copy elite traders on-chain · Robinhood Chain Testnet
-              </p>
-            </div>
+      <header className="h-[48px] border-b border-[#00f0ff]/30 flex items-center justify-between px-4 bg-[#050505] flex-shrink-0 relative z-50 font-mono">
+        <div className="flex items-center gap-3">
+          <Link href="/" className="text-white/40 hover:text-[#00f0ff] transition flex items-center gap-1.5">
+            <ArrowLeft className="w-3.5 h-3.5" />
+            <span className="text-[10px] font-bold uppercase tracking-widest">AURA</span>
+          </Link>
+          <div className="border-l border-[#00f0ff]/20 pl-3 ml-1">
+            <span className="text-[9px] text-[#00f0ff] font-bold uppercase tracking-widest bg-[#00f0ff]/10 border border-[#00f0ff]/30 px-2 py-0.5">Copy Trade</span>
           </div>
-          <div className="flex items-center gap-3">
-            <motion.button
-              onClick={() => {
-                fetchStats();
-                fetchLeaderboard();
-              }}
-              disabled={refreshing}
-              whileTap={{ scale: 0.92 }}
-              className="p-2.5 rounded-xl border border-white/10 hover:border-neon-cyan/30 hover:bg-neon-cyan/5 transition-all group"
-            >
-              <RefreshCw
-                size={16}
-                className={`transition-colors ${
-                  refreshing
-                    ? "animate-spin text-neon-cyan"
-                    : "text-gray-500 group-hover:text-neon-cyan"
-                }`}
-              />
-            </motion.button>
-            <ConnectButton
-              client={client}
-              wallets={wallets}
-              chain={robinhoodChain}
+          <Link href="/trade" className="text-[9px] text-white/30 hover:text-[#00f0ff] font-bold uppercase tracking-widest transition ml-1">Trade</Link>
+          <Link href="/portfolio" className="text-[9px] text-white/30 hover:text-[#00f0ff] font-bold uppercase tracking-widest transition ml-1">Portfolio</Link>
+          <Link href="/perp-vault" className="text-[9px] text-white/30 hover:text-[#00f0ff] font-bold uppercase tracking-widest transition ml-1">Earn Yield</Link>
+          <Link href="/trade/account" className="text-[9px] text-white/30 hover:text-[#00f0ff] font-bold uppercase tracking-widest transition ml-1">Account</Link>
+        </div>
+        <div className="flex items-center gap-3">
+          <motion.button
+            onClick={() => {
+              fetchStats();
+              fetchLeaderboard();
+            }}
+            disabled={refreshing}
+            whileTap={{ scale: 0.92 }}
+            className="p-1 rounded border border-white/10 hover:border-neon-cyan/30 hover:bg-neon-cyan/5 transition-all group"
+          >
+            <RefreshCw
+              size={12}
+              className={`transition-colors ${
+                refreshing
+                  ? "animate-spin text-neon-cyan"
+                  : "text-gray-500 group-hover:text-neon-cyan"
+              }`}
             />
-          </div>
+          </motion.button>
+          <ConnectButton
+            client={client}
+            wallets={wallets}
+            chain={robinhoodChain}
+            connectButton={{ label: "Connect", style: { fontSize: "10px", padding: "6px 12px", height: "28px" } }}
+          />
         </div>
       </header>
 
@@ -681,7 +666,7 @@ export default function SocialPage() {
           {[
             {
               label: "Total AUM",
-              value: stats.totalAum,
+              value: Number(stats.totalAum || 0),
               prefix: "$",
               icon: DollarSign,
               color: "purple",
@@ -693,7 +678,8 @@ export default function SocialPage() {
             },
             {
               label: "Active Traders",
-              value: stats.activeTraders,
+              value: Number(stats.activeTraders || (stats as any).totalTraders || 0),
+              prefix: "",
               icon: Activity,
               color: "cyan",
               borderColor: "border-neon-cyan/30",
@@ -704,7 +690,8 @@ export default function SocialPage() {
             },
             {
               label: "Total Followers",
-              value: stats.totalFollowers,
+              value: Number(stats.totalFollowers || 0),
+              prefix: "",
               icon: Users,
               color: "green",
               borderColor: "border-green/30",
@@ -715,24 +702,24 @@ export default function SocialPage() {
             },
             {
               label: "Total PnL",
-              value: stats.totalPnl,
-              prefix: stats.totalPnl >= 0 ? "+$" : "-$",
-              icon: stats.totalPnl >= 0 ? TrendingUp : TrendingDown,
-              color: stats.totalPnl >= 0 ? "green" : "red",
+              value: Number(stats.totalPnl || 0),
+              prefix: Number(stats.totalPnl || 0) >= 0 ? "+$" : "-$",
+              icon: (stats.totalPnl || 0) >= 0 ? TrendingUp : TrendingDown,
+              color: (stats.totalPnl || 0) >= 0 ? "green" : "red",
               borderColor:
-                stats.totalPnl >= 0
+                (stats.totalPnl || 0) >= 0
                   ? "border-green/30"
                   : "border-coral/30",
               glowColor:
-                stats.totalPnl >= 0
+                (stats.totalPnl || 0) >= 0
                   ? "shadow-[0_0_30px_rgba(57,255,20,0.08)]"
                   : "shadow-[0_0_30px_rgba(232,106,86,0.1)]",
               iconBg:
-                stats.totalPnl >= 0 ? "bg-green/10" : "bg-coral/10",
+                (stats.totalPnl || 0) >= 0 ? "bg-green/10" : "bg-coral/10",
               iconColor:
-                stats.totalPnl >= 0 ? "text-green" : "text-coral",
+                (stats.totalPnl || 0) >= 0 ? "text-green" : "text-coral",
               textColor:
-                stats.totalPnl >= 0 ? "text-green" : "text-coral",
+                (stats.totalPnl || 0) >= 0 ? "text-green" : "text-coral",
             },
           ].map((card, i) => (
             <motion.div
@@ -753,7 +740,7 @@ export default function SocialPage() {
               <div className={`text-2xl font-bold ${card.textColor}`}>
                 <AnimatedCounter
                   value={Math.abs(card.value)}
-                  prefix={card.prefix || "$"}
+                  prefix={card.prefix !== undefined ? card.prefix : "$"}
                   decimals={card.label === "Active Traders" || card.label === "Total Followers" ? 0 : 2}
                 />
               </div>
@@ -961,7 +948,6 @@ export default function SocialPage() {
                       </div>
                       {trader.bestStrategyName && (
                         <p className="text-[11px] text-gray-500 truncate">
-                          <span className="text-neon-cyan/60">★</span>{" "}
                           {trader.bestStrategyName}
                         </p>
                       )}

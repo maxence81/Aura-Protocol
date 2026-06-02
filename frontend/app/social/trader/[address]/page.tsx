@@ -29,6 +29,8 @@ import { createWallet } from "thirdweb/wallets";
 import { defineChain } from "thirdweb";
 import { client } from "../../../client";
 import { API_URL } from "../../../../lib/config";
+import { readContract, getContract } from "thirdweb";
+import { AURA_FACTORY_ABI, CONTRACT_ADDRESSES } from "../../../../lib/contracts";
 
 // ─── Chain & wallet config ───────────────────────────────────────────
 const robinhoodChain = defineChain({
@@ -679,14 +681,53 @@ export default function TraderProfilePage() {
     setShowModal(true);
   };
 
-  const handleConfirmFollow = () => {
-    const strategyName = modalStrategy?.name || "All Strategies";
-    const fee = modalStrategy
-      ? (modalStrategy.performanceFeeBps / 100).toFixed(1)
-      : "varies";
-    alert(
-      `🚀 Copy Trade Submitted!\n\nStrategy: ${strategyName}\nAmount: ${followAmount} aUSD\nAllocation: ${allocationPct}%\nFee: ${fee}%\n\nContract call: AuraSocialTrading.follow(${modalStrategy?.id ?? "all"}, ${followAmount} aUSD)`
-    );
+  const handleConfirmFollow = async () => {
+    if (!account?.address) {
+      alert("Please connect your wallet first.");
+      return;
+    }
+    
+    try {
+      const factory = getContract({
+        client,
+        chain: robinhoodChain,
+        address: CONTRACT_ADDRESSES.AURA_FACTORY as `0x${string}`,
+        abi: AURA_FACTORY_ABI as any,
+      });
+      const acct = await readContract({
+        contract: factory,
+        method: "getAccount",
+        params: [account.address, 0n],
+      });
+      
+      const auraAccountAddress = acct && acct !== "0x0000000000000000000000000000000000000000" 
+        ? (acct as string).toLowerCase() 
+        : null;
+
+      if (!auraAccountAddress) {
+        alert("You need an AuraAccount to use the AI Agent copy trading. Please visit the Account page to set it up.");
+        return;
+      }
+
+      const res = await fetch(`${API_URL}/api/social/copy`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          followerAuraAccount: auraAccountAddress,
+          targetTrader: address,
+          amount: followAmount
+        })
+      });
+
+      const data = await res.json();
+      if (data.success) {
+        alert(`🚀 Copy Trade Activated via AI Agent!\n\nThe AI Agent will now automatically replicate trades from ${address} using your AuraAccount.`);
+      } else {
+        alert(`Error: ${data.error}`);
+      }
+    } catch (err: any) {
+      alert(`Error setting up copy trade: ${err.message}`);
+    }
     setShowModal(false);
   };
 
@@ -718,34 +759,26 @@ export default function TraderProfilePage() {
       <div className="noise-overlay" />
 
       {/* ═══════════════ HEADER ═══════════════ */}
-      <header className="relative z-10 border-b border-white/[0.08] backdrop-blur-md bg-cyber-black/60">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Link
-              href="/social"
-              className="p-2 rounded-lg border border-white/10 hover:border-neon-cyan/40 hover:bg-neon-cyan/5 transition-all group"
-            >
-              <ArrowLeft
-                size={18}
-                className="text-gray-400 group-hover:text-neon-cyan transition-colors"
-              />
-            </Link>
-            <div>
-              <h1 className="text-lg font-display font-bold flex items-center gap-2">
-                <Activity size={18} className="text-neon-cyan" />
-                Trader Profile
-              </h1>
-              <p className="text-xs text-gray-600 font-mono">
-                {shortAddr(address)} · Robinhood Chain
-              </p>
-            </div>
+      <header className="h-[48px] border-b border-[#00f0ff]/30 flex items-center justify-between px-4 bg-[#050505] flex-shrink-0 relative z-50 font-mono">
+        <div className="flex items-center gap-3">
+          <Link href="/social" className="text-white/40 hover:text-[#00f0ff] transition flex items-center gap-1.5">
+            <ArrowLeft className="w-3.5 h-3.5" />
+            <span className="text-[10px] font-bold uppercase tracking-widest">Back</span>
+          </Link>
+          <div className="border-l border-[#00f0ff]/20 pl-3 ml-1">
+            <span className="text-[9px] text-[#00f0ff] font-bold uppercase tracking-widest bg-[#00f0ff]/10 border border-[#00f0ff]/30 px-2 py-0.5">Trader Profile</span>
           </div>
-          <ConnectButton
-            client={client}
-            wallets={wallets}
-            chain={robinhoodChain}
-          />
+          <Link href="/trade" className="text-[9px] text-white/30 hover:text-[#00f0ff] font-bold uppercase tracking-widest transition ml-1">Trade</Link>
+          <Link href="/portfolio" className="text-[9px] text-white/30 hover:text-[#00f0ff] font-bold uppercase tracking-widest transition ml-1">Portfolio</Link>
+          <Link href="/perp-vault" className="text-[9px] text-white/30 hover:text-[#00f0ff] font-bold uppercase tracking-widest transition ml-1">Earn Yield</Link>
+          <Link href="/trade/account" className="text-[9px] text-white/30 hover:text-[#00f0ff] font-bold uppercase tracking-widest transition ml-1">Account</Link>
         </div>
+        <ConnectButton
+          client={client}
+          wallets={wallets}
+          chain={robinhoodChain}
+          connectButton={{ label: "Connect", style: { fontSize: "10px", padding: "6px 12px", height: "28px" } }}
+        />
       </header>
 
       <main className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 pb-20">

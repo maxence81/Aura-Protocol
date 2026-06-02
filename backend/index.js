@@ -64,6 +64,8 @@ app.get("/api/social/leaderboard", getLeaderboard);
 app.get("/api/social/trader/:address", getTraderProfile);
 app.get("/api/social/trader/:address/history", getTraderHistory);
 app.get("/api/social/stats", getGlobalStats);
+app.post("/api/social/copy", require("./socialTrading").handleCopyTrade);
+app.get("/api/social/copy/:account", require("./socialTrading").getCopyStatus);
 
 app.post("/chat", async (req, res) => {
   try {
