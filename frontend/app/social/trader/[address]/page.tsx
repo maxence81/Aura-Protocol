@@ -30,7 +30,9 @@ import { defineChain } from "thirdweb";
 import { client } from "../../../client";
 import { API_URL } from "../../../../lib/config";
 import { readContract, getContract } from "thirdweb";
-import { AURA_FACTORY_ABI, CONTRACT_ADDRESSES } from "../../../../lib/contracts";
+import { CONTRACT_ADDRESSES } from "../../../../lib/contracts";
+
+const AURA_FACTORY_ABI = [{ inputs: [{ internalType: "address", name: "owner", type: "address" }], name: "getAccount", outputs: [{ internalType: "address", name: "", type: "address" }], stateMutability: "view", type: "function" }] as const;
 
 // ─── Chain & wallet config ───────────────────────────────────────────
 const robinhoodChain = defineChain({
