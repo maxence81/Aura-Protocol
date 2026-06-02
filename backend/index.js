@@ -17,7 +17,7 @@ const {
 } = require("./automation");
 const { getMarketContext, getCorrelationMatrix, getAllPrices, getCoinDetails, getLatestNews } = require("./market");
 const { getQuickSentiment } = require("./macroAnalyzer");
-const { getStrategies, getStrategyById, getFollowerPosition } = require("./socialTrading");
+const { getStrategies, getStrategyById, getFollowerPosition, getLeaderboard, getTraderProfile, getTraderHistory, getGlobalStats } = require("./socialTrading");
 
 const fs = require("fs");
 const path = require("path");
@@ -60,6 +60,10 @@ app.get("/agent-address", (req, res) => {
 app.get("/api/social/strategies", getStrategies);
 app.get("/api/social/strategy/:id", getStrategyById);
 app.get("/api/social/position/:strategyId/:follower", getFollowerPosition);
+app.get("/api/social/leaderboard", getLeaderboard);
+app.get("/api/social/trader/:address", getTraderProfile);
+app.get("/api/social/trader/:address/history", getTraderHistory);
+app.get("/api/social/stats", getGlobalStats);
 
 app.post("/chat", async (req, res) => {
   try {
