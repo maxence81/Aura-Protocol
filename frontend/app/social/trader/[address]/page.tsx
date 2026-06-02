@@ -690,10 +690,11 @@ export default function TraderProfilePage() {
     }
     
     try {
+      const FACTORY = "0x95Aa20d53EB26f292a71D8B38515BBeC8905b550";
       const factory = getContract({
         client,
         chain: robinhoodChain,
-        address: CONTRACT_ADDRESSES.AURA_FACTORY as `0x${string}`,
+        address: FACTORY as `0x${string}`,
         abi: AURA_FACTORY_ABI as any,
       });
       const acct = await readContract({
