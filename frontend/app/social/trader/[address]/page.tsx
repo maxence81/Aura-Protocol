@@ -564,17 +564,23 @@ function TraderProfileContent() {
     setFollowAmount(parseFloat(ausdBalance).toFixed(2));
   };
 
-  //  Fetch trader data 
+  // Fetch trader data 
   const fetchTraderData = useCallback(async () => {
     if (!address) return;
     try {
       setLoading(true);
+
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 5000);
+
       const [profileRes, historyRes] = await Promise.all([
-        fetch(`${API_URL}/api/social/trader/${address}`),
+        fetch(`${API_URL}/api/social/trader/${address}`, { signal: controller.signal }),
         fetch(
-          `${API_URL}/api/social/trader/${address}/history?days=${selectedPeriod}`
+          `${API_URL}/api/social/trader/${address}/history?days=${selectedPeriod}`,
+          { signal: controller.signal }
         ),
       ]);
+      clearTimeout(timeoutId);
 
       if (profileRes.ok) {
         const data = await profileRes.json();
