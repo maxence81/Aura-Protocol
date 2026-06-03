@@ -487,6 +487,38 @@ async function getLeaderHistory(req, res) {
             if (event.args.isProfit) dailyPnl[date].wins++;
         }
 
+        // Fetch personal trading history from DB
+        try {
+            const historyQuery = await db.query(`
+                SELECT DATE(closed_at) as date,
+                       SUM(pnl * CASE WHEN is_profit THEN 1 ELSE -1 END) as daily_pnl,
+                       SUM(CASE WHEN is_profit THEN 1 ELSE 0 END) as wins,
+                       COUNT(*) as trades
+                FROM positions_closed
+                WHERE LOWER(owner) = $1
+                AND closed_at >= NOW() - INTERVAL '${days} days'
+                GROUP BY DATE(closed_at)
+            `, [address.toLowerCase()]);
+
+            for (const row of historyQuery.rows) {
+                try {
+                    const dateObj = new Date(row.date);
+                    if (isNaN(dateObj.getTime())) continue;
+                    const dateStr = dateObj.toISOString().slice(0, 10);
+                    
+                    if (!dailyPnl[dateStr]) {
+                        dailyPnl[dateStr] = { pnl: 0, trades: 0, wins: 0 };
+                    }
+                    
+                    dailyPnl[dateStr].pnl += (parseFloat(row.daily_pnl || 0) / 1e18);
+                    dailyPnl[dateStr].trades += parseInt(row.trades || 0, 10);
+                    dailyPnl[dateStr].wins += parseInt(row.wins || 0, 10);
+                } catch(err) {}
+            }
+        } catch(e) {
+            console.error('DB error fetching personal daily history:', e.message);
+        }
+
         // Build cumulative history
         const sortedDates = Object.keys(dailyPnl).sort();
         let cumulativePnl = 0;
