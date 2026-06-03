@@ -90,7 +90,7 @@ async function executeSwap(strategy) {
         const timestamp = new Date().toISOString();
         console.log(`[${timestamp}] [${strategyId}]  AGENT ACTION: Executing swap ${current}/${totalSwaps}...`);
 
-        const provider = new ethers.JsonRpcProvider("https://rpc.testnet.chain.robinhood.com");
+        const provider = new ethers.JsonRpcProvider(process.env.RPC_URL || "https://rpc.testnet.chain.robinhood.com");
         const signer = operatorWallet.connect(provider);
 
         const balance = await provider.getBalance(operatorWallet.address);

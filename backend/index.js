@@ -296,7 +296,7 @@ app.post("/api/update-oracle", async (req, res) => {
 
     console.log(`\n [Oracle Service] Update request for ${asset} at $${price}`);
     
-    const provider = new ethers.JsonRpcProvider("https://rpc.testnet.chain.robinhood.com");
+    const provider = new ethers.JsonRpcProvider(process.env.RPC_URL || "https://rpc.testnet.chain.robinhood.com");
     const signer = agentWallet.connect(provider);
     
     const MOCK_ORACLE_ADDR = process.env.MOCK_ORACLE_ADDRESS || "0x0df0FcA88c9DefC9672301892fe2c4f0f9fF5391";
@@ -434,7 +434,7 @@ app.get("/api/liquidation-alerts/stream", (req, res) => {
 
 const { runAuraFundManager, executeStrategiesOnChain, readVaultState, VAULT_CONFIG } = require("./vaultAgent");
 
-const vaultProvider = new ethers.JsonRpcProvider("https://rpc.testnet.chain.robinhood.com");
+const vaultProvider = new ethers.JsonRpcProvider(process.env.RPC_URL || "https://rpc.testnet.chain.robinhood.com");
 const INTELLIGENCE_VAULT_ADDRESS = process.env.INTELLIGENCE_VAULT_ADDRESS || "0x0000000000000000000000000000000000000000";
 
 /**

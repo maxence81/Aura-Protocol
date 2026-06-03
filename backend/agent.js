@@ -803,7 +803,7 @@ async function proposeExecution(request, targetAccount, eoa, tzOffsetMin = 0) {
 
 
 
-const provider = new ethers.JsonRpcProvider("https://rpc.testnet.chain.robinhood.com");
+const provider = new ethers.JsonRpcProvider(process.env.RPC_URL || "https://rpc.testnet.chain.robinhood.com");
 
 async function runAuraCommittee(request, targetAccount, eoa, tzOffsetMin = 0, onStep = null) {
     // ── Intent routing ──
