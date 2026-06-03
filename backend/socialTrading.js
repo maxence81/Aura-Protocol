@@ -14,6 +14,7 @@
  * @author Aura Protocol
  */
 const { ethers } = require("ethers");
+const db = require("./db");
 const { COPY_TRADING_ABI, PERPS_ABI } = require("./copyEngine");
 
 // ── Extended ABIs for views ────────────────────────────────────────────
@@ -144,24 +145,21 @@ async function getLeaderProfile(req, res) {
             joinedAt: profileRaw.joinedAt
         };
 
-        // Merge personal AuraPerps history
-        const perps = getPerpsContract();
-        if (perps) {
-            try {
-                const closedFilter = perps.filters.PositionClosed(null, address);
-                const currentBlock = await perps.runner.provider.getBlockNumber();
-                const fromBlock = Math.max(0, currentBlock - 345600 * 30);
-                const events = await perps.queryFilter(closedFilter, fromBlock, currentBlock);
-                
-                let personalPnl = 0;
-                let personalWins = 0;
-                let personalTrades = events.length;
+        try {
+            const pnlQuery = await db.query(`
+                SELECT SUM(pnl * CASE WHEN is_profit THEN 1 ELSE -1 END) as total_pnl,
+                       SUM(CASE WHEN is_profit THEN 1 ELSE 0 END) as wins,
+                       COUNT(*) as trades
+                FROM positions_closed
+                WHERE LOWER(owner) = $1
+            `, [address.toLowerCase()]);
 
-                for (const ev of events) {
-                    const p = parseFloat(ethers.formatEther(ev.args.pnl));
-                    if (ev.args.isProfit) { personalPnl += p; personalWins++; }
-                    else { personalPnl -= p; }
-                }
+            if (pnlQuery.rows.length > 0) {
+                const personalStats = pnlQuery.rows[0];
+                const rawPnl = parseFloat(personalStats.total_pnl || 0);
+                const personalPnl = rawPnl / 1e18;
+                const personalWins = parseInt(personalStats.wins || 0, 10);
+                const personalTrades = parseInt(personalStats.trades || 0, 10);
 
                 const socialPnlStr = ethers.formatEther(profile.totalRealizedPnl);
                 const socialPnl = parseFloat(socialPnlStr) * (profile.isPnlPositive ? 1 : -1);
@@ -171,9 +169,9 @@ async function getLeaderProfile(req, res) {
                 profile.isPnlPositive = combinedPnl >= 0;
                 profile.tradesExecuted += personalTrades;
                 profile.tradesWon += personalWins;
-            } catch (e) {
-                console.log('Error merging personal history:', e.message);
             }
+        } catch (e) {
+            console.error('DB error merging personal history:', e.message);
         }
 
         const followers = await contract.getLeaderFollowers(address);
@@ -317,8 +315,7 @@ async function getLeaderboard(req, res) {
         // Fetch all active leaders
         const [addrs, profiles] = await contract.getActiveLeaders(0, 100);
         let leaders = [];
-        
-        const perps = getPerpsContract();
+
         for (let i = 0; i < addrs.length; i++) {
             let profileRaw = profiles[i];
             let profile = {
@@ -334,30 +331,33 @@ async function getLeaderboard(req, res) {
                 joinedAt: profileRaw.joinedAt
             };
 
-            if (perps) {
-                try {
-                    const closedFilter = perps.filters.PositionClosed(null, addrs[i]);
-                    const currentBlock = await perps.runner.provider.getBlockNumber();
-                    const fromBlock = Math.max(0, currentBlock - 345600 * 30);
-                    const events = await perps.queryFilter(closedFilter, fromBlock, currentBlock);
-                    
-                    let personalPnl = 0;
-                    let personalWins = 0;
-                    
-                    for (const ev of events) {
-                        const p = parseFloat(ethers.formatEther(ev.args.pnl));
-                        if (ev.args.isProfit) { personalPnl += p; personalWins++; }
-                        else { personalPnl -= p; }
-                    }
+            try {
+                const pnlQuery = await db.query(`
+                    SELECT SUM(pnl * CASE WHEN is_profit THEN 1 ELSE -1 END) as total_pnl,
+                           SUM(CASE WHEN is_profit THEN 1 ELSE 0 END) as wins,
+                           COUNT(*) as trades
+                    FROM positions_closed
+                    WHERE LOWER(owner) = $1
+                `, [addrs[i].toLowerCase()]);
 
-                    const socialPnl = parseFloat(ethers.formatEther(profile.totalRealizedPnl)) * (profile.isPnlPositive ? 1 : -1);
+                if (pnlQuery.rows.length > 0) {
+                    const personalStats = pnlQuery.rows[0];
+                    const rawPnl = parseFloat(personalStats.total_pnl || 0);
+                    const personalPnl = rawPnl / 1e18;
+                    const personalWins = parseInt(personalStats.wins || 0, 10);
+                    const personalTrades = parseInt(personalStats.trades || 0, 10);
+
+                    const socialPnlStr = ethers.formatEther(profile.totalRealizedPnl);
+                    const socialPnl = parseFloat(socialPnlStr) * (profile.isPnlPositive ? 1 : -1);
                     const combinedPnl = socialPnl + personalPnl;
 
                     profile.totalRealizedPnl = ethers.parseEther(Math.abs(combinedPnl).toFixed(18));
                     profile.isPnlPositive = combinedPnl >= 0;
-                    profile.tradesExecuted += events.length;
+                    profile.tradesExecuted += personalTrades;
                     profile.tradesWon += personalWins;
-                } catch(e) {}
+                }
+            } catch (e) {
+                // ignore
             }
             leaders.push(formatLeaderProfile(addrs[i], profile));
         }
@@ -405,9 +405,51 @@ async function getLeaderHistory(req, res) {
 
         const days = Math.min(parseInt(req.query.days) || 30, 365);
 
-        const profile = await contract.leaders(address);
-        if (!profile.isRegistered) {
+        const profileRaw = await contract.leaders(address);
+        if (!profileRaw.isRegistered) {
             return res.status(404).json({ error: "Leader not found" });
+        }
+
+        let profile = {
+            isRegistered: profileRaw.isRegistered,
+            isActive: profileRaw.isActive,
+            performanceFeeBps: profileRaw.performanceFeeBps,
+            totalFollowers: profileRaw.totalFollowers,
+            totalCopiedCapital: profileRaw.totalCopiedCapital,
+            totalRealizedPnl: profileRaw.totalRealizedPnl,
+            isPnlPositive: profileRaw.isPnlPositive,
+            tradesExecuted: Number(profileRaw.tradesExecuted),
+            tradesWon: Number(profileRaw.tradesWon),
+            joinedAt: profileRaw.joinedAt
+        };
+
+        try {
+            const pnlQuery = await db.query(`
+                SELECT SUM(pnl * CASE WHEN is_profit THEN 1 ELSE -1 END) as total_pnl,
+                       SUM(CASE WHEN is_profit THEN 1 ELSE 0 END) as wins,
+                       COUNT(*) as trades
+                FROM positions_closed
+                WHERE LOWER(owner) = $1
+            `, [address.toLowerCase()]);
+
+            if (pnlQuery.rows.length > 0) {
+                const personalStats = pnlQuery.rows[0];
+                const rawPnl = parseFloat(personalStats.total_pnl || 0);
+                const personalPnl = rawPnl / 1e18;
+                const personalWins = parseInt(personalStats.wins || 0, 10);
+                const personalTrades = parseInt(personalStats.trades || 0, 10);
+
+                const socialPnlStr = ethers.formatEther(profile.totalRealizedPnl);
+                const socialPnl = parseFloat(socialPnlStr) * (profile.isPnlPositive ? 1 : -1);
+                const combinedPnl = socialPnl + personalPnl;
+
+                profile.totalRealizedPnl = ethers.parseEther(Math.abs(combinedPnl).toFixed(18));
+                profile.isPnlPositive = combinedPnl >= 0;
+                profile.tradesExecuted += personalTrades;
+                profile.tradesWon += personalWins;
+            }
+        } catch (e) {
+            console.error('DB error merging personal history:', e.message);
         }
 
         // Query CopyTradeClosed events for this leader
@@ -552,6 +594,7 @@ async function getGlobalStats(req, res) {
             });
         }
 
+        // Fetch all active leaders
         const [addrs, profiles] = await contract.getActiveLeaders(0, 100);
         const leaders = addrs.map((addr, i) => formatLeaderProfile(addr, profiles[i]));
 
