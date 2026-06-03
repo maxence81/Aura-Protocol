@@ -17,7 +17,14 @@ const {
 } = require("./automation");
 const { getMarketContext, getCorrelationMatrix, getAllPrices, getCoinDetails, getLatestNews } = require("./market");
 const { getQuickSentiment } = require("./macroAnalyzer");
-const { getStrategies, getStrategyById, getFollowerPosition, getLeaderboard, getTraderProfile, getTraderHistory, getGlobalStats } = require("./socialTrading");
+const {
+    getStrategies, getStrategyById, getFollowerPosition,
+    getLeaderboard, getTraderProfile, getTraderHistory, getGlobalStats,
+    // V2 endpoints
+    getLeaders, getLeaderProfile, getFollowerAllocation,
+    getLeaderHistory, getCopyPositions,
+} = require("./socialTrading");
+const { startCopyEngine, getEngineStatus, getTradeLog, refreshLeaders } = require("./copyEngine");
 
 const fs = require("fs");
 const path = require("path");
@@ -56,7 +63,15 @@ app.get("/agent-address", (req, res) => {
     res.json({ address: agentWallet.address });
 });
 
-// ── Social Trading ──────────────────────────────────────────────────────────
+// ── Social Trading V2 ───────────────────────────────────────────────────────
+// V2 endpoints (production — real on-chain data)
+app.get("/api/social/leaders", getLeaders);
+app.get("/api/social/leader/:address", getLeaderProfile);
+app.get("/api/social/follower/:leader/:follower", getFollowerAllocation);
+app.get("/api/social/leader/:address/history", getLeaderHistory);
+app.get("/api/social/copy-positions/:leaderPositionId", getCopyPositions);
+
+// V1 backward compatibility
 app.get("/api/social/strategies", getStrategies);
 app.get("/api/social/strategy/:id", getStrategyById);
 app.get("/api/social/position/:strategyId/:follower", getFollowerPosition);
@@ -64,8 +79,24 @@ app.get("/api/social/leaderboard", getLeaderboard);
 app.get("/api/social/trader/:address", getTraderProfile);
 app.get("/api/social/trader/:address/history", getTraderHistory);
 app.get("/api/social/stats", getGlobalStats);
-app.post("/api/social/copy", require("./socialTrading").handleCopyTrade);
-app.get("/api/social/copy/:account", require("./socialTrading").getCopyStatus);
+
+// Copy Engine management
+app.get("/api/copy-engine/status", (req, res) => {
+    res.json(getEngineStatus());
+});
+app.get("/api/copy-engine/logs", (req, res) => {
+    const limit = Math.min(parseInt(req.query.limit) || 50, 200);
+    const logs = getTradeLog();
+    res.json({ logs: logs.slice(-limit), total: logs.length });
+});
+app.post("/api/copy-engine/refresh-leaders", async (req, res) => {
+    try {
+        const result = await refreshLeaders();
+        res.json(result);
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
+});
 
 app.post("/chat", async (req, res) => {
   try {
@@ -813,6 +844,11 @@ app.listen(PORT, '0.0.0.0', () => {
   } catch (err) {
     console.error("Failed to restore strategies:", err.message);
   }
+
+  // Start Copy Trading Engine (V2 keeper)
+  startCopyEngine().catch(err => {
+    console.error("[CopyEngine] Failed to start:", err.message);
+  });
 
   // Start autonomous 24/7 loop
   startAutonomousVaultAgent();

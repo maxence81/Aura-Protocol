@@ -6,6 +6,7 @@ export const CONTRACT_ADDRESSES = {
   INTELLIGENCE_VAULT: "0x69A88c72eAda96A515e0dc57632A6Abf59EA2E38",
   AURA_ACCOUNT: "0x0C42313e922E7d8b2A1175a695f083Bb0e0cF64A",
   AURA_GUARDRAIL: "0x53d7ED1bD27bdCA3813050dE90D7D545DB800900",
+  AURA_COPY_TRADING_V2: process.env.NEXT_PUBLIC_COPY_TRADING_V2_ADDRESS || "0x73F7033D6105884E743678278EF33ba70a0DB9c2", // Make sure to load from env
 
   // ────────────────────────────────────────────────────────────────
   // Two completely different routers, used by two different flows:
@@ -177,4 +178,17 @@ export const LIQUIDATION_SHIELD_ABI = [
   { type: "function", name: "disarmShield", inputs: [{ name: "positionId", type: "uint256" }], outputs: [], stateMutability: "nonpayable" },
   { type: "function", name: "mandates", inputs: [{ name: "", type: "uint256" }], outputs: [{ name: "armed", type: "bool" }, { name: "thresholdBps", type: "uint256" }, { name: "recommendedTopUp", type: "uint256" }, { name: "maxTopUpPerEvent", type: "uint256" }, { name: "createdAt", type: "uint256" }, { name: "updatedAt", type: "uint256" }], stateMutability: "view" },
   { type: "function", name: "getActiveMandates", inputs: [{ name: "user", type: "address" }], outputs: [{ type: "uint256[]" }], stateMutability: "view" },
+] as const;
+
+export const AURA_COPY_TRADING_V2_ABI = [
+  { type: "function", name: "followLeader", inputs: [{ name: "leader", type: "address" }, { name: "amount", type: "uint256" }, { name: "scaleFactor", type: "uint256" }, { name: "maxSlippageBps", type: "uint256" }], outputs: [], stateMutability: "nonpayable" },
+  { type: "function", name: "addCapital", inputs: [{ name: "leader", type: "address" }, { name: "amount", type: "uint256" }], outputs: [], stateMutability: "nonpayable" },
+  { type: "function", name: "unfollowLeader", inputs: [{ name: "leader", type: "address" }], outputs: [], stateMutability: "nonpayable" },
+  { type: "function", name: "updateFollowerParams", inputs: [{ name: "leader", type: "address" }, { name: "newSF", type: "uint256" }, { name: "newSlip", type: "uint256" }], outputs: [], stateMutability: "nonpayable" },
+  { type: "function", name: "claimFees", inputs: [], outputs: [], stateMutability: "nonpayable" },
+  { type: "function", name: "leaders", inputs: [{ name: "leader", type: "address" }], outputs: [{ name: "isRegistered", type: "bool" }, { name: "isActive", type: "bool" }, { name: "performanceFeeBps", type: "uint256" }, { name: "totalFollowers", type: "uint256" }, { name: "totalCopiedCapital", type: "uint256" }, { name: "totalRealizedPnl", type: "uint256" }, { name: "isPnlPositive", type: "bool" }, { name: "tradesExecuted", type: "uint256" }, { name: "tradesWon", type: "uint256" }, { name: "createdAt", type: "uint256" }], stateMutability: "view" },
+  { type: "function", name: "allocations", inputs: [{ name: "leader", type: "address" }, { name: "follower", type: "address" }], outputs: [{ name: "isActive", type: "bool" }, { name: "capitalDeposited", type: "uint256" }, { name: "capitalInPositions", type: "uint256" }, { name: "highWaterMark", type: "uint256" }, { name: "scaleFactor", type: "uint256" }, { name: "maxSlippageBps", type: "uint256" }, { name: "joinedAt", type: "uint256" }], stateMutability: "view" },
+  { type: "function", name: "pendingFees", inputs: [{ name: "leader", type: "address" }], outputs: [{ type: "uint256" }], stateMutability: "view" },
+  { type: "function", name: "getFollowerAvailableBalance", inputs: [{ name: "leader", type: "address" }, { name: "follower", type: "address" }], outputs: [{ type: "uint256" }], stateMutability: "view" },
+  { type: "function", name: "getLeaderCount", inputs: [], outputs: [{ type: "uint256" }], stateMutability: "view" }
 ] as const;

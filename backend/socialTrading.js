@@ -1,494 +1,590 @@
-// backend/socialTrading.js
-// Social Trading API — reads AuraSocialTrading on-chain state + computed analytics
+/**
+ * backend/socialTrading.js
+ *
+ * Social Trading API — V2 Production Rewrite
+ * ────────────────────────────────────────────
+ * 100% on-chain data. Zero mocks, zero random values, zero simulations.
+ *
+ * Data sources:
+ *   - AuraCopyTradingV2: leader profiles, follower allocations, copy positions
+ *   - AuraPerps: position states, PnL calculations
+ *   - MockOracle: real-time prices
+ *   - On-chain event logs: trade history, PnL history
+ *
+ * @author Aura Protocol
+ */
 const { ethers } = require("ethers");
+const { COPY_TRADING_ABI, PERPS_ABI } = require("./copyEngine");
 
-const SOCIAL_TRADING_ABI = [
-  "function nextStrategyId() view returns (uint256)",
-  "function getStrategy(uint256) view returns (tuple(address strategist, string name, string description, uint256 performanceFeeBps, bool isActive, uint256 totalFollowerCapital, uint256 followerCount, uint256 totalPnl, uint256 createdAt))",
-  "function getFollowers(uint256) view returns (address[])",
-  "function getFollowerPosition(uint256, address) view returns (tuple(uint256 capitalDeposited, uint256 highWaterMark, bool isActive))",
-  "function getActiveStrategies(uint256 offset, uint256 limit) view returns (uint256[] ids, tuple(address strategist, string name, string description, uint256 performanceFeeBps, bool isActive, uint256 totalFollowerCapital, uint256 followerCount, uint256 totalPnl, uint256 createdAt)[] result)",
-  "function pendingFees(address) view returns (uint256)",
+// ── Extended ABIs for views ────────────────────────────────────────────
+
+const ORACLE_ABI = [
+    "function getPrice(string) view returns (uint256)",
 ];
 
-function getSocialContract() {
-  const addr = process.env.SOCIAL_TRADING_ADDRESS;
-  if (!addr) return null;
-  const provider = new ethers.JsonRpcProvider(process.env.RPC_URL);
-  return new ethers.Contract(addr, SOCIAL_TRADING_ABI, provider);
+const AUSD_ABI = [
+    "function balanceOf(address) view returns (uint256)",
+];
+
+// ── Contract helpers ──────────────────────────────────────────────────
+
+function getCopyTradingContract() {
+    const addr = process.env.COPY_TRADING_V2_ADDRESS;
+    if (!addr) return null;
+    const provider = new ethers.JsonRpcProvider(process.env.RPC_URL);
+    return new ethers.Contract(addr, COPY_TRADING_ABI, provider);
 }
 
-// ── Computed Metrics ────────────────────────────────────────────────────────
+function getPerpsContract() {
+    const addr = process.env.AURA_PERPS_ADDRESS;
+    if (!addr) return null;
+    const provider = new ethers.JsonRpcProvider(process.env.RPC_URL);
+    return new ethers.Contract(addr, PERPS_ABI, provider);
+}
+
+function getOracleContract() {
+    const addr = process.env.MOCK_ORACLE_ADDRESS;
+    if (!addr) return null;
+    const provider = new ethers.JsonRpcProvider(process.env.RPC_URL);
+    return new ethers.Contract(addr, ORACLE_ABI, provider);
+}
+
+// ══════════════════════ LEADER FORMATTING ══════════════════════
 
 /**
- * Enrich a raw on-chain strategy with computed analytics.
- * Since we only have cumulative PnL on-chain, we derive additional metrics:
- * - ROI = totalPnl / totalFollowerCapital (or historical high)
- * - winRate: simulated based on PnL sign & strategy age
- * - maxDrawdown: estimated from PnL ratio
+ * Format a leader profile from on-chain data into API response.
+ *
+ * All metrics are derived from REAL on-chain state:
+ *   - ROI = totalRealizedPnl / totalCopiedCapital (sign-aware)
+ *   - winRate = tradesWon / tradesExecuted
+ *   - No random values, no estimates
  */
-function formatStrategy(id, s) {
-  const totalPnl = parseFloat(ethers.formatEther(s.totalPnl));
-  const totalCapital = parseFloat(ethers.formatEther(s.totalFollowerCapital));
-  const createdAt = Number(s.createdAt);
-  const ageSeconds = Math.max(1, Math.floor(Date.now() / 1000) - createdAt);
-  const ageDays = ageSeconds / 86400;
+function formatLeaderProfile(address, profile) {
+    const totalPnl = parseFloat(ethers.formatEther(profile.totalRealizedPnl));
+    const signedPnl = profile.isPnlPositive ? totalPnl : -totalPnl;
+    const totalCapital = parseFloat(ethers.formatEther(profile.totalCopiedCapital));
+    const tradesExecuted = Number(profile.tradesExecuted);
+    const tradesWon = Number(profile.tradesWon);
+    const createdAt = Number(profile.createdAt);
+    const ageDays = Math.max(0.1, (Date.now() / 1000 - createdAt) / 86400);
 
-  // ROI: PnL relative to capital (or estimated initial if capital is 0)
-  const effectiveCapital = Math.max(totalCapital, 1);
-  const roi = (totalPnl / effectiveCapital) * 100;
+    // Real ROI — no estimation
+    const roi = totalCapital > 0 ? (signedPnl / totalCapital) * 100 : 0;
 
-  // Win rate estimation: based on PnL sign and age
-  // Strategies with positive PnL get higher win rates, scaled by age
-  const baseWinRate = totalPnl > 0 ? 55 + Math.min(roi * 0.3, 30) : 30 + Math.random() * 15;
-  const winRate = Math.min(95, Math.max(15, baseWinRate));
+    // Real win rate — direct from on-chain counters
+    const winRate = tradesExecuted > 0 ? (tradesWon / tradesExecuted) * 100 : 0;
 
-  // Max drawdown estimation (lower is better for profitable strategies)
-  const maxDrawdown = totalPnl > 0
-    ? Math.max(2, 25 - Math.min(roi * 0.5, 20))
-    : Math.min(50, 15 + Math.abs(roi) * 0.3);
-
-  // Weekly/monthly PnL (proportional estimates based on age)
-  const dailyPnl = totalPnl / Math.max(ageDays, 1);
-  const weeklyPnl = dailyPnl * 7;
-  const monthlyPnl = dailyPnl * 30;
-
-  // Total trades estimate (roughly 2-5 trades per day depending on strategy age)
-  const tradesPerDay = 2 + Math.random() * 3;
-  const totalTrades = Math.max(1, Math.floor(ageDays * tradesPerDay));
-
-  return {
-    id: Number(id),
-    strategist: s.strategist,
-    name: s.name,
-    description: s.description,
-    performanceFeeBps: Number(s.performanceFeeBps),
-    isActive: s.isActive,
-    totalFollowerCapital: totalCapital.toFixed(2),
-    followerCount: Number(s.followerCount),
-    totalPnl: totalPnl.toFixed(2),
-    createdAt,
-    // Computed metrics
-    roi: parseFloat(roi.toFixed(2)),
-    winRate: parseFloat(winRate.toFixed(1)),
-    maxDrawdown: parseFloat(maxDrawdown.toFixed(1)),
-    weeklyPnl: parseFloat(weeklyPnl.toFixed(2)),
-    monthlyPnl: parseFloat(monthlyPnl.toFixed(2)),
-    totalTrades,
-    ageDays: parseFloat(ageDays.toFixed(1)),
-    avgTradeSize: totalCapital > 0 ? parseFloat((totalCapital / Math.max(totalTrades, 1)).toFixed(2)) : 0,
-  };
-}
-
-// ── Endpoint Handlers ───────────────────────────────────────────────────────
-
-// GET /api/social/strategies?offset=0&limit=20
-async function getStrategies(req, res) {
-  try {
-    const contract = getSocialContract();
-    if (!contract) return res.json({ strategies: [], note: "SOCIAL_TRADING_ADDRESS not set" });
-
-    const offset = parseInt(req.query.offset) || 0;
-    const limit = Math.min(parseInt(req.query.limit) || 20, 50);
-
-    const [ids, strategies] = await contract.getActiveStrategies(offset, limit);
-    const result = ids.map((id, i) => formatStrategy(id, strategies[i]));
-    res.json({ strategies: result, total: result.length });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-}
-
-// GET /api/social/strategy/:id
-async function getStrategyById(req, res) {
-  try {
-    const contract = getSocialContract();
-    if (!contract) return res.status(503).json({ error: "SOCIAL_TRADING_ADDRESS not set" });
-
-    const id = parseInt(req.params.id);
-    const s = await contract.getStrategy(id);
-    if (!s.isActive && s.strategist === ethers.ZeroAddress) {
-      return res.status(404).json({ error: "Strategy not found" });
-    }
-    const followers = await contract.getFollowers(id);
-    res.json({ strategy: formatStrategy(id, s), followers });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-}
-
-// GET /api/social/position/:strategyId/:follower
-async function getFollowerPosition(req, res) {
-  try {
-    const contract = getSocialContract();
-    if (!contract) return res.status(503).json({ error: "SOCIAL_TRADING_ADDRESS not set" });
-
-    const { strategyId, follower } = req.params;
-    if (!ethers.isAddress(follower)) return res.status(400).json({ error: "Invalid address" });
-
-    const fp = await contract.getFollowerPosition(parseInt(strategyId), follower);
-    res.json({
-      strategyId: parseInt(strategyId),
-      follower,
-      capitalDeposited: ethers.formatEther(fp.capitalDeposited),
-      highWaterMark: ethers.formatEther(fp.highWaterMark),
-      isActive: fp.isActive,
-    });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-}
-
-// GET /api/social/leaderboard?sortBy=totalPnl&order=desc&timeframe=all&limit=20&offset=0
-async function getLeaderboard(req, res) {
-  try {
-    const contract = getSocialContract();
-    if (!contract) return res.json({ traders: [], total: 0, note: "SOCIAL_TRADING_ADDRESS not set" });
-
-    const sortBy = req.query.sortBy || "totalPnl";
-    const order = req.query.order || "desc";
-    const limit = Math.min(parseInt(req.query.limit) || 20, 50);
-    const offset = parseInt(req.query.offset) || 0;
-    const search = (req.query.search || "").toLowerCase();
-
-    // Fetch all active strategies
-    const [ids, strategies] = await contract.getActiveStrategies(0, 100);
-    let all = ids.map((id, i) => formatStrategy(id, strategies[i]));
-
-    // Group by strategist and aggregate
-    const traderMap = {};
-    for (const s of all) {
-      const addr = s.strategist.toLowerCase();
-      if (!traderMap[addr]) {
-        traderMap[addr] = {
-          address: s.strategist,
-          strategies: [],
-          totalPnl: 0,
-          totalCapital: 0,
-          totalFollowers: 0,
-          bestRoi: -Infinity,
-          avgWinRate: 0,
-          totalTrades: 0,
-          worstDrawdown: 0,
-          bestStrategyName: "",
-          firstCreatedAt: Infinity,
-        };
-      }
-      const t = traderMap[addr];
-      t.strategies.push(s);
-      t.totalPnl += parseFloat(s.totalPnl);
-      t.totalCapital += parseFloat(s.totalFollowerCapital);
-      t.totalFollowers += s.followerCount;
-      t.totalTrades += s.totalTrades;
-      if (s.roi > t.bestRoi) {
-        t.bestRoi = s.roi;
-        t.bestStrategyName = s.name;
-      }
-      t.worstDrawdown = Math.max(t.worstDrawdown, s.maxDrawdown);
-      if (s.createdAt < t.firstCreatedAt) {
-        t.firstCreatedAt = s.createdAt;
-      }
-    }
-
-    // Compute aggregate metrics
-    let traders = Object.values(traderMap).map((t, i) => {
-      const stratCount = t.strategies.length;
-      const avgWinRate = t.strategies.reduce((sum, s) => sum + s.winRate, 0) / stratCount;
-      const roi = t.totalCapital > 0 ? (t.totalPnl / t.totalCapital) * 100 : t.bestRoi;
-      return {
-        address: t.address,
-        strategyCount: stratCount,
-        totalPnl: parseFloat(t.totalPnl.toFixed(2)),
-        totalCapital: parseFloat(t.totalCapital.toFixed(2)),
-        totalFollowers: t.totalFollowers,
-        totalTrades: t.totalTrades,
-        roi: parseFloat(roi.toFixed(2)),
-        winRate: parseFloat(avgWinRate.toFixed(1)),
-        maxDrawdown: parseFloat(t.worstDrawdown.toFixed(1)),
-        bestStrategyName: t.bestStrategyName,
-        firstCreatedAt: t.firstCreatedAt,
-        ageDays: parseFloat(((Date.now() / 1000 - t.firstCreatedAt) / 86400).toFixed(1)),
-      };
-    });
-
-    // Search filter
-    if (search) {
-      traders = traders.filter(t =>
-        t.address.toLowerCase().includes(search) ||
-        t.bestStrategyName.toLowerCase().includes(search)
-      );
-    }
-
-    // Sort
-    const validSortFields = ["totalPnl", "roi", "winRate", "totalFollowers", "totalCapital", "totalTrades", "maxDrawdown", "ageDays"];
-    const field = validSortFields.includes(sortBy) ? sortBy : "totalPnl";
-    const mult = order === "asc" ? 1 : -1;
-    traders.sort((a, b) => (a[field] - b[field]) * mult);
-
-    // Add rank
-    traders.forEach((t, i) => { t.rank = i + 1; });
-
-    const total = traders.length;
-    const paged = traders.slice(offset, offset + limit);
-
-    res.json({ traders: paged, total, offset, limit });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-}
-
-// GET /api/social/trader/:address — trader profile with all strategies
-async function getTraderProfile(req, res) {
-  try {
-    const contract = getSocialContract();
-    if (!contract) return res.status(503).json({ error: "SOCIAL_TRADING_ADDRESS not set" });
-
-    const address = req.params.address;
-    if (!ethers.isAddress(address)) return res.status(400).json({ error: "Invalid address" });
-
-    // Fetch all strategies and filter by this strategist
-    const [ids, strategies] = await contract.getActiveStrategies(0, 100);
-    const traderStrategies = [];
-
-    for (let i = 0; i < ids.length; i++) {
-      if (strategies[i].strategist.toLowerCase() === address.toLowerCase()) {
-        const formatted = formatStrategy(ids[i], strategies[i]);
-        // Fetch followers for each strategy
-        const followers = await contract.getFollowers(Number(ids[i]));
-        traderStrategies.push({
-          ...formatted,
-          followerAddresses: followers,
-        });
-      }
-    }
-
-    if (traderStrategies.length === 0) {
-      return res.status(404).json({ error: "Trader not found or has no active strategies" });
-    }
-
-    // Aggregate profile
-    const totalPnl = traderStrategies.reduce((s, x) => s + parseFloat(x.totalPnl), 0);
-    const totalCapital = traderStrategies.reduce((s, x) => s + parseFloat(x.totalFollowerCapital), 0);
-    const totalFollowers = traderStrategies.reduce((s, x) => s + x.followerCount, 0);
-    const totalTrades = traderStrategies.reduce((s, x) => s + x.totalTrades, 0);
-    const avgWinRate = traderStrategies.reduce((s, x) => s + x.winRate, 0) / traderStrategies.length;
-    const roi = totalCapital > 0 ? (totalPnl / totalCapital) * 100 : 0;
-    const maxDrawdown = Math.max(...traderStrategies.map(x => x.maxDrawdown));
-    const firstCreated = Math.min(...traderStrategies.map(x => x.createdAt));
-    const ageDays = (Date.now() / 1000 - firstCreated) / 86400;
-
-    // Compute rank among all traders
-    const [allIds, allStrats] = await contract.getActiveStrategies(0, 100);
-    const pnlMap = {};
-    for (let i = 0; i < allIds.length; i++) {
-      const addr = allStrats[i].strategist.toLowerCase();
-      const pnl = parseFloat(ethers.formatEther(allStrats[i].totalPnl));
-      pnlMap[addr] = (pnlMap[addr] || 0) + pnl;
-    }
-    const sortedTraders = Object.entries(pnlMap).sort((a, b) => b[1] - a[1]);
-    const rank = sortedTraders.findIndex(([a]) => a === address.toLowerCase()) + 1;
-
-    res.json({
-      profile: {
+    return {
         address,
-        rank: rank || traderStrategies.length,
-        totalPnl: parseFloat(totalPnl.toFixed(2)),
-        totalCapital: parseFloat(totalCapital.toFixed(2)),
-        totalFollowers,
-        totalTrades,
-        strategyCount: traderStrategies.length,
+        isActive: profile.isActive,
+        performanceFeeBps: Number(profile.performanceFeeBps),
+        totalFollowers: Number(profile.totalFollowers),
+        totalCopiedCapital: parseFloat(totalCapital.toFixed(2)),
+        totalPnl: parseFloat(signedPnl.toFixed(2)),
+        tradesExecuted,
+        tradesWon,
         roi: parseFloat(roi.toFixed(2)),
-        winRate: parseFloat(avgWinRate.toFixed(1)),
-        maxDrawdown: parseFloat(maxDrawdown.toFixed(1)),
+        winRate: parseFloat(winRate.toFixed(1)),
         ageDays: parseFloat(ageDays.toFixed(1)),
-        firstCreatedAt: firstCreated,
-      },
-      strategies: traderStrategies,
-    });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
+        createdAt,
+    };
 }
 
-// GET /api/social/trader/:address/history?days=30 — PnL history for charts
-async function getTraderHistory(req, res) {
-  try {
-    const contract = getSocialContract();
-    if (!contract) return res.status(503).json({ error: "SOCIAL_TRADING_ADDRESS not set" });
+// ══════════════════════ ENDPOINT HANDLERS ══════════════════════
 
-    const address = req.params.address;
-    if (!ethers.isAddress(address)) return res.status(400).json({ error: "Invalid address" });
+/**
+ * GET /api/social/leaders?offset=0&limit=20
+ * List all active copy-trading leaders with real on-chain metrics.
+ */
+async function getLeaders(req, res) {
+    try {
+        const contract = getCopyTradingContract();
+        if (!contract) return res.json({ leaders: [], note: "COPY_TRADING_V2_ADDRESS not set" });
 
-    const days = Math.min(parseInt(req.query.days) || 30, 365);
+        const offset = parseInt(req.query.offset) || 0;
+        const limit = Math.min(parseInt(req.query.limit) || 20, 50);
 
-    // Fetch trader's strategies to get their total PnL
-    const [ids, strategies] = await contract.getActiveStrategies(0, 100);
-    let totalPnl = 0;
-    let totalCapital = 0;
-    let found = false;
+        const [addrs, profiles] = await contract.getActiveLeaders(offset, limit);
+        const result = addrs.map((addr, i) => formatLeaderProfile(addr, profiles[i]));
 
-    for (let i = 0; i < ids.length; i++) {
-      if (strategies[i].strategist.toLowerCase() === address.toLowerCase()) {
-        totalPnl += parseFloat(ethers.formatEther(strategies[i].totalPnl));
-        totalCapital += parseFloat(ethers.formatEther(strategies[i].totalFollowerCapital));
-        found = true;
-      }
+        res.json({ leaders: result, total: result.length, offset, limit });
+    } catch (err) {
+        console.error("[SocialTrading] getLeaders error:", err.message);
+        res.status(500).json({ error: err.message });
     }
-
-    if (!found) {
-      return res.status(404).json({ error: "Trader not found" });
-    }
-
-    // Generate a realistic PnL curve from 0 to totalPnl over `days` days
-    // Uses a random walk that trends toward the final PnL value
-    const history = [];
-    const now = Date.now();
-    let cumulativePnl = 0;
-    const dailyTarget = totalPnl / days;
-
-    // Seeded random based on address for consistency
-    const seed = parseInt(address.slice(2, 10), 16);
-    let rng = seed;
-    function nextRng() {
-      rng = (rng * 1103515245 + 12345) & 0x7fffffff;
-      return rng / 0x7fffffff;
-    }
-
-    for (let d = days; d >= 0; d--) {
-      const date = new Date(now - d * 86400000);
-      const progress = (days - d) / days;
-
-      // Add some volatility around the trend
-      const volatility = Math.abs(dailyTarget) * 2 + 5;
-      const noise = (nextRng() - 0.5) * volatility;
-      cumulativePnl += dailyTarget + noise;
-
-      // Ensure the final day matches actual PnL
-      if (d === 0) cumulativePnl = totalPnl;
-
-      const dayRoi = totalCapital > 0 ? (cumulativePnl / totalCapital) * 100 : 0;
-
-      history.push({
-        date: date.toISOString().slice(0, 10),
-        timestamp: Math.floor(date.getTime() / 1000),
-        cumulativePnl: parseFloat(cumulativePnl.toFixed(2)),
-        dailyPnl: parseFloat((dailyTarget + noise).toFixed(2)),
-        roi: parseFloat(dayRoi.toFixed(2)),
-      });
-    }
-
-    res.json({
-      address,
-      days,
-      totalPnl: parseFloat(totalPnl.toFixed(2)),
-      totalCapital: parseFloat(totalCapital.toFixed(2)),
-      history,
-    });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
 }
 
-// GET /api/social/stats — global social trading statistics
+/**
+ * GET /api/social/leader/:address
+ * Get a single leader's full profile with follower list.
+ */
+async function getLeaderProfile(req, res) {
+    try {
+        const contract = getCopyTradingContract();
+        if (!contract) return res.status(503).json({ error: "COPY_TRADING_V2_ADDRESS not set" });
+
+        const address = req.params.address;
+        if (!ethers.isAddress(address)) return res.status(400).json({ error: "Invalid address" });
+
+        const profile = await contract.leaders(address);
+        if (!profile.isRegistered) {
+            return res.status(404).json({ error: "Leader not found" });
+        }
+
+        const followers = await contract.getLeaderFollowers(address);
+
+        // Get follower details
+        const followerDetails = [];
+        for (const follower of followers) {
+            const alloc = await contract.allocations(address, follower);
+            if (alloc.isActive) {
+                const openPosCount = await contract.getFollowerOpenPositionCount(address, follower);
+                followerDetails.push({
+                    address: follower,
+                    capitalDeposited: parseFloat(ethers.formatEther(alloc.capitalDeposited)),
+                    capitalInPositions: parseFloat(ethers.formatEther(alloc.capitalInPositions)),
+                    availableBalance: parseFloat(ethers.formatEther(alloc.capitalDeposited - alloc.capitalInPositions)),
+                    scaleFactor: Number(alloc.scaleFactor) / 10000,
+                    maxSlippageBps: Number(alloc.maxSlippageBps),
+                    openPositions: Number(openPosCount),
+                    joinedAt: Number(alloc.joinedAt),
+                });
+            }
+        }
+
+        const pendingFees = await contract.pendingFees(address);
+
+        res.json({
+            leader: formatLeaderProfile(address, profile),
+            followers: followerDetails,
+            pendingFees: parseFloat(ethers.formatEther(pendingFees)),
+        });
+    } catch (err) {
+        console.error("[SocialTrading] getLeaderProfile error:", err.message);
+        res.status(500).json({ error: err.message });
+    }
+}
+
+/**
+ * GET /api/social/follower/:leader/:follower
+ * Get follower allocation details for a specific leader.
+ */
+async function getFollowerAllocation(req, res) {
+    try {
+        const contract = getCopyTradingContract();
+        if (!contract) return res.status(503).json({ error: "COPY_TRADING_V2_ADDRESS not set" });
+
+        const { leader, follower } = req.params;
+        if (!ethers.isAddress(leader) || !ethers.isAddress(follower)) {
+            return res.status(400).json({ error: "Invalid address" });
+        }
+
+        const alloc = await contract.allocations(leader, follower);
+        if (!alloc.isActive) {
+            return res.status(404).json({ error: "Not following this leader" });
+        }
+
+        const openPositions = await contract.getFollowerOpenPositions(leader, follower);
+        const availableBalance = await contract.getFollowerAvailableBalance(leader, follower);
+
+        // Get details of open positions from AuraPerps
+        const perps = getPerpsContract();
+        const oracle = getOracleContract();
+        const positionDetails = [];
+
+        if (perps && oracle) {
+            for (const posId of openPositions) {
+                try {
+                    const pos = await perps.positions(posId);
+                    if (!pos.isOpen) continue;
+
+                    const currentPrice = await oracle.getPrice(pos.asset);
+                    const [pnl, isProfit] = await perps.calculatePnL(posId, currentPrice);
+
+                    positionDetails.push({
+                        positionId: Number(posId),
+                        asset: pos.asset,
+                        isLong: pos.isLong,
+                        collateral: parseFloat(ethers.formatEther(pos.collateralAmount)),
+                        leverage: Number(pos.leverage),
+                        entryPrice: parseFloat(ethers.formatEther(pos.entryPrice)),
+                        currentPrice: parseFloat(ethers.formatEther(currentPrice)),
+                        positionSize: parseFloat(ethers.formatEther(pos.positionSize)),
+                        unrealizedPnl: parseFloat(ethers.formatEther(pnl)) * (isProfit ? 1 : -1),
+                        isProfit,
+                        openedAt: Number(pos.openedAt),
+                    });
+                } catch (e) {
+                    // Position may have been closed since we fetched the list
+                }
+            }
+        }
+
+        res.json({
+            leader,
+            follower,
+            allocation: {
+                capitalDeposited: parseFloat(ethers.formatEther(alloc.capitalDeposited)),
+                capitalInPositions: parseFloat(ethers.formatEther(alloc.capitalInPositions)),
+                availableBalance: parseFloat(ethers.formatEther(availableBalance)),
+                highWaterMark: parseFloat(ethers.formatEther(alloc.highWaterMark)),
+                scaleFactor: Number(alloc.scaleFactor) / 10000,
+                maxSlippageBps: Number(alloc.maxSlippageBps),
+                joinedAt: Number(alloc.joinedAt),
+            },
+            openPositions: positionDetails,
+        });
+    } catch (err) {
+        console.error("[SocialTrading] getFollowerAllocation error:", err.message);
+        res.status(500).json({ error: err.message });
+    }
+}
+
+/**
+ * GET /api/social/leaderboard?sortBy=totalPnl&order=desc&limit=20&offset=0&search=
+ * Real leaderboard — every metric is on-chain.
+ */
+async function getLeaderboard(req, res) {
+    try {
+        const contract = getCopyTradingContract();
+        if (!contract) return res.json({ leaders: [], total: 0, note: "COPY_TRADING_V2_ADDRESS not set" });
+
+        const sortBy = req.query.sortBy || "totalPnl";
+        const order = req.query.order || "desc";
+        const limit = Math.min(parseInt(req.query.limit) || 20, 50);
+        const offset = parseInt(req.query.offset) || 0;
+        const search = (req.query.search || "").toLowerCase();
+
+        // Fetch all active leaders
+        const [addrs, profiles] = await contract.getActiveLeaders(0, 100);
+        let leaders = addrs.map((addr, i) => formatLeaderProfile(addr, profiles[i]));
+
+        // Search filter
+        if (search) {
+            leaders = leaders.filter(l =>
+                l.address.toLowerCase().includes(search)
+            );
+        }
+
+        // Sort
+        const validSortFields = ["totalPnl", "roi", "winRate", "totalFollowers", "totalCopiedCapital", "tradesExecuted", "ageDays"];
+        const field = validSortFields.includes(sortBy) ? sortBy : "totalPnl";
+        const mult = order === "asc" ? 1 : -1;
+        leaders.sort((a, b) => (a[field] - b[field]) * mult);
+
+        // Add rank
+        leaders.forEach((l, i) => { l.rank = i + 1; });
+
+        const total = leaders.length;
+        const paged = leaders.slice(offset, offset + limit);
+
+        res.json({ leaders: paged, total, offset, limit });
+    } catch (err) {
+        console.error("[SocialTrading] getLeaderboard error:", err.message);
+        res.status(500).json({ error: err.message });
+    }
+}
+
+/**
+ * GET /api/social/leader/:address/history?days=30
+ * Real PnL history from on-chain event logs.
+ */
+async function getLeaderHistory(req, res) {
+    try {
+        const contract = getCopyTradingContract();
+        const perps = getPerpsContract();
+        if (!contract || !perps) {
+            return res.status(503).json({ error: "Contracts not configured" });
+        }
+
+        const address = req.params.address;
+        if (!ethers.isAddress(address)) return res.status(400).json({ error: "Invalid address" });
+
+        const days = Math.min(parseInt(req.query.days) || 30, 365);
+
+        const profile = await contract.leaders(address);
+        if (!profile.isRegistered) {
+            return res.status(404).json({ error: "Leader not found" });
+        }
+
+        // Query CopyTradeClosed events for this leader
+        const provider = new ethers.JsonRpcProvider(process.env.RPC_URL);
+        const currentBlock = await provider.getBlockNumber();
+
+        // Estimate blocks for the time period (Arbitrum Orbit ~250ms block time)
+        const blocksPerDay = 345600; // 86400 / 0.25
+        const fromBlock = Math.max(0, currentBlock - (days * blocksPerDay));
+
+        const closedFilter = contract.filters.CopyTradeClosed(address);
+        let events = [];
+        try {
+            events = await contract.queryFilter(closedFilter, fromBlock, currentBlock);
+        } catch (err) {
+            // If range too large, try with smaller range
+            const fallbackFrom = Math.max(0, currentBlock - blocksPerDay * 7);
+            events = await contract.queryFilter(closedFilter, fallbackFrom, currentBlock);
+        }
+
+        // Build daily PnL history from events
+        const dailyPnl = {};
+
+        for (const event of events) {
+            const block = await event.getBlock();
+            const date = new Date(block.timestamp * 1000).toISOString().slice(0, 10);
+            const pnl = parseFloat(ethers.formatEther(event.args.pnl));
+            const signedPnl = event.args.isProfit ? pnl : -pnl;
+
+            if (!dailyPnl[date]) {
+                dailyPnl[date] = { pnl: 0, trades: 0, wins: 0 };
+            }
+            dailyPnl[date].pnl += signedPnl;
+            dailyPnl[date].trades++;
+            if (event.args.isProfit) dailyPnl[date].wins++;
+        }
+
+        // Build cumulative history
+        const sortedDates = Object.keys(dailyPnl).sort();
+        let cumulativePnl = 0;
+        const history = sortedDates.map(date => {
+            const day = dailyPnl[date];
+            cumulativePnl += day.pnl;
+            return {
+                date,
+                dailyPnl: parseFloat(day.pnl.toFixed(2)),
+                cumulativePnl: parseFloat(cumulativePnl.toFixed(2)),
+                trades: day.trades,
+                wins: day.wins,
+            };
+        });
+
+        const totalPnl = parseFloat(ethers.formatEther(profile.totalRealizedPnl));
+        const signedTotalPnl = profile.isPnlPositive ? totalPnl : -totalPnl;
+        const totalCapital = parseFloat(ethers.formatEther(profile.totalCopiedCapital));
+
+        res.json({
+            address,
+            days,
+            totalPnl: parseFloat(signedTotalPnl.toFixed(2)),
+            totalCapital: parseFloat(totalCapital.toFixed(2)),
+            totalTrades: Number(profile.tradesExecuted),
+            totalWins: Number(profile.tradesWon),
+            history,
+        });
+    } catch (err) {
+        console.error("[SocialTrading] getLeaderHistory error:", err.message);
+        res.status(500).json({ error: err.message });
+    }
+}
+
+/**
+ * GET /api/social/copy-positions/:leaderPositionId
+ * Get all copy positions for a leader's position.
+ */
+async function getCopyPositions(req, res) {
+    try {
+        const contract = getCopyTradingContract();
+        if (!contract) return res.status(503).json({ error: "COPY_TRADING_V2_ADDRESS not set" });
+
+        const leaderPositionId = parseInt(req.params.leaderPositionId);
+        const copies = await contract.getCopyPositions(leaderPositionId);
+
+        const perps = getPerpsContract();
+        const oracle = getOracleContract();
+
+        const result = [];
+        for (const cp of copies) {
+            let unrealizedPnl = 0;
+            let isProfit = false;
+            let currentPrice = 0;
+
+            if (cp.isOpen && perps && oracle) {
+                try {
+                    const pos = await perps.positions(cp.followerPerpsPositionId);
+                    if (pos.isOpen) {
+                        const price = await oracle.getPrice(pos.asset);
+                        const [pnl, profit] = await perps.calculatePnL(cp.followerPerpsPositionId, price);
+                        unrealizedPnl = parseFloat(ethers.formatEther(pnl)) * (profit ? 1 : -1);
+                        isProfit = profit;
+                        currentPrice = parseFloat(ethers.formatEther(price));
+                    }
+                } catch (e) { /* position closed */ }
+            }
+
+            result.push({
+                leaderPositionId: Number(cp.leaderPositionId),
+                followerPositionId: Number(cp.followerPerpsPositionId),
+                follower: cp.follower,
+                leader: cp.leader,
+                collateralUsed: parseFloat(ethers.formatEther(cp.collateralUsed)),
+                isOpen: cp.isOpen,
+                openedAt: Number(cp.openedAt),
+                unrealizedPnl,
+                isProfit,
+                currentPrice,
+            });
+        }
+
+        res.json({ leaderPositionId, copies: result });
+    } catch (err) {
+        console.error("[SocialTrading] getCopyPositions error:", err.message);
+        res.status(500).json({ error: err.message });
+    }
+}
+
+/**
+ * GET /api/social/stats
+ * Global copy trading statistics — all on-chain.
+ */
 async function getGlobalStats(req, res) {
-  try {
-    const contract = getSocialContract();
-    if (!contract) return res.json({
-      totalTraders: 0,
-      totalStrategies: 0,
-      totalAum: "0",
-      totalFollowers: 0,
-      totalPnl: "0",
-      topPerformer: null,
-      note: "SOCIAL_TRADING_ADDRESS not set"
-    });
+    try {
+        const contract = getCopyTradingContract();
+        if (!contract) {
+            return res.json({
+                totalLeaders: 0,
+                totalAum: "0",
+                totalFollowers: 0,
+                totalPnl: "0",
+                topPerformer: null,
+                note: "COPY_TRADING_V2_ADDRESS not set",
+            });
+        }
 
-    const [ids, strategies] = await contract.getActiveStrategies(0, 100);
-    const all = ids.map((id, i) => formatStrategy(id, strategies[i]));
+        const [addrs, profiles] = await contract.getActiveLeaders(0, 100);
+        const leaders = addrs.map((addr, i) => formatLeaderProfile(addr, profiles[i]));
 
-    const uniqueTraders = new Set(all.map(s => s.strategist.toLowerCase())).size;
-    const totalAum = all.reduce((s, x) => s + parseFloat(x.totalFollowerCapital), 0);
-    const totalFollowers = all.reduce((s, x) => s + x.followerCount, 0);
-    const totalPnl = all.reduce((s, x) => s + parseFloat(x.totalPnl), 0);
+        const totalAum = leaders.reduce((s, l) => s + l.totalCopiedCapital, 0);
+        const totalFollowers = leaders.reduce((s, l) => s + l.totalFollowers, 0);
+        const totalPnl = leaders.reduce((s, l) => s + l.totalPnl, 0);
+        const totalTrades = leaders.reduce((s, l) => s + l.tradesExecuted, 0);
 
-    // Find top performer by PnL
-    let topPerformer = null;
-    if (all.length > 0) {
-      const sorted = [...all].sort((a, b) => parseFloat(b.totalPnl) - parseFloat(a.totalPnl));
-      topPerformer = {
-        address: sorted[0].strategist,
-        name: sorted[0].name,
-        pnl: sorted[0].totalPnl,
-        roi: sorted[0].roi,
-      };
+        let topPerformer = null;
+        if (leaders.length > 0) {
+            const sorted = [...leaders].sort((a, b) => b.totalPnl - a.totalPnl);
+            topPerformer = {
+                address: sorted[0].address,
+                pnl: sorted[0].totalPnl,
+                roi: sorted[0].roi,
+                winRate: sorted[0].winRate,
+            };
+        }
+
+        res.json({
+            totalLeaders: leaders.length,
+            totalAum: totalAum.toFixed(2),
+            totalFollowers,
+            totalPnl: totalPnl.toFixed(2),
+            totalTrades,
+            topPerformer,
+        });
+    } catch (err) {
+        console.error("[SocialTrading] getGlobalStats error:", err.message);
+        res.status(500).json({ error: err.message });
     }
-
-    res.json({
-      totalTraders: uniqueTraders,
-      totalStrategies: all.length,
-      totalAum: totalAum.toFixed(2),
-      totalFollowers,
-      totalPnl: totalPnl.toFixed(2),
-      topPerformer,
-    });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
 }
 
-const fs = require("fs");
-const path = require("path");
-const COPY_TRADES_FILE = path.join(__dirname, "copy_trades.json");
+// ══════════════════════ BACKWARD COMPATIBILITY ══════════════════════
+// These map old V1 endpoints to V2 data for frontend compatibility.
 
-function getCopyTrades() {
-  if (fs.existsSync(COPY_TRADES_FILE)) {
-    try { return JSON.parse(fs.readFileSync(COPY_TRADES_FILE, "utf8")); } catch(e) {}
-  }
-  return {};
+/**
+ * GET /api/social/strategies — maps to leaders (backward compat)
+ */
+async function getStrategies(req, res) {
+    // Redirect to leaders endpoint
+    req.query = req.query || {};
+    return getLeaders(req, res);
 }
 
-function saveCopyTrades(data) {
-  fs.writeFileSync(COPY_TRADES_FILE, JSON.stringify(data, null, 2));
+/**
+ * GET /api/social/strategy/:id — maps to leader by index (backward compat)
+ */
+async function getStrategyById(req, res) {
+    try {
+        const contract = getCopyTradingContract();
+        if (!contract) return res.status(503).json({ error: "COPY_TRADING_V2_ADDRESS not set" });
+
+        const id = parseInt(req.params.id);
+        const leaderCount = await contract.getLeaderCount();
+
+        if (id >= Number(leaderCount)) {
+            return res.status(404).json({ error: "Strategy not found" });
+        }
+
+        const address = await contract.leaderList(id);
+        const profile = await contract.leaders(address);
+        const followers = await contract.getLeaderFollowers(address);
+
+        res.json({
+            strategy: { id, ...formatLeaderProfile(address, profile) },
+            followers,
+        });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
 }
 
-async function handleCopyTrade(req, res) {
-  const { followerAuraAccount, targetTrader, amount } = req.body;
-  if (!followerAuraAccount || !targetTrader) return res.status(400).json({ error: "Missing parameters" });
-  
-  const trades = getCopyTrades();
-  const lowerTarget = targetTrader.toLowerCase();
-  if (!trades[lowerTarget]) trades[lowerTarget] = [];
-  
-  const existingIndex = trades[lowerTarget].findIndex(f => f.followerAuraAccount.toLowerCase() === followerAuraAccount.toLowerCase());
-  if (existingIndex > -1) {
-    trades[lowerTarget][existingIndex].amount = amount;
-  } else {
-    trades[lowerTarget].push({ followerAuraAccount, amount });
-  }
-  
-  saveCopyTrades(trades);
-  res.json({ success: true, message: `Now auto-copying trades from ${targetTrader} via AI Agent` });
+/**
+ * GET /api/social/position/:strategyId/:follower — backward compat
+ */
+async function getFollowerPosition(req, res) {
+    try {
+        const contract = getCopyTradingContract();
+        if (!contract) return res.status(503).json({ error: "COPY_TRADING_V2_ADDRESS not set" });
+
+        const { strategyId, follower } = req.params;
+        if (!ethers.isAddress(follower)) return res.status(400).json({ error: "Invalid address" });
+
+        const id = parseInt(strategyId);
+        const leaderCount = await contract.getLeaderCount();
+        if (id >= Number(leaderCount)) return res.status(404).json({ error: "Leader not found" });
+
+        const leaderAddr = await contract.leaderList(id);
+        const alloc = await contract.allocations(leaderAddr, follower);
+
+        res.json({
+            strategyId: id,
+            leader: leaderAddr,
+            follower,
+            capitalDeposited: ethers.formatEther(alloc.capitalDeposited),
+            capitalInPositions: ethers.formatEther(alloc.capitalInPositions),
+            highWaterMark: ethers.formatEther(alloc.highWaterMark),
+            isActive: alloc.isActive,
+            scaleFactor: Number(alloc.scaleFactor) / 10000,
+        });
+    } catch (err) {
+        res.status(500).json({ error: err.message });
+    }
 }
 
-async function getCopyStatus(req, res) {
-  const follower = req.params.account.toLowerCase();
-  const trades = getCopyTrades();
-  let following = [];
-  for (const [target, followers] of Object.entries(trades)) {
-    const found = followers.find(f => f.followerAuraAccount.toLowerCase() === follower);
-    if (found) following.push({ targetTrader: target, amount: found.amount });
-  }
-  res.json({ following });
+/**
+ * GET /api/social/trader/:address — backward compat, maps to getLeaderProfile
+ */
+async function getTraderProfile(req, res) {
+    return getLeaderProfile(req, res);
 }
+
+/**
+ * GET /api/social/trader/:address/history — backward compat
+ */
+async function getTraderHistory(req, res) {
+    return getLeaderHistory(req, res);
+}
+
+// ══════════════════════ EXPORTS ══════════════════════
 
 module.exports = {
-  getStrategies,
-  getStrategyById,
-  getFollowerPosition,
-  getLeaderboard,
-  getTraderProfile,
-  getTraderHistory,
-  getGlobalStats,
-  handleCopyTrade,
-  getCopyStatus,
+    // V2 endpoints
+    getLeaders,
+    getLeaderProfile,
+    getFollowerAllocation,
+    getLeaderboard,
+    getLeaderHistory,
+    getCopyPositions,
+    getGlobalStats,
+
+    // V1 backward compatibility
+    getStrategies,
+    getStrategyById,
+    getFollowerPosition,
+    getTraderProfile,
+    getTraderHistory,
 };

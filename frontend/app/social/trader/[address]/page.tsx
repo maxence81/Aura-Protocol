@@ -24,15 +24,13 @@ import {
   Award,
   Flame,
 } from "lucide-react";
-import { ConnectButton, useActiveAccount } from "thirdweb/react";
+import { ConnectButton, useActiveAccount, useSendTransaction } from "thirdweb/react";
 import { createWallet } from "thirdweb/wallets";
-import { defineChain } from "thirdweb";
+import { defineChain, readContract, getContract, prepareContractCall } from "thirdweb";
 import { client } from "../../../client";
 import { API_URL } from "../../../../lib/config";
-import { readContract, getContract } from "thirdweb";
-import { CONTRACT_ADDRESSES } from "../../../../lib/contracts";
-
-const AURA_FACTORY_ABI = [{ inputs: [{ internalType: "address", name: "owner", type: "address" }], name: "getAccount", outputs: [{ internalType: "address", name: "", type: "address" }], stateMutability: "view", type: "function" }] as const;
+import { CONTRACT_ADDRESSES, AURA_COPY_TRADING_V2_ABI, AUSD_ABI } from "../../../../lib/contracts";
+import { ethers } from "ethers";
 
 // ─── Chain & wallet config ───────────────────────────────────────────
 const robinhoodChain = defineChain({
@@ -59,7 +57,7 @@ type TraderHistory = {
   address: string;
   days: number;
   totalPnl: number;
-  totalCapital: number;
+  totalCopiedCapital: number;
   history: HistoryEntry[];
 };
 
@@ -82,11 +80,10 @@ type TraderProfile = {
   totalPnl: number;
   roi: number;
   winRate: number;
-  totalTrades: number;
+  tradesExecuted: number;
   maxDrawdown: number;
-  aum: number;
+  totalCopiedCapital: number;
   totalFollowers: number;
-  daysActive: number;
   createdAt: string;
 };
 
@@ -514,6 +511,7 @@ export default function TraderProfilePage() {
   const [modalStrategy, setModalStrategy] = useState<Strategy | null>(null);
   const [followAmount, setFollowAmount] = useState("");
   const [allocationPct, setAllocationPct] = useState(25);
+  const { mutateAsync: sendTx } = useSendTransaction();
 
   // ── Fetch trader data ──
   const fetchTraderData = useCallback(async () => {
@@ -545,11 +543,10 @@ export default function TraderProfilePage() {
         totalPnl: 12450.67,
         roi: 34.5,
         winRate: 72.3,
-        totalTrades: 156,
+        tradesExecuted: 156,
         maxDrawdown: -8.2,
-        aum: 45200,
+        totalCopiedCapital: 45200,
         totalFollowers: 47,
-        daysActive: 45,
         createdAt: new Date(Date.now() - 45 * 86400000).toISOString(),
       });
       setStrategies([
@@ -599,7 +596,7 @@ export default function TraderProfilePage() {
         address,
         days,
         totalPnl: cumPnl,
-        totalCapital: 36000,
+        totalCopiedCapital: 36000,
         history: mockHistory,
       });
     } finally {
@@ -638,6 +635,7 @@ export default function TraderProfilePage() {
 
   // ── Derived ──
   const isPositivePnl = (profile?.totalPnl ?? 0) >= 0;
+  const daysActive = profile ? Math.max(1, Math.floor((Date.now() - new Date(profile.createdAt).getTime()) / 86400000)) : 0;
   const badges = useMemo(() => {
     if (!profile) return [];
     const b: { label: string; color: string; icon: React.ReactNode }[] = [];
@@ -647,13 +645,13 @@ export default function TraderProfilePage() {
         color: "from-yellow-500 to-amber-600",
         icon: <Award size={12} />,
       });
-    if (profile.daysActive > 30)
+    if (daysActive > 30)
       b.push({
         label: "Veteran",
         color: "from-purple-500 to-purple-700",
         icon: <Shield size={12} />,
       });
-    if (profile.aum > 1000)
+    if (profile.totalCopiedCapital > 1000)
       b.push({
         label: "Whale",
         color: "from-neon-cyan to-blue-600",
@@ -690,44 +688,39 @@ export default function TraderProfilePage() {
     }
     
     try {
-      const FACTORY = "0x95Aa20d53EB26f292a71D8B38515BBeC8905b550";
-      const factory = getContract({
+      const parsedAmount = ethers.parseEther(followAmount || "0");
+      
+      const ausdContract = getContract({
         client,
         chain: robinhoodChain,
-        address: FACTORY as `0x${string}`,
-        abi: AURA_FACTORY_ABI as any,
+        address: CONTRACT_ADDRESSES.AUSD,
+        abi: AUSD_ABI as any,
       });
-      const acct = await readContract({
-        contract: factory,
-        method: "getAccount",
-        params: [account.address, 0n],
+
+      const copyTradingContract = getContract({
+        client,
+        chain: robinhoodChain,
+        address: CONTRACT_ADDRESSES.AURA_COPY_TRADING_V2,
+        abi: AURA_COPY_TRADING_V2_ABI as any,
       });
+
+      const approveCall = prepareContractCall({
+        contract: ausdContract,
+        method: "approve",
+        params: [CONTRACT_ADDRESSES.AURA_COPY_TRADING_V2, parsedAmount]
+      });
+
+      await sendTx(approveCall);
+
+      const followCall = prepareContractCall({
+        contract: copyTradingContract,
+        method: "followLeader",
+        params: [address, parsedAmount, BigInt(Math.floor((allocationPct / 100) * 10000)), 50n]
+      });
+
+      await sendTx(followCall);
       
-      const auraAccountAddress = acct && acct !== "0x0000000000000000000000000000000000000000" 
-        ? (acct as string).toLowerCase() 
-        : null;
-
-      if (!auraAccountAddress) {
-        alert("You need an AuraAccount to use the AI Agent copy trading. Please visit the Account page to set it up.");
-        return;
-      }
-
-      const res = await fetch(`${API_URL}/api/social/copy`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          followerAuraAccount: auraAccountAddress,
-          targetTrader: address,
-          amount: followAmount
-        })
-      });
-
-      const data = await res.json();
-      if (data.success) {
-        alert(`🚀 Copy Trade Activated via AI Agent!\n\nThe AI Agent will now automatically replicate trades from ${address} using your AuraAccount.`);
-      } else {
-        alert(`Error: ${data.error}`);
-      }
+      alert(`🚀 Copy Trade Activated via Smart Contract!\n\nReplicating trades from ${address}.`);
     } catch (err: any) {
       alert(`Error setting up copy trade: ${err.message}`);
     }
@@ -884,13 +877,13 @@ export default function TraderProfilePage() {
                       {
                         label: "Win Rate",
                         value: `${profile.winRate.toFixed(1)}%`,
-                        sub: `${profile.totalTrades} trades`,
+                        sub: `${profile.tradesExecuted} trades`,
                         color: "text-neon-cyan",
                         glow: "cyber-glow-cyan",
                       },
                       {
                         label: "Total Trades",
-                        value: profile.totalTrades.toString(),
+                        value: profile.tradesExecuted.toString(),
                         sub: "all time",
                         color: "text-white",
                         glow: "",
@@ -1102,7 +1095,7 @@ export default function TraderProfilePage() {
                   ),
                   extra: (
                     <span className="text-[10px] text-gray-500">
-                      {profile.totalTrades} total trades
+                      {profile.tradesExecuted} total trades
                     </span>
                   ),
                   valueColor: "text-white",
@@ -1147,8 +1140,9 @@ export default function TraderProfilePage() {
                       : "text-yellow-400",
                 },
                 {
-                  label: "AUM",
-                  value: `${formatNumber(profile.aum)}`,
+                  label: "Copied Capital",
+                  value: `${formatNumber(profile.totalCopiedCapital)}`,
+                  color: "purple",
                   icon: (
                     <div className="p-2 rounded-lg bg-purple/10 text-purple">
                       <DollarSign size={18} />
@@ -1178,7 +1172,7 @@ export default function TraderProfilePage() {
                 },
                 {
                   label: "Days Active",
-                  value: profile.daysActive.toString(),
+                  value: daysActive.toString(),
                   icon: (
                     <div className="p-2 rounded-lg bg-neon-pink/10 text-neon-pink">
                       <Clock size={18} />

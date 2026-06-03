@@ -53,15 +53,13 @@ const wallets = [
 type Trader = {
   rank: number;
   address: string;
-  strategyCount: number;
   totalPnl: number;
-  totalCapital: number;
+  totalCopiedCapital: number;
   totalFollowers: number;
-  totalTrades: number;
+  tradesExecuted: number;
   roi: number;
   winRate: number;
   maxDrawdown: number;
-  bestStrategyName: string;
   ageDays: number;
 };
 
@@ -401,17 +399,6 @@ function FollowModal({
             ))}
           </div>
 
-          {/* Best Strategy */}
-          {trader.bestStrategyName && (
-            <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-neon-cyan/5 border border-neon-cyan/20">
-              <Zap size={14} className="text-neon-cyan" />
-              <span className="text-xs text-gray-400">Best Strategy:</span>
-              <span className="text-xs text-neon-cyan font-semibold">
-                {trader.bestStrategyName}
-              </span>
-            </div>
-          )}
-
           {/* Amount Input */}
           <div>
             <label className="text-xs text-gray-500 mb-1.5 block uppercase tracking-wider">
@@ -487,9 +474,7 @@ function FollowModal({
               disabled={!amount || parseFloat(amount) <= 0}
               className="flex-1 py-3.5 rounded-xl font-bold transition-all relative overflow-hidden group disabled:opacity-30 disabled:cursor-not-allowed bg-gradient-to-r from-neon-cyan/20 to-neon-purple/20 border border-neon-cyan/40 hover:border-neon-cyan hover:shadow-[0_0_30px_rgba(0,240,255,0.3)] text-neon-cyan"
               onClick={() => {
-                alert(
-                  `Copy Trade: Allocate ${amount} aUSD (${allocation}%) to trader ${shortAddr(trader.address)}\n\nThis would call AuraSocialTrading.follow() on-chain.`
-                );
+                alert("Proceeding to trader page to copy...");
                 onClose();
               }}
             >
@@ -520,7 +505,7 @@ const SORT_OPTIONS = [
   { label: "ROI", value: "roi" },
   { label: "Win Rate", value: "winRate" },
   { label: "Followers", value: "totalFollowers" },
-  { label: "AUM", value: "totalCapital" },
+  { label: "Copied Capital", value: "totalCopiedCapital" },
 ];
 
 export default function SocialPage() {
@@ -571,7 +556,7 @@ export default function SocialPage() {
       const res = await fetch(`${API_URL}/api/social/leaderboard?${params}`);
       if (!res.ok) throw new Error(`API returned ${res.status}`);
       const data = await res.json();
-      setTraders(data.traders || []);
+      setTraders(data.leaders || []);
       setTotal(data.total || 0);
     } catch (err: any) {
       setTraders([]);
@@ -853,7 +838,6 @@ export default function SocialPage() {
             <div className="w-14 text-center">Win%</div>
             <div className="w-16 text-center">Followers</div>
             <div className="w-20 text-right">AUM</div>
-            <div className="w-12 text-center">Strats</div>
             <div className="w-24" />
           </div>
 
@@ -946,12 +930,6 @@ export default function SocialPage() {
                           />
                         )}
                       </div>
-                      {trader.bestStrategyName && (
-                        <p className="text-[11px] text-gray-500 truncate">
-                          {trader.bestStrategyName}
-                        </p>
-                      )}
-                    </div>
                   </div>
 
                   {/* PnL */}
@@ -986,14 +964,7 @@ export default function SocialPage() {
                   {/* AUM */}
                   <div className="w-20 text-right">
                     <span className="text-sm text-purple-300 font-mono">
-                      {formatUSD(trader.totalCapital)}
-                    </span>
-                  </div>
-
-                  {/* Strategy count */}
-                  <div className="w-12 text-center">
-                    <span className="text-sm text-gray-400 font-mono">
-                      {trader.strategyCount}
+                      {formatUSD(trader.totalCopiedCapital)}
                     </span>
                   </div>
 
