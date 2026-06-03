@@ -124,7 +124,7 @@ function TraderAvatar({ address, size = 96 }: { address: string; size?: number }
   const [c1, c2] = addressToGradient(address);
   const id = `avatar-${address.slice(2, 10)}`;
   return (
-    <svg width={size} height={size} viewBox="0 0 96 96" className="rounded-2xl">
+    <svg width={size} height={size} viewBox="0 0 96 96" className="rounded-none">
       <defs>
         <linearGradient id={id} x1="0%" y1="0%" x2="100%" y2="100%">
           <stop offset="0%" stopColor={c1} />
@@ -406,8 +406,8 @@ function PerformanceChart({
               top: Math.max(tooltip.y - 80, 4),
             }}
           >
-            <div className="glass-card-cyber rounded-lg px-3 py-2 text-xs min-w-[140px]">
-              <div className="text-white font-mono mb-1">
+            <div className="glass-card-cyber rounded-none px-3 py-2 text-xs min-w-[140px]">
+              <div className="text-white/80 font-mono mb-1">
                 {new Date(tooltip.entry.date).toLocaleDateString("en-US", {
                   month: "short",
                   day: "numeric",
@@ -415,7 +415,7 @@ function PerformanceChart({
                 })}
               </div>
               <div className="flex justify-between gap-4">
-                <span className="text-white">PnL</span>
+                <span className="text-white/80">PnL</span>
                 <span
                   className={`font-bold font-mono ${
                     tooltip.entry.cumulativePnl >= 0
@@ -428,10 +428,10 @@ function PerformanceChart({
                 </span>
               </div>
               <div className="flex justify-between gap-4 mt-0.5">
-                <span className="text-white">Daily</span>
+                <span className="text-white/80">Daily</span>
                 <span
                   className={`font-mono ${
-                    tooltip.entry.dailyPnl >= 0 ? "text-white" : "text-white"
+                    tooltip.entry.dailyPnl >= 0 ? "text-white/80" : "text-white/80"
                   }`}
                 >
                   {tooltip.entry.dailyPnl >= 0 ? "+" : ""}
@@ -499,7 +499,7 @@ export default function TraderProfilePage() {
       <div className="min-h-screen bg-cyber-black flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
           <div className="w-12 h-12 border-2 border-neon-cyan border-t-transparent rounded-full animate-spin" style={{ boxShadow: '0 0 15px rgba(0,240,255,0.3)' }} />
-          <span className="text-white font-mono text-sm tracking-widest uppercase">Loading profile</span>
+          <span className="text-white/80 font-mono text-sm tracking-widest uppercase">Loading profile</span>
         </div>
       </div>
     }>
@@ -813,7 +813,7 @@ function TraderProfileContent() {
               boxShadow: "0 0 15px rgba(0,240,255,0.3)",
             }}
           />
-          <span className="text-white font-mono text-sm tracking-widest uppercase">
+          <span className="text-white/80 font-mono text-sm tracking-widest uppercase">
             Loading profile
           </span>
         </div>
@@ -827,11 +827,11 @@ function TraderProfileContent() {
       <div className="min-h-screen bg-cyber-black flex items-center justify-center">
         <div className="flex flex-col items-center gap-4 text-center">
           <div className="text-4xl mb-2"></div>
-          <h2 className="text-xl font-bold text-white font-mono">Trader Not Found</h2>
-          <p className="text-white text-sm font-mono max-w-md">
+          <h2 className="text-xl font-bold text-white/80 font-mono">Trader Not Found</h2>
+          <p className="text-white/60 text-sm font-mono max-w-md">
             No profile data available for this address. The trader may not be registered yet.
           </p>
-          <Link href="/social" className="mt-4 px-6 py-2 rounded-xl bg-neon-cyan/10 border border-neon-cyan/30 text-white text-sm font-bold hover:bg-neon-cyan/20 transition-all">
+          <Link href="/social" className="mt-4 px-6 py-2 bg-[#00f0ff]/10 hover:bg-[#00f0ff]/20 text-[#00f0ff] border border-[#00f0ff]/30 rounded-none text-white/60 text-sm font-bold hover:bg-neon-cyan/20 transition-all">
              Back to Leaderboard
           </Link>
         </div>
@@ -840,7 +840,7 @@ function TraderProfileContent() {
   }
 
   return (
-    <div className="min-h-screen bg-cyber-black text-white selection:bg-neon-cyan/30 overflow-x-hidden font-sans relative">
+    <div className="min-h-screen bg-cyber-black text-white/80 selection:bg-neon-cyan/30 overflow-x-hidden font-sans relative">
       {/* Background */}
       <img src="/assets/fond_social.png" className="fixed inset-0 z-0 h-full w-full object-cover opacity-30 pointer-events-none" alt="" />
       <div className="cyber-grid-bg fixed inset-0 z-0" />
@@ -850,18 +850,18 @@ function TraderProfileContent() {
       {/*  HEADER  */}
       <header className="h-[48px] border-b border-[#00f0ff]/30 flex items-center justify-between px-4 bg-[#050505] flex-shrink-0 relative z-50 font-mono">
         <div className="flex items-center gap-3">
-          <Link href="/social" className="text-white/40 hover:text-white transition flex items-center gap-1.5">
+          <Link href="/social" className="text-white/40 hover:text-white/80 transition flex items-center gap-1.5">
             <ArrowLeft className="w-3.5 h-3.5" />
             <span className="text-[10px] font-bold uppercase tracking-widest">Back</span>
           </Link>
           <div className="border-l border-[#00f0ff]/20 pl-3 ml-1">
-            <span className="text-[9px] text-white font-bold uppercase tracking-widest bg-[#00f0ff]/10 border border-[#00f0ff]/30 px-2 py-0.5">Trader Profile</span>
+            <span className="text-[9px] text-white/80 font-bold uppercase tracking-widest bg-[#00f0ff]/10 border border-[#00f0ff]/30 px-2 py-0.5">Trader Profile</span>
           </div>
-          <Link href="/social/dashboard" className="text-[9px] text-white/30 hover:text-white font-bold uppercase tracking-widest transition ml-2">Dashboard</Link>
-          <Link href="/trade" className="text-[9px] text-white/30 hover:text-white font-bold uppercase tracking-widest transition ml-1">Trade</Link>
-          <Link href="/portfolio" className="text-[9px] text-white/30 hover:text-white font-bold uppercase tracking-widest transition ml-1">Portfolio</Link>
-          <Link href="/perp-vault" className="text-[9px] text-white/30 hover:text-white font-bold uppercase tracking-widest transition ml-1">Earn Yield</Link>
-          <Link href="/trade/account" className="text-[9px] text-white/30 hover:text-white font-bold uppercase tracking-widest transition ml-1">Account</Link>
+          <Link href="/social/dashboard" className="text-[9px] text-white/30 hover:text-white/80 font-bold uppercase tracking-widest transition ml-2">Dashboard</Link>
+          <Link href="/trade" className="text-[9px] text-white/30 hover:text-white/80 font-bold uppercase tracking-widest transition ml-1">Trade</Link>
+          <Link href="/portfolio" className="text-[9px] text-white/30 hover:text-white/80 font-bold uppercase tracking-widest transition ml-1">Portfolio</Link>
+          <Link href="/perp-vault" className="text-[9px] text-white/30 hover:text-white/80 font-bold uppercase tracking-widest transition ml-1">Earn Yield</Link>
+          <Link href="/trade/account" className="text-[9px] text-white/30 hover:text-white/80 font-bold uppercase tracking-widest transition ml-1">Account</Link>
         </div>
         <ConnectButton
           client={client}
@@ -879,10 +879,10 @@ function TraderProfileContent() {
           transition={{ duration: 0.5 }}
           className="mt-8"
         >
-          <div className="glass-card-cyber rounded-2xl p-6 sm:p-8 relative overflow-hidden">
+          <div className="bg-[#050505] border border-[#00f0ff]/10 rounded-none p-6 sm:p-8 relative overflow-hidden">
             {/* Decorative corner accents */}
-            <div className="absolute top-0 left-0 w-20 h-20 border-l-2 border-t-2 border-neon-cyan/20 rounded-tl-2xl" />
-            <div className="absolute bottom-0 right-0 w-20 h-20 border-r-2 border-b-2 border-neon-cyan/20 rounded-br-2xl" />
+            
+            
 
             {/* Background */}
             <div
@@ -917,7 +917,7 @@ function TraderProfileContent() {
                 <div className="flex items-center gap-3 mb-2 flex-wrap">
                   <button
                     onClick={copyAddress}
-                    className="flex items-center gap-2 font-mono text-sm text-white hover:text-white transition-colors group bg-white/[0.03] px-3 py-1.5 rounded-lg border border-white/[0.06] hover:border-neon-cyan/30"
+                    className="flex items-center gap-2 font-mono text-sm text-white/80 hover:text-white/80 transition-colors group bg-white/[0.03] px-3 py-1.5 rounded-none border border-white/[0.06] hover:border-neon-cyan/30"
                   >
                     <span className="truncate max-w-[320px]">{address}</span>
                     {copied ? (
@@ -925,7 +925,7 @@ function TraderProfileContent() {
                     ) : (
                       <Copy
                         size={14}
-                        className="text-white group-hover:text-white shrink-0"
+                        className="text-white/80 group-hover:text-white/80 shrink-0"
                       />
                     )}
                   </button>
@@ -939,7 +939,7 @@ function TraderProfileContent() {
                       initial={{ opacity: 0, scale: 0.8 }}
                       animate={{ opacity: 1, scale: 1 }}
                       transition={{ delay: 0.3 + i * 0.1 }}
-                      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider text-white bg-gradient-to-r ${b.color}`}
+                      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider text-white/80 bg-gradient-to-r ${b.color}`}
                       style={{
                         boxShadow: "0 0 12px rgba(0,0,0,0.3)",
                       }}
@@ -972,14 +972,14 @@ function TraderProfileContent() {
                         label: "Win Rate",
                         value: `${profile.winRate.toFixed(1)}%`,
                         sub: `${profile.tradesExecuted} trades`,
-                        color: "text-white",
+                        color: "text-white/80",
                         glow: "cyber-glow-cyan",
                       },
                       {
                         label: "Total Trades",
                         value: profile.tradesExecuted.toString(),
                         sub: "all time",
-                        color: "text-white",
+                        color: "text-white/80",
                         glow: "",
                       },
                     ].map((stat, i) => (
@@ -989,7 +989,7 @@ function TraderProfileContent() {
                         animate={{ opacity: 1, y: 0 }}
                         transition={{ delay: 0.4 + i * 0.08 }}
                       >
-                        <div className="text-[10px] font-mono uppercase tracking-widest text-white mb-1">
+                        <div className="text-[10px] font-mono uppercase tracking-widest text-white/50 mb-1">
                           {stat.label}
                         </div>
                         <div
@@ -997,7 +997,7 @@ function TraderProfileContent() {
                         >
                           {stat.value}
                         </div>
-                        <div className="text-[10px] text-white">{stat.sub}</div>
+                        <div className="text-[10px] text-white/40">{stat.sub}</div>
                       </motion.div>
                     ))}
                   </div>
@@ -1014,38 +1014,15 @@ function TraderProfileContent() {
                 <button
                   onClick={() => openCopyTradeModal()}
                   disabled={!account}
-                  className="relative group px-8 py-4 rounded-none font-display font-bold text-sm uppercase tracking-wider bg-gradient-to-r from-neon-cyan/20 to-neon-green/20 border border-neon-cyan/50 text-white hover:text-white disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-300 hover:border-neon-cyan hover:shadow-[0_0_30px_rgba(0,240,255,0.3),0_0_60px_rgba(0,240,255,0.1)]"
+                  className="w-full bg-[#00f0ff]/10 hover:bg-[#00f0ff]/20 text-[#00f0ff] border border-[#00f0ff]/30 text-xs font-mono uppercase px-4 py-3 transition-colors rounded-none disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                 >
                   <span className="relative z-10 flex items-center gap-2">
                     <Zap size={16} />
                     Copy This Trader
                   </span>
-                  {/* Animated glow border */}
-                  <div className="absolute inset-0 rounded-none opacity-0 group-hover:opacity-100 transition-opacity duration-500">
-                    <div
-                      className="absolute inset-0 rounded-none"
-                      style={{
-                        background:
-                          "linear-gradient(135deg, rgba(0,240,255,0.15), rgba(57,255,20,0.15))",
-                      }}
-                    />
-                  </div>
-                  {/* Pulse ring */}
-                  <motion.div
-                    animate={{
-                      scale: [1, 1.15, 1],
-                      opacity: [0.3, 0, 0.3],
-                    }}
-                    transition={{
-                      duration: 2,
-                      repeat: Infinity,
-                      ease: "easeInOut",
-                    }}
-                    className="absolute inset-0 rounded-none border border-neon-cyan/30"
-                  />
                 </button>
                 {!account && (
-                  <p className="text-[10px] text-white text-center mt-2">
+                  <p className="text-[10px] text-white/40 text-center mt-2">
                     Connect wallet to copy trade
                   </p>
                 )}
@@ -1061,10 +1038,10 @@ function TraderProfileContent() {
           transition={{ delay: 0.3 }}
           className="mt-6"
         >
-          <div className="glass-card-cyber rounded-2xl p-5 sm:p-6">
+          <div className="bg-[#050505] border border-[#00f0ff]/10 rounded-none p-5 sm:p-6">
             <div className="flex items-center justify-between mb-4">
               <div className="flex items-center gap-3">
-                <TrendingUp size={18} className="text-white" />
+                <TrendingUp size={18} className="text-white/80" />
                 <h2 className="font-display font-bold text-base">
                   Cumulative PnL
                 </h2>
@@ -1083,15 +1060,15 @@ function TraderProfileContent() {
               </div>
 
               {/* Period selector */}
-              <div className="flex items-center gap-1 bg-white/[0.03] rounded-lg p-1 border border-white/[0.06]">
+              <div className="flex items-center gap-1 bg-white/[0.03] rounded-none p-1 border border-white/[0.06]">
                 {([7, 30, 90] as const).map((d) => (
                   <button
                     key={d}
                     onClick={() => setSelectedPeriod(d)}
                     className={`px-3 py-1.5 rounded-md text-xs font-mono font-bold transition-all ${
                       selectedPeriod === d
-                        ? "bg-neon-cyan/15 text-white border border-neon-cyan/30"
-                        : "text-white hover:text-white border border-transparent"
+                        ? "bg-neon-cyan/15 text-white/80 border border-neon-cyan/30"
+                        : "text-white/80 hover:text-white/80 border border-transparent"
                     }`}
                   >
                     {d}d
@@ -1107,7 +1084,7 @@ function TraderProfileContent() {
                 isPositive={history.totalPnl >= 0}
               />
             ) : (
-              <div className="h-64 flex items-center justify-center text-white font-mono text-sm">
+              <div className="h-64 flex items-center justify-center text-white/80 font-mono text-sm">
                 No performance data available
               </div>
             )}
@@ -1129,7 +1106,7 @@ function TraderProfileContent() {
                   value: `${profile.roi >= 0 ? "+" : ""}${profile.roi.toFixed(1)}%`,
                   icon: (
                     <div
-                      className={`p-2 rounded-lg ${
+                      className={`p-2 rounded-none ${
                         profile.roi >= 0
                           ? "bg-neon-green/10 text-neon-green"
                           : "bg-coral/10 text-coral"
@@ -1188,23 +1165,23 @@ function TraderProfileContent() {
                     </div>
                   ),
                   extra: (
-                    <span className="text-[10px] text-white">
+                    <span className="text-[10px] text-white/40">
                       {profile.tradesExecuted} total trades
                     </span>
                   ),
-                  valueColor: "text-white",
+                  valueColor: "text-white/80",
                 },
                 {
                   label: "Max Drawdown",
                   value: `${profile.maxDrawdown.toFixed(1)}%`,
                   icon: (
                     <div
-                      className={`p-2 rounded-lg ${
+                      className={`p-2 rounded-none ${
                         Math.abs(profile.maxDrawdown) > 20
-                          ? "bg-red-500/10 text-white"
+                          ? "bg-red-500/10 text-white/80"
                           : Math.abs(profile.maxDrawdown) > 10
                           ? "bg-orange-500/10 text-orange-400"
-                          : "bg-yellow-500/10 text-white"
+                          : "bg-yellow-500/10 text-white/80"
                       }`}
                     >
                       <AlertTriangle size={18} />
@@ -1228,52 +1205,52 @@ function TraderProfileContent() {
                   ),
                   valueColor:
                     Math.abs(profile.maxDrawdown) > 20
-                      ? "text-white"
+                      ? "text-white/80"
                       : Math.abs(profile.maxDrawdown) > 10
                       ? "text-orange-400"
-                      : "text-white",
+                      : "text-white/80",
                 },
                 {
                   label: "Copied Capital",
                   value: `${formatNumber(profile.totalCopiedCapital)}`,
                   color: "purple",
                   icon: (
-                    <div className="p-2 rounded-lg bg-purple/10 text-white">
+                    <div className="p-2 rounded-none bg-purple/10 text-white/80">
                       <DollarSign size={18} />
                     </div>
                   ),
                   extra: (
-                    <span className="text-[10px] text-white">
+                    <span className="text-[10px] text-white/40">
                       Total capital managed (aUSD)
                     </span>
                   ),
-                  valueColor: "text-white",
+                  valueColor: "text-white/80",
                 },
                 {
                   label: "Total Followers",
                   value: profile.totalFollowers.toString(),
                   icon: (
-                    <div className="p-2 rounded-lg bg-neon-cyan/10 text-white">
+                    <div className="p-2 rounded-none bg-neon-cyan/10 text-white/80">
                       <Users size={18} />
                     </div>
                   ),
                   extra: (
-                    <span className="text-[10px] text-white">
+                    <span className="text-[10px] text-white/40">
                       Active copy traders
                     </span>
                   ),
-                  valueColor: "text-white",
+                  valueColor: "text-white/80",
                 },
                 {
                   label: "Days Active",
                   value: daysActive.toString(),
                   icon: (
-                    <div className="p-2 rounded-lg bg-neon-pink/10 text-neon-pink">
+                    <div className="p-2 rounded-none bg-neon-pink/10 text-neon-pink">
                       <Clock size={18} />
                     </div>
                   ),
                   extra: (
-                    <span className="text-[10px] text-white">
+                    <span className="text-[10px] text-white/40">
                       Since{" "}
                       {new Date(profile.createdAt).toLocaleDateString("en-US", {
                         month: "short",
@@ -1290,10 +1267,10 @@ function TraderProfileContent() {
                   initial={{ opacity: 0, y: 15 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{ delay: 0.5 + i * 0.06 }}
-                  className="glass-card-cyber rounded-xl p-4 hover:border-neon-cyan/20 transition-all duration-300 group"
+                  className="bg-[#050505] border border-[#00f0ff]/10 rounded-none p-4 hover:border-neon-cyan/20 transition-all duration-300 group"
                 >
                   <div className="flex items-start justify-between mb-2">
-                    <span className="text-[10px] font-mono uppercase tracking-widest text-white">
+                    <span className="text-[10px] font-mono uppercase tracking-widest text-white/50">
                       {card.label}
                     </span>
                     {card.icon}
@@ -1317,7 +1294,7 @@ function TraderProfileContent() {
           <div className="flex items-center gap-3 mb-5">
             <Star size={18} className="text-neon-yellow" />
             <h2 className="font-display font-bold text-lg">Strategies</h2>
-            <span className="text-xs font-mono text-white bg-white/[0.03] px-2 py-0.5 rounded-full border border-white/[0.06]">
+            <span className="text-xs font-mono text-white/80 bg-white/[0.03] px-2 py-0.5 rounded-full border border-white/[0.06]">
               {strategies.length}
             </span>
           </div>
@@ -1334,7 +1311,7 @@ function TraderProfileContent() {
                   initial={{ opacity: 0, x: -15 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: 0.7 + i * 0.1 }}
-                  className="glass-card-cyber rounded-xl p-5 sm:p-6 hover:border-neon-cyan/25 transition-all duration-300 relative overflow-hidden group"
+                  className="bg-[#050505] border border-[#00f0ff]/10 rounded-none p-5 sm:p-6 hover:border-neon-cyan/25 transition-all duration-300 relative overflow-hidden group"
                 >
                   {/* Subtle gradient accent on left */}
                   <div
@@ -1349,7 +1326,7 @@ function TraderProfileContent() {
                     {/* Strategy info */}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-3 mb-1">
-                        <h3 className="font-display font-bold text-base text-white group-hover:text-white transition-colors">
+                        <h3 className="font-display font-bold text-base text-white/80 group-hover:text-white/80 transition-colors">
                           {s.name}
                         </h3>
                         {isFollowing && (
@@ -1359,14 +1336,14 @@ function TraderProfileContent() {
                           </span>
                         )}
                       </div>
-                      <p className="text-xs text-white mb-3 line-clamp-2">
+                      <p className="text-xs text-white/80 mb-3 line-clamp-2">
                         {s.description}
                       </p>
 
                       {/* Metrics row */}
                       <div className="flex flex-wrap items-center gap-x-5 gap-y-2 text-sm">
                         <div>
-                          <span className="text-[10px] font-mono text-white uppercase tracking-wider">
+                          <span className="text-[10px] font-mono text-white/80 uppercase tracking-wider">
                             PnL
                           </span>
                           <div
@@ -1379,7 +1356,7 @@ function TraderProfileContent() {
                           </div>
                         </div>
                         <div>
-                          <span className="text-[10px] font-mono text-white uppercase tracking-wider">
+                          <span className="text-[10px] font-mono text-white/80 uppercase tracking-wider">
                             ROI
                           </span>
                           <div
@@ -1392,24 +1369,24 @@ function TraderProfileContent() {
                           </div>
                         </div>
                         <div>
-                          <span className="text-[10px] font-mono text-white uppercase tracking-wider">
+                          <span className="text-[10px] font-mono text-white/80 uppercase tracking-wider">
                             Followers
                           </span>
-                          <div className="font-bold text-white flex items-center gap-1">
-                            <Users size={12} className="text-white" />
+                          <div className="font-bold text-white/80 flex items-center gap-1">
+                            <Users size={12} className="text-white/80" />
                             {s.followerCount}
                           </div>
                         </div>
                         <div>
-                          <span className="text-[10px] font-mono text-white uppercase tracking-wider">
+                          <span className="text-[10px] font-mono text-white/80 uppercase tracking-wider">
                             AUM
                           </span>
-                          <div className="font-mono text-white font-bold">
+                          <div className="font-mono text-white/80 font-bold">
                             {formatNumber(parseFloat(s.totalFollowerCapital))} aUSD
                           </div>
                         </div>
                         <div>
-                          <span className="text-[10px] font-mono text-white uppercase tracking-wider">
+                          <span className="text-[10px] font-mono text-white/80 uppercase tracking-wider">
                             Fee
                           </span>
                           <div className="font-mono text-neon-yellow font-bold">
@@ -1420,23 +1397,23 @@ function TraderProfileContent() {
 
                       {/* Follower position info */}
                       {isFollowing && position && (
-                        <div className="mt-3 p-3 rounded-lg bg-neon-green/[0.04] border border-neon-green/10">
+                        <div className="mt-3 p-3 rounded-none bg-neon-green/[0.04] border border-neon-green/10">
                           <div className="flex flex-wrap gap-x-6 gap-y-1 text-xs">
                             <div>
-                              <span className="text-white">Deposited</span>{" "}
-                              <span className="font-mono text-white font-bold">
+                              <span className="text-white/80">Deposited</span>{" "}
+                              <span className="font-mono text-white/80 font-bold">
                                 {formatNumber(position.capitalDeposited)} aUSD
                               </span>
                             </div>
                             <div>
-                              <span className="text-white">High Water Mark</span>{" "}
-                              <span className="font-mono text-white font-bold">
+                              <span className="text-white/80">High Water Mark</span>{" "}
+                              <span className="font-mono text-white/80 font-bold">
                                 {formatNumber(position.highWaterMark)} aUSD
                               </span>
                             </div>
                             <div>
-                              <span className="text-white">Since</span>{" "}
-                              <span className="font-mono text-white">
+                              <span className="text-white/80">Since</span>{" "}
+                              <span className="font-mono text-white/80">
                                 {new Date(position.followedAt).toLocaleDateString()}
                               </span>
                             </div>
@@ -1454,7 +1431,7 @@ function TraderProfileContent() {
                               `Unfollow: call AuraSocialTrading.unfollow(${s.id})`
                             )
                           }
-                          className="px-5 py-2.5 rounded-lg border border-red-500/30 text-white text-sm font-bold hover:bg-red-500/10 hover:border-red-500/50 transition-all"
+                          className="px-5 py-2.5 rounded-none border border-[#ff2a6d]/30 bg-[#ff2a6d]/10 text-[#ff2a6d] text-xs font-mono uppercase hover:bg-[#ff2a6d]/20 transition-colors"
                         >
                           Unfollow
                         </button>
@@ -1462,12 +1439,12 @@ function TraderProfileContent() {
                         <button
                           onClick={() => openCopyTradeModal(s)}
                           disabled={!account}
-                          className="px-5 py-2.5 rounded-lg border border-neon-cyan/40 text-white text-sm font-bold hover:bg-neon-cyan/10 hover:border-neon-cyan/60 hover:shadow-[0_0_15px_rgba(0,240,255,0.2)] disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+                          className="px-5 py-2.5 rounded-none border border-[#00f0ff]/30 bg-[#00f0ff]/10 text-[#00f0ff] text-xs font-mono uppercase hover:bg-[#00f0ff]/20 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                         >
                           Follow
                         </button>
                       )}
-                      <span className="text-[10px] text-white font-mono">
+                      <span className="text-[10px] text-white/40 font-mono">
                         ID #{s.id}
                       </span>
                     </div>
@@ -1477,7 +1454,7 @@ function TraderProfileContent() {
             })}
 
             {strategies.length === 0 && (
-              <div className="glass-card-cyber rounded-xl p-12 flex flex-col items-center justify-center text-white gap-3">
+              <div className="bg-[#050505] border border-[#00f0ff]/10 rounded-none p-12 flex flex-col items-center justify-center text-white/80 gap-3">
                 <Star size={32} className="opacity-20" />
                 <p className="font-mono text-sm">
                   No strategies published yet.
@@ -1509,7 +1486,7 @@ function TraderProfileContent() {
               animate={{ scale: 1, opacity: 1, y: 0 }}
               exit={{ scale: 0.92, opacity: 0, y: 20 }}
               transition={{ type: "spring", damping: 25, stiffness: 300 }}
-              className="relative w-full max-w-lg glass-card-cyber rounded-2xl overflow-hidden"
+              className="relative w-full max-w-lg bg-[#050505] border border-[#00f0ff]/10 rounded-none overflow-hidden"
             >
               {/*  HEADER  */}
               <div className="h-1 w-full bg-gradient-to-r from-neon-cyan via-neon-green to-neon-cyan" />
@@ -1518,21 +1495,21 @@ function TraderProfileContent() {
                 {/* Close button */}
                 <button
                   onClick={() => setShowModal(false)}
-                  className="absolute top-4 right-4 p-1.5 rounded-lg text-white hover:text-white hover:bg-white/10 transition-all"
+                  className="absolute top-4 right-4 p-1.5 rounded-none text-white/80 hover:text-white/80 hover:bg-white/10 transition-all"
                 >
                   <X size={18} />
                 </button>
 
                 {/* Title */}
                 <div className="flex items-center gap-3 mb-1">
-                  <div className="p-2 rounded-lg bg-neon-cyan/10">
-                    <Zap size={18} className="text-white" />
+                  <div className="p-2 rounded-none bg-neon-cyan/10">
+                    <Zap size={18} className="text-white/80" />
                   </div>
                   <h2 className="text-xl font-display font-bold">Copy Trade</h2>
                 </div>
-                <p className="text-sm text-white mb-6 pl-11">
+                <p className="text-sm text-white/80 mb-6 pl-11">
                   Follow{" "}
-                  <span className="text-white font-semibold font-mono">
+                  <span className="text-white/80 font-semibold font-mono">
                     {shortAddr(address)}
                   </span>
                   's strategies
@@ -1540,7 +1517,7 @@ function TraderProfileContent() {
 
                 {/* Strategy selector */}
                 <div className="mb-5">
-                  <label className="text-[10px] font-mono uppercase tracking-widest text-white mb-2 block">
+                  <label className="text-[10px] font-mono uppercase tracking-widest text-white/50 mb-2 block">
                     Strategy
                   </label>
                   <div className="relative">
@@ -1556,7 +1533,7 @@ function TraderProfileContent() {
                           setModalStrategy(s || null);
                         }
                       }}
-                      className="w-full appearance-none bg-white/[0.03] border border-white/10 rounded-xl px-4 py-3 text-sm text-white focus:outline-none focus:border-neon-cyan/40 transition-colors cursor-pointer pr-10"
+                      className="w-full appearance-none bg-white/[0.03] border border-[#00f0ff]/20 rounded-none px-4 py-3 text-sm text-white/80 focus:outline-none focus:border-neon-cyan/40 transition-colors cursor-pointer pr-10"
                     >
                       <option value="all" className="bg-cyber-dark">
                         All Strategies
@@ -1573,7 +1550,7 @@ function TraderProfileContent() {
                     </select>
                     <ChevronDown
                       size={16}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-white pointer-events-none"
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-white/80 pointer-events-none"
                     />
                   </div>
                 </div>
@@ -1581,15 +1558,15 @@ function TraderProfileContent() {
                 {/* Amount input */}
                 <div className="mb-5">
                   <div className="flex justify-between items-end mb-2">
-                    <label className="text-[10px] font-mono uppercase tracking-widest text-white block">
+                    <label className="text-[10px] font-mono uppercase tracking-widest text-white/50 block">
                       Amount (aUSD)
                     </label>
-                    <div className="text-[10px] font-mono text-white">
+                    <div className="text-[10px] font-mono text-white/80">
                       Balance:{" "}
                       {loadingBalance ? (
                         <span className="animate-pulse">...</span>
                       ) : (
-                        <span className="text-white">
+                        <span className="text-white/80">
                           {parseFloat(ausdBalance).toFixed(2)}
                         </span>
                       )}
@@ -1602,16 +1579,16 @@ function TraderProfileContent() {
                       placeholder="Enter amount to allocate"
                       value={followAmount}
                       onChange={(e) => setFollowAmount(e.target.value)}
-                      className="w-full bg-white/[0.03] border border-white/10 rounded-xl px-4 py-3 text-white text-sm font-mono placeholder-gray-600 focus:outline-none focus:border-neon-cyan/40 transition-colors"
+                      className="w-full bg-white/[0.03] border border-[#00f0ff]/20 rounded-none px-4 py-3 text-white/60 text-sm font-mono placeholder-gray-600 focus:outline-none focus:border-neon-cyan/40 transition-colors"
                     />
                     <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-2">
                       <button
                         onClick={handleMaxClick}
-                        className="text-[10px] bg-white/5 hover:bg-white/10 px-2 py-1 rounded text-white font-bold transition-colors uppercase tracking-wider"
+                        className="text-[10px] bg-white/5 hover:bg-white/10 px-2 py-1 rounded text-white/80 font-bold transition-colors uppercase tracking-wider"
                       >
                         Max
                       </button>
-                      <span className="text-xs text-white font-mono pr-2">
+                      <span className="text-xs text-white/80 font-mono pr-2">
                         aUSD
                       </span>
                     </div>
@@ -1621,10 +1598,10 @@ function TraderProfileContent() {
                 {/* Allocation slider */}
                 <div className="mb-6">
                   <div className="flex items-center justify-between mb-2">
-                    <label className="text-[10px] font-mono uppercase tracking-widest text-white">
+                    <label className="text-[10px] font-mono uppercase tracking-widest text-white/50">
                       Portfolio Allocation
                     </label>
-                    <span className="text-sm font-mono font-bold text-white">
+                    <span className="text-sm font-mono font-bold text-white/80">
                       {allocationPct}%
                     </span>
                   </div>
@@ -1643,7 +1620,7 @@ function TraderProfileContent() {
                       }}
                     />
                     {/* Tick marks */}
-                    <div className="flex justify-between mt-1 text-[9px] text-white font-mono px-1">
+                    <div className="flex justify-between mt-1 text-[9px] text-white/80 font-mono px-1">
                       <span>0%</span>
                       <span>25%</span>
                       <span>50%</span>
@@ -1654,13 +1631,13 @@ function TraderProfileContent() {
                 </div>
 
                 {/* Fee breakdown */}
-                <div className="bg-white/[0.02] rounded-xl p-4 border border-white/[0.05] mb-5">
-                  <div className="text-[10px] font-mono uppercase tracking-widest text-white mb-3">
+                <div className="bg-white/[0.02] rounded-none p-4 border border-white/[0.05] mb-5">
+                  <div className="text-[10px] font-mono uppercase tracking-widest text-white/50 mb-3">
                     Fee Breakdown
                   </div>
                   <div className="space-y-2 text-sm">
                     <div className="flex justify-between">
-                      <span className="text-white">Performance Fee</span>
+                      <span className="text-white/80">Performance Fee</span>
                       <span className="font-mono text-neon-yellow font-bold">
                         {modalStrategy
                           ? `${(modalStrategy.performanceFeeBps / 100).toFixed(
@@ -1670,16 +1647,16 @@ function TraderProfileContent() {
                       </span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-white">Your Investment</span>
-                      <span className="font-mono text-white font-bold">
+                      <span className="text-white/80">Your Investment</span>
+                      <span className="font-mono text-white/80 font-bold">
                         {followAmount
                           ? `${parseFloat(followAmount).toFixed(2)} aUSD`
                           : ""}
                       </span>
                     </div>
                     <div className="flex justify-between">
-                      <span className="text-white">Allocation</span>
-                      <span className="font-mono text-white font-bold">
+                      <span className="text-white/80">Allocation</span>
+                      <span className="font-mono text-white/80 font-bold">
                         {allocationPct}% of portfolio
                       </span>
                     </div>
@@ -1687,10 +1664,10 @@ function TraderProfileContent() {
                       <>
                         <div className="border-t border-white/[0.05] my-2" />
                         <div className="flex justify-between">
-                          <span className="text-white">
+                          <span className="text-white/80">
                             Max Fee (on profit)
                           </span>
-                          <span className="font-mono text-white text-xs">
+                          <span className="font-mono text-white/80 text-xs">
                             {(
                               (modalStrategy.performanceFeeBps / 10000) *
                               parseFloat(followAmount) *
@@ -1705,12 +1682,12 @@ function TraderProfileContent() {
                 </div>
 
                 {/* Risk warning */}
-                <div className="flex items-start gap-3 p-3 rounded-lg bg-neon-orange/[0.05] border border-neon-orange/15 mb-6">
+                <div className="flex items-start gap-3 p-3 rounded-none bg-neon-orange/[0.05] border border-neon-orange/15 mb-6">
                   <AlertTriangle
                     size={16}
                     className="text-neon-orange shrink-0 mt-0.5"
                   />
-                  <p className="text-[11px] text-white leading-relaxed">
+                  <p className="text-[11px] text-white/80 leading-relaxed">
                     <span className="text-neon-orange font-bold">Risk Warning:</span>{" "}
                     Past performance does not guarantee future results. Copy
                     trading involves risk of loss. You can unfollow and withdraw
@@ -1719,7 +1696,7 @@ function TraderProfileContent() {
                 </div>
 
                 {txError && (
-                  <div className="mb-4 p-3 rounded-xl border border-red-500/30 bg-red-500/10 text-white text-xs text-center font-mono break-words">
+                  <div className="mb-4 p-3 rounded-none border border-red-500/30 bg-red-500/10 text-white/80 text-xs text-center font-mono break-words">
                     {txError}
                   </div>
                 )}
@@ -1729,7 +1706,7 @@ function TraderProfileContent() {
                   <button
                     onClick={() => setShowModal(false)}
                     disabled={txStatus !== "idle" && txStatus !== "error"}
-                    className="flex-1 py-3 rounded-xl border border-white/10 text-white text-sm font-bold hover:border-white/25 hover:text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="flex-1 py-3 rounded-none border border-white/10 text-white/60 text-xs font-mono uppercase hover:bg-white/5 hover:text-white/80 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     Cancel
                   </button>
@@ -1741,7 +1718,7 @@ function TraderProfileContent() {
                       parseFloat(followAmount) > parseFloat(ausdBalance) ||
                       (txStatus !== "idle" && txStatus !== "error")
                     }
-                    className="flex-1 py-3 rounded-xl font-bold text-sm transition-all bg-gradient-to-r from-neon-cyan/20 to-neon-green/20 border border-neon-cyan/50 text-white hover:text-white hover:shadow-[0_0_25px_rgba(0,240,255,0.3)] disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:shadow-none"
+                    className="flex-1 py-3 rounded-none font-mono uppercase text-xs transition-colors bg-[#00f0ff]/10 border border-[#00f0ff]/30 text-[#00f0ff] hover:bg-[#00f0ff]/20 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
                   >
                     <span className="flex items-center justify-center gap-2">
                       {txStatus === "approving" && (
