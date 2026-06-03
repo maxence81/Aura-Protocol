@@ -32,6 +32,9 @@ import { createWallet } from "thirdweb/wallets";
 import { defineChain } from "thirdweb";
 import { client } from "../client";
 import { API_URL } from "../../lib/config";
+import { createWalletClient, custom } from "viem";
+import { CONTRACT_ADDRESSES, AURA_COPY_TRADING_V2_ABI } from "../../lib/contracts";
+import CubeButton from "../trade/CubeButton";
 
 /* ─────────────── Chain & Wallet Config ─────────────── */
 
@@ -526,6 +529,40 @@ export default function SocialPage() {
   const [sortDropdownOpen, setSortDropdownOpen] = useState(false);
   const [followModal, setFollowModal] = useState<Trader | null>(null);
   const [total, setTotal] = useState(0);
+  const [isRegistering, setIsRegistering] = useState(false);
+
+  const handleRegisterAsLeader = async () => {
+    if (!account) return alert("Please connect wallet first");
+    
+    try {
+      setIsRegistering(true);
+      const wc = createWalletClient({
+        chain: {
+          id: 46630,
+          name: "Robinhood Testnet",
+          nativeCurrency: { name: "ETH", symbol: "ETH", decimals: 18 },
+          rpcUrls: { default: { http: ["https://rpc.testnet.chain.robinhood.com"] } }
+        } as any,
+        account: account.address as `0x${string}`,
+        transport: custom((window as any).ethereum)
+      });
+
+      const tx = await wc.writeContract({
+        chain: null,
+        address: CONTRACT_ADDRESSES.AURA_COPY_TRADING_V2 as `0x${string}`,
+        abi: AURA_COPY_TRADING_V2_ABI as any,
+        functionName: "registerAsLeader",
+        args: [1000] // 10% performance fee (1000 bps)
+      });
+      
+      alert(`Transaction submitted! Hash: ${tx}`);
+    } catch (e: any) {
+      console.error(e);
+      alert(`Registration failed: ${e.message}`);
+    } finally {
+      setIsRegistering(false);
+    }
+  };
 
   /* Fetch stats */
   const fetchStats = useCallback(async () => {
@@ -712,13 +749,13 @@ export default function SocialPage() {
               initial={{ opacity: 0, y: 20, scale: 0.95 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
               transition={{ delay: i * 0.1, duration: 0.5, ease: "easeOut" }}
-              className={`glass-card-cyber rounded-2xl p-5 ${card.borderColor} ${card.glowColor} hover:scale-[1.02] transition-transform duration-300`}
+              className={`bg-[#050505] border border-[#00f0ff]/10 p-5 rounded-sm hover:border-[#00f0ff]/30 ${card.glowColor} hover:scale-[1.02] transition-transform duration-300 font-mono`}
             >
               <div className="flex items-center gap-3 mb-3">
-                <div className={`p-2 rounded-lg ${card.iconBg}`}>
+                <div className={`p-2 rounded-sm ${card.iconBg}`}>
                   <card.icon size={16} className={card.iconColor} />
                 </div>
-                <span className="text-xs text-gray-500 uppercase tracking-wider font-semibold">
+                <span className="text-[10px] text-white/50 uppercase tracking-widest font-bold">
                   {card.label}
                 </span>
               </div>
@@ -738,21 +775,21 @@ export default function SocialPage() {
       <section className="relative z-10 max-w-[1600px] mx-auto px-6 py-4">
         <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
           {/* Timeframe Tabs */}
-          <div className="flex items-center bg-white/[0.03] rounded-xl border border-white/[0.06] p-1">
+          <div className="flex items-center bg-[#050505] border border-[#00f0ff]/20 p-1 font-mono text-[10px] uppercase tracking-widest">
             {TIMEFRAMES.map((tf) => (
               <button
                 key={tf.value}
                 onClick={() => setTimeframe(tf.value)}
-                className={`relative px-4 py-2 rounded-lg text-sm font-semibold transition-all duration-200 ${
+                className={`relative px-4 py-2 transition-all duration-200 ${
                   timeframe === tf.value
-                    ? "text-neon-cyan"
-                    : "text-gray-500 hover:text-gray-300"
+                    ? "text-[#00f0ff] font-bold"
+                    : "text-white/40 hover:text-white/70"
                 }`}
               >
                 {timeframe === tf.value && (
                   <motion.div
                     layoutId="timeframe-active"
-                    className="absolute inset-0 bg-neon-cyan/10 rounded-lg border border-neon-cyan/20"
+                    className="absolute inset-0 bg-[#00f0ff]/10 border-b-2 border-[#00f0ff]"
                     transition={{ type: "spring", damping: 30, stiffness: 400 }}
                   />
                 )}
@@ -763,6 +800,21 @@ export default function SocialPage() {
 
           {/* Search + Sort */}
           <div className="flex items-center gap-3 w-full lg:w-auto">
+            {/* Create Strategy Button */}
+            {account && (
+              <CubeButton
+                onClick={handleRegisterAsLeader}
+                disabled={isRegistering}
+                color="#00f0ff"
+                className="w-48 py-2.5 h-full mr-2 hidden lg:block text-center"
+              >
+                <span className="block text-xs font-bold font-mono text-[#00f0ff]">
+                  {isRegistering ? "Registering..." : "Create Strategy"}
+                </span>
+                <span className="block text-[9px] opacity-60 mt-0.5 text-white normal-case">Earn 10% Perf. Fee</span>
+              </CubeButton>
+            )}
+
             {/* Search */}
             <div className="relative flex-1 lg:flex-none lg:w-64">
               <Search
@@ -774,7 +826,7 @@ export default function SocialPage() {
                 placeholder="Search trader..."
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                className="w-full bg-white/[0.03] border border-white/[0.08] rounded-xl pl-10 pr-4 py-2.5 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-neon-cyan/30 focus:shadow-[0_0_15px_rgba(0,240,255,0.05)] transition-all"
+                className="w-full bg-[#050505] border border-[#00f0ff]/20 rounded-none pl-10 pr-4 py-2.5 text-xs text-white placeholder-white/30 focus:outline-none focus:border-[#00f0ff]/50 focus:shadow-[0_0_15px_rgba(0,240,255,0.05)] transition-all font-mono uppercase tracking-wider"
               />
             </div>
 
@@ -785,7 +837,7 @@ export default function SocialPage() {
                   e.stopPropagation();
                   setSortDropdownOpen(!sortDropdownOpen);
                 }}
-                className="flex items-center gap-2 px-4 py-2.5 bg-white/[0.03] border border-white/[0.08] rounded-xl text-sm text-gray-400 hover:text-white hover:border-white/20 transition-all"
+                className="flex items-center gap-2 px-4 py-2.5 bg-[#050505] border border-[#00f0ff]/20 rounded-none text-xs text-white/50 hover:text-white hover:border-[#00f0ff]/50 transition-all font-mono uppercase tracking-wider"
               >
                 <BarChart3 size={14} />
                 Sort: {currentSortLabel}
@@ -800,7 +852,7 @@ export default function SocialPage() {
                     initial={{ opacity: 0, y: -5 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -5 }}
-                    className="absolute right-0 mt-2 w-44 bg-[#0c0c16] border border-white/10 rounded-xl overflow-hidden shadow-2xl z-30"
+                    className="absolute right-0 mt-2 w-44 bg-[#050505] border border-[#00f0ff]/20 rounded-none overflow-hidden shadow-2xl z-30 font-mono text-[10px] uppercase tracking-widest"
                   >
                     {SORT_OPTIONS.map((opt) => (
                       <button
@@ -828,9 +880,9 @@ export default function SocialPage() {
 
       {/* ═══════════ LEADERBOARD TABLE ═══════════ */}
       <section className="relative z-10 max-w-[1600px] mx-auto px-6 pb-12">
-        <div className="glass-card-cyber rounded-2xl overflow-hidden">
+        <div className="bg-[#050505] border border-[#00f0ff]/20 rounded-none overflow-hidden font-mono text-[10px]">
           {/* Table Header */}
-          <div className="hidden lg:flex items-center gap-4 px-5 py-3 border-b border-white/[0.06] text-[11px] text-gray-500 uppercase tracking-wider font-semibold">
+          <div className="hidden lg:flex items-center gap-4 px-5 py-3 border-b border-[#00f0ff]/30 text-[#00f0ff]/50 uppercase tracking-widest font-bold bg-[#0a0a0a]">
             <div className="w-10 text-center">#</div>
             <div className="flex-1 min-w-[200px]">Trader</div>
             <div className="w-24 text-right">PnL</div>
@@ -904,7 +956,7 @@ export default function SocialPage() {
                     duration: 0.4,
                     ease: "easeOut",
                   }}
-                  className="group flex flex-col lg:flex-row lg:items-center gap-3 lg:gap-4 px-5 py-4 border-b border-white/[0.04] hover:bg-white/[0.02] transition-all duration-200 cursor-pointer hover:border-l-2 hover:border-l-neon-cyan/40 hover:shadow-[inset_0_0_30px_rgba(0,240,255,0.02)]"
+                  className="group flex flex-col lg:flex-row lg:items-center gap-3 lg:gap-4 px-5 py-4 border-b border-white/5 hover:bg-[#00f0ff]/[0.02] transition-colors duration-200 cursor-pointer"
                   onClick={() => setFollowModal(trader)}
                 >
                   {/* Rank */}
