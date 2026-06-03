@@ -1,4 +1,4 @@
-"use client";
+﻿"use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
@@ -27,16 +27,16 @@ import {
   Medal,
   Award,
 } from "lucide-react";
-import { ConnectButton, useActiveAccount } from "thirdweb/react";
+import { ConnectButton, useActiveAccount, useSendTransaction } from "thirdweb/react";
 import { createWallet } from "thirdweb/wallets";
-import { defineChain } from "thirdweb";
+import { defineChain, readContract, getContract, prepareContractCall, waitForReceipt } from "thirdweb";
 import { client } from "../client";
 import { API_URL } from "../../lib/config";
-import { createWalletClient, custom } from "viem";
-import { CONTRACT_ADDRESSES, AURA_COPY_TRADING_V2_ABI } from "../../lib/contracts";
+import { createWalletClient, custom, parseEther, formatEther } from "viem";
+import { CONTRACT_ADDRESSES, AURA_COPY_TRADING_V2_ABI, AUSD_ABI } from "../../lib/contracts";
 import CubeButton from "../trade/CubeButton";
 
-/* ─────────────── Chain & Wallet Config ─────────────── */
+/* Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ Chain & Wallet Config Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ */
 
 const robinhoodChain = defineChain({
   id: 46630,
@@ -51,7 +51,7 @@ const wallets = [
   createWallet("me.rainbow"),
 ];
 
-/* ─────────────── Types ─────────────── */
+/* Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ Types Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ */
 
 type Trader = {
   rank: number;
@@ -73,10 +73,10 @@ type SocialStats = {
   totalPnl: number;
 };
 
-/* ─────────────── Helpers ─────────────── */
+/* Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ Helpers Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ */
 
 function shortAddr(addr: string) {
-  return addr ? `${addr.slice(0, 6)}…${addr.slice(-4)}` : "";
+  return addr ? `${addr.slice(0, 6)}Ã¢â‚¬Â¦${addr.slice(-4)}` : "";
 }
 
 function formatUSD(v: number) {
@@ -106,7 +106,7 @@ function addrToGradient(addr: string): string {
   return `linear-gradient(135deg, hsl(${h1}, 80%, 55%), hsl(${h2}, 90%, 45%))`;
 }
 
-/* ─────────────── Animated Counter ─────────────── */
+/* Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ Animated Counter Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ */
 
 function AnimatedCounter({
   value,
@@ -163,14 +163,14 @@ function AnimatedCounter({
   );
 }
 
-/* ─────────────── Rank Badge ─────────────── */
+/* Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ Rank Badge Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ */
 
 function RankBadge({ rank }: { rank: number }) {
   if (rank === 1) {
     return (
-      <div className="relative w-10 h-10 rounded-xl bg-gradient-to-br from-yellow-400/20 to-yellow-600/10 flex items-center justify-center border border-yellow-400/40 shadow-[0_0_15px_rgba(250,204,21,0.3)]">
+      <div className="relative w-10 h-10 rounded-none bg-gradient-to-br from-yellow-400/20 to-yellow-600/10 flex items-center justify-center border border-yellow-400/40 shadow-[0_0_15px_rgba(250,204,21,0.3)]">
         <Crown size={18} className="text-yellow-400" />
-        <div className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-yellow-400 text-black text-[9px] font-black flex items-center justify-center">
+        <div className="absolute -top-1 -right-1 w-4 h-4 rounded-none bg-yellow-400 text-black text-[9px] font-black flex items-center justify-center">
           1
         </div>
       </div>
@@ -178,9 +178,9 @@ function RankBadge({ rank }: { rank: number }) {
   }
   if (rank === 2) {
     return (
-      <div className="relative w-10 h-10 rounded-xl bg-gradient-to-br from-gray-300/20 to-gray-500/10 flex items-center justify-center border border-gray-300/40 shadow-[0_0_10px_rgba(200,200,200,0.2)]">
+      <div className="relative w-10 h-10 rounded-none bg-gradient-to-br from-gray-300/20 to-gray-500/10 flex items-center justify-center border border-gray-300/40 shadow-[0_0_10px_rgba(200,200,200,0.2)]">
         <Medal size={18} className="text-gray-300" />
-        <div className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-gray-300 text-black text-[9px] font-black flex items-center justify-center">
+        <div className="absolute -top-1 -right-1 w-4 h-4 rounded-none bg-gray-300 text-black text-[9px] font-black flex items-center justify-center">
           2
         </div>
       </div>
@@ -188,22 +188,22 @@ function RankBadge({ rank }: { rank: number }) {
   }
   if (rank === 3) {
     return (
-      <div className="relative w-10 h-10 rounded-xl bg-gradient-to-br from-amber-600/20 to-amber-800/10 flex items-center justify-center border border-amber-600/40 shadow-[0_0_10px_rgba(217,119,6,0.2)]">
+      <div className="relative w-10 h-10 rounded-none bg-gradient-to-br from-amber-600/20 to-amber-800/10 flex items-center justify-center border border-amber-600/40 shadow-[0_0_10px_rgba(217,119,6,0.2)]">
         <Award size={18} className="text-amber-500" />
-        <div className="absolute -top-1 -right-1 w-4 h-4 rounded-full bg-amber-500 text-black text-[9px] font-black flex items-center justify-center">
+        <div className="absolute -top-1 -right-1 w-4 h-4 rounded-none bg-amber-500 text-black text-[9px] font-black flex items-center justify-center">
           3
         </div>
       </div>
     );
   }
   return (
-    <div className="w-10 h-10 rounded-xl bg-white/5 flex items-center justify-center border border-white/10 text-gray-400 font-bold text-sm font-mono">
+    <div className="w-10 h-10 rounded-none bg-white/5 flex items-center justify-center border border-white/10 text-gray-400 font-bold text-sm font-mono">
       {rank}
     </div>
   );
 }
 
-/* ─────────────── Win Rate Circle ─────────────── */
+/* Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ Win Rate Circle Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ */
 
 function WinRateCircle({ rate }: { rate: number }) {
   const r = 16;
@@ -248,7 +248,7 @@ function WinRateCircle({ rate }: { rate: number }) {
   );
 }
 
-/* ─────────────── ROI Bar ─────────────── */
+/* Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ ROI Bar Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ */
 
 function RoiBar({ roi }: { roi: number }) {
   const isPositive = roi >= 0;
@@ -264,9 +264,9 @@ function RoiBar({ roi }: { roi: number }) {
         {isPositive ? "+" : ""}
         {roi.toFixed(1)}%
       </span>
-      <div className="flex-1 h-2 bg-white/5 rounded-full overflow-hidden max-w-[60px]">
+      <div className="flex-1 h-2 bg-white/5 rounded-none overflow-hidden max-w-[60px]">
         <motion.div
-          className="h-full rounded-full"
+          className="h-full rounded-none"
           style={{
             background: `linear-gradient(90deg, ${color}88, ${color})`,
             boxShadow: `0 0 8px ${color}66`,
@@ -280,7 +280,7 @@ function RoiBar({ roi }: { roi: number }) {
   );
 }
 
-/* ─────────────── Skeleton Row ─────────────── */
+/* Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ Skeleton Row Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ */
 
 function SkeletonRow({ index }: { index: number }) {
   return (
@@ -290,9 +290,9 @@ function SkeletonRow({ index }: { index: number }) {
       transition={{ delay: index * 0.05 }}
       className="flex items-center gap-4 px-5 py-4 border-b border-white/5"
     >
-      <div className="w-10 h-10 rounded-xl bg-white/5 animate-pulse" />
+      <div className="w-10 h-10 rounded-none bg-white/5 animate-pulse" />
       <div className="flex-1 flex items-center gap-3">
-        <div className="w-9 h-9 rounded-full bg-white/5 animate-pulse" />
+        <div className="w-9 h-9 rounded-none bg-white/5 animate-pulse" />
         <div className="space-y-2">
           <div className="w-24 h-3 rounded bg-white/5 animate-pulse" />
           <div className="w-16 h-2 rounded bg-white/5 animate-pulse" />
@@ -300,16 +300,16 @@ function SkeletonRow({ index }: { index: number }) {
       </div>
       <div className="w-20 h-3 rounded bg-white/5 animate-pulse" />
       <div className="w-24 h-3 rounded bg-white/5 animate-pulse" />
-      <div className="w-10 h-10 rounded-full bg-white/5 animate-pulse" />
+      <div className="w-10 h-10 rounded-none bg-white/5 animate-pulse" />
       <div className="w-12 h-3 rounded bg-white/5 animate-pulse" />
       <div className="w-16 h-3 rounded bg-white/5 animate-pulse" />
       <div className="w-8 h-3 rounded bg-white/5 animate-pulse" />
-      <div className="w-20 h-8 rounded-lg bg-white/5 animate-pulse" />
+      <div className="w-20 h-8 rounded-none bg-white/5 animate-pulse" />
     </motion.div>
   );
 }
 
-/* ─────────────── Follow Modal ─────────────── */
+/* Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ Follow Modal Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ */
 
 function FollowModal({
   trader,
@@ -318,9 +318,116 @@ function FollowModal({
   trader: Trader;
   onClose: () => void;
 }) {
+  const account = useActiveAccount();
+  const { mutateAsync: sendTx } = useSendTransaction();
   const [amount, setAmount] = useState("");
   const [allocation, setAllocation] = useState(50);
+  const [ausdBalance, setAusdBalance] = useState<string>("0");
+  const [loadingBalance, setLoadingBalance] = useState(false);
+  const [txStatus, setTxStatus] = useState<"idle" | "approving" | "following" | "done" | "error">("idle");
+  const [txError, setTxError] = useState("");
+
   const estimatedFee = amount ? (parseFloat(amount) * 0.30 * 0.10).toFixed(2) : "0.00";
+
+  // Fetch aUSD balance when modal opens
+  useEffect(() => {
+    if (!account?.address) return;
+    const fetchBalance = async () => {
+      setLoadingBalance(true);
+      try {
+        const ausdContract = getContract({
+          client,
+          chain: robinhoodChain,
+          address: CONTRACT_ADDRESSES.AUSD,
+          abi: AUSD_ABI as any,
+        });
+        const bal = await readContract({
+          contract: ausdContract,
+          method: "balanceOf",
+          params: [account.address],
+        });
+        setAusdBalance(formatEther(bal as bigint));
+      } catch {
+        setAusdBalance("0");
+      } finally {
+        setLoadingBalance(false);
+      }
+    };
+    fetchBalance();
+  }, [account?.address]);
+
+  const handleMaxClick = () => {
+    setAmount(parseFloat(ausdBalance).toFixed(2));
+  };
+
+  const handleConfirmCopy = async () => {
+    if (!account?.address) {
+      setTxError("Please connect your wallet first.");
+      setTxStatus("error");
+      return;
+    }
+    if (!amount || parseFloat(amount) <= 0) return;
+
+    try {
+      setTxStatus("approving");
+      setTxError("");
+
+      const parsedAmount = parseEther(amount);
+
+      const ausdContract = getContract({
+        client,
+        chain: robinhoodChain,
+        address: CONTRACT_ADDRESSES.AUSD,
+        abi: AUSD_ABI as any,
+      });
+
+      const copyTradingContract = getContract({
+        client,
+        chain: robinhoodChain,
+        address: CONTRACT_ADDRESSES.AURA_COPY_TRADING_V2,
+        abi: AURA_COPY_TRADING_V2_ABI as any,
+      });
+
+      // Step 1: Approve aUSD spending
+      const approveCall = prepareContractCall({
+        contract: ausdContract,
+        method: "approve",
+        params: [CONTRACT_ADDRESSES.AURA_COPY_TRADING_V2, parsedAmount],
+      });
+
+      const approveTx = await sendTx(approveCall);
+      await waitForReceipt({
+        client,
+        chain: robinhoodChain,
+        transactionHash: approveTx.transactionHash,
+      });
+
+      // Step 2: Follow Leader
+      setTxStatus("following");
+      const scaleFactor = BigInt(Math.floor((allocation / 100) * 10000));
+      const followCall = prepareContractCall({
+        contract: copyTradingContract,
+        method: "followLeader",
+        params: [trader.address as `0x${string}`, parsedAmount, scaleFactor, 50],
+      });
+
+      const followTx = await sendTx(followCall);
+      await waitForReceipt({
+        client,
+        chain: robinhoodChain,
+        transactionHash: followTx.transactionHash,
+      });
+
+      setTxStatus("done");
+      setTimeout(() => onClose(), 2000);
+    } catch (err: any) {
+      console.error("Copy trade error:", err);
+      setTxError(err?.message?.slice(0, 120) || "Transaction failed");
+      setTxStatus("error");
+    }
+  };
+
+  const balanceNum = parseFloat(ausdBalance);
 
   return (
     <motion.div
@@ -335,7 +442,7 @@ function FollowModal({
         animate={{ scale: 1, opacity: 1, y: 0 }}
         exit={{ scale: 0.9, opacity: 0, y: 20 }}
         transition={{ type: "spring", damping: 25, stiffness: 300 }}
-        className="w-full max-w-lg rounded-2xl overflow-hidden"
+        className="w-full max-w-lg rounded-none overflow-hidden"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Modal gradient top bar */}
@@ -346,7 +453,7 @@ function FollowModal({
           <div className="flex items-start justify-between">
             <div className="flex items-center gap-3">
               <div
-                className="w-12 h-12 rounded-xl flex items-center justify-center text-white font-bold text-lg"
+                className="w-12 h-12 rounded-none flex items-center justify-center text-white font-bold text-lg"
                 style={{ background: addrToGradient(trader.address) }}
               >
                 {trader.address.slice(2, 4).toUpperCase()}
@@ -362,7 +469,7 @@ function FollowModal({
             </div>
             <button
               onClick={onClose}
-              className="p-2 rounded-lg hover:bg-white/10 transition-colors"
+              className="p-2 rounded-none hover:bg-white/10 transition-colors"
             >
               <X size={18} className="text-gray-400" />
             </button>
@@ -389,7 +496,7 @@ function FollowModal({
             ].map((s) => (
               <div
                 key={s.label}
-                className="bg-white/5 rounded-xl p-3 text-center border border-white/5"
+                className="bg-white/5 rounded-none p-3 text-center border border-white/5"
               >
                 <div className="text-[10px] uppercase tracking-wider text-gray-500 mb-1">
                   {s.label}
@@ -403,9 +510,23 @@ function FollowModal({
 
           {/* Amount Input */}
           <div>
-            <label className="text-xs text-gray-500 mb-1.5 block uppercase tracking-wider">
-              Allocation Amount (aUSD)
-            </label>
+            <div className="flex items-center justify-between mb-1.5">
+              <label className="text-xs text-gray-500 uppercase tracking-wider">
+                Allocation Amount (aUSD)
+              </label>
+              <div className="flex items-center gap-2">
+                <span className="text-[10px] text-gray-500 font-mono">
+                  Balance: {loadingBalance ? "Ã¢â‚¬Â¦" : `${balanceNum.toFixed(2)} aUSD`}
+                </span>
+                <button
+                  onClick={handleMaxClick}
+                  disabled={loadingBalance || balanceNum <= 0}
+                  className="text-[10px] font-bold text-neon-cyan bg-neon-cyan/10 border border-neon-cyan/30 px-2 py-0.5 rounded hover:bg-neon-cyan/20 transition-colors disabled:opacity-30"
+                >
+                  MAX
+                </button>
+              </div>
+            </div>
             <div className="relative">
               <input
                 type="number"
@@ -413,19 +534,24 @@ function FollowModal({
                 placeholder="Enter amount to allocate..."
                 value={amount}
                 onChange={(e) => setAmount(e.target.value)}
-                className="w-full bg-white/5 border border-white/10 rounded-xl px-4 py-3.5 text-white placeholder-gray-600 focus:outline-none focus:border-neon-cyan/50 focus:shadow-[0_0_20px_rgba(0,240,255,0.1)] transition-all font-mono text-lg"
+                className="w-full bg-white/5 border border-white/10 rounded-none px-4 py-3.5 text-white placeholder-gray-600 focus:outline-none focus:border-neon-cyan/50 focus:shadow-[0_0_20px_rgba(0,240,255,0.1)] transition-all font-mono text-lg"
               />
               <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 text-sm">
                 aUSD
               </span>
             </div>
+            {amount && parseFloat(amount) > balanceNum && balanceNum > 0 && (
+              <p className="text-[11px] text-red-400 mt-1 font-mono">
+                Ã¢Å¡Â  Insufficient balance
+              </p>
+            )}
           </div>
 
           {/* Allocation Slider */}
           <div>
             <div className="flex items-center justify-between mb-2">
               <label className="text-xs text-gray-500 uppercase tracking-wider">
-                Portfolio Allocation
+                Scale Factor
               </label>
               <span className="text-sm text-neon-cyan font-mono font-bold">
                 {allocation}%
@@ -438,7 +564,7 @@ function FollowModal({
               step="5"
               value={allocation}
               onChange={(e) => setAllocation(parseInt(e.target.value))}
-              className="w-full h-2 bg-white/10 rounded-full appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:bg-neon-cyan [&::-webkit-slider-thumb]:rounded-full [&::-webkit-slider-thumb]:shadow-[0_0_10px_rgba(0,240,255,0.5)] [&::-webkit-slider-thumb]:cursor-pointer"
+              className="w-full h-2 bg-white/10 rounded-none appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:bg-neon-cyan [&::-webkit-slider-thumb]:rounded-none [&::-webkit-slider-thumb]:shadow-[0_0_10px_rgba(0,240,255,0.5)] [&::-webkit-slider-thumb]:cursor-pointer"
             />
             <div className="flex justify-between text-[10px] text-gray-600 mt-1 font-mono">
               <span>10%</span>
@@ -448,7 +574,7 @@ function FollowModal({
           </div>
 
           {/* Fee Preview */}
-          <div className="bg-white/[0.03] rounded-xl p-4 space-y-2 border border-white/5">
+          <div className="bg-white/[0.03] rounded-none p-4 space-y-2 border border-white/5">
             <div className="flex items-center justify-between text-sm">
               <span className="text-gray-400">Performance Fee</span>
               <span className="text-yellow-400 font-mono">10%</span>
@@ -464,26 +590,55 @@ function FollowModal({
             </div>
           </div>
 
+          {/* TX Status feedback */}
+          {txStatus !== "idle" && (
+            <div className={`rounded-none p-3 border text-sm font-mono ${
+              txStatus === "done"
+                ? "bg-green-500/10 border-green-500/30 text-green-400"
+                : txStatus === "error"
+                ? "bg-red-500/10 border-red-500/30 text-red-400"
+                : "bg-neon-cyan/10 border-neon-cyan/30 text-neon-cyan"
+            }`}>
+              {txStatus === "approving" && "Ã¢ÂÂ³ Step 1/2 Ã¢â‚¬â€ Approving aUSD spendÃ¢â‚¬Â¦"}
+              {txStatus === "following" && "Ã¢ÂÂ³ Step 2/2 Ã¢â‚¬â€ Submitting follow transactionÃ¢â‚¬Â¦"}
+              {txStatus === "done" && "Ã¢Å“â€¦ Copy Trade Activated! Replicating trades."}
+              {txStatus === "error" && `Ã¢ÂÅ’ ${txError}`}
+            </div>
+          )}
+
           {/* Action Buttons */}
           <div className="flex gap-3 pt-1">
             <button
               onClick={onClose}
-              className="flex-1 py-3.5 rounded-xl border border-white/10 hover:border-white/30 text-gray-400 hover:text-white transition-all font-semibold"
+              disabled={txStatus === "approving" || txStatus === "following"}
+              className="flex-1 py-3.5 rounded-none border border-white/10 hover:border-white/30 text-gray-400 hover:text-white transition-all font-semibold disabled:opacity-30"
             >
               Cancel
             </button>
             <button
-              disabled={!amount || parseFloat(amount) <= 0}
-              className="flex-1 py-3.5 rounded-xl font-bold transition-all relative overflow-hidden group disabled:opacity-30 disabled:cursor-not-allowed bg-gradient-to-r from-neon-cyan/20 to-neon-purple/20 border border-neon-cyan/40 hover:border-neon-cyan hover:shadow-[0_0_30px_rgba(0,240,255,0.3)] text-neon-cyan"
-              onClick={() => {
-                if (trader?.address) {
-                  window.location.href = `/social/trader/${trader.address}`;
-                }
-              }}
+              disabled={
+                !amount ||
+                parseFloat(amount) <= 0 ||
+                (parseFloat(amount) > balanceNum && balanceNum > 0) ||
+                !account?.address ||
+                txStatus === "approving" ||
+                txStatus === "following" ||
+                txStatus === "done"
+              }
+              className="flex-1 py-3.5 rounded-none font-bold transition-all relative overflow-hidden group disabled:opacity-30 disabled:cursor-not-allowed bg-gradient-to-r from-neon-cyan/20 to-neon-purple/20 border border-neon-cyan/40 hover:border-neon-cyan hover:shadow-[0_0_30px_rgba(0,240,255,0.3)] text-neon-cyan"
+              onClick={handleConfirmCopy}
             >
               <span className="relative z-10 flex items-center justify-center gap-2">
-                <Zap size={16} />
-                Confirm Copy
+                {txStatus === "approving" || txStatus === "following" ? (
+                  <RefreshCw size={16} className="animate-spin" />
+                ) : (
+                  <Zap size={16} />
+                )}
+                {txStatus === "approving" ? "ApprovingÃ¢â‚¬Â¦" :
+                 txStatus === "following" ? "FollowingÃ¢â‚¬Â¦" :
+                 txStatus === "done" ? "Done Ã¢Å“â€œ" :
+                 !account?.address ? "Connect Wallet" :
+                 "Confirm Copy"}
               </span>
               <div className="absolute inset-0 bg-gradient-to-r from-neon-cyan/0 via-neon-cyan/10 to-neon-cyan/0 translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700" />
             </button>
@@ -494,7 +649,7 @@ function FollowModal({
   );
 }
 
-/* ─────────────── Main Page ─────────────── */
+/* Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ Main Page Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ */
 
 const TIMEFRAMES = [
   { label: "24h", value: "24h" },
@@ -571,7 +726,7 @@ export default function SocialPage() {
         setStats(data);
       }
     } catch {
-      // stats endpoint may not exist yet — use defaults
+      // stats endpoint may not exist yet Ã¢â‚¬â€ use defaults
     }
   }, []);
 
@@ -636,10 +791,10 @@ export default function SocialPage() {
       <div className="noise-overlay fixed inset-0 z-[1]" />
 
       {/* Ambient glow blobs */}
-      <div className="fixed top-0 left-1/4 w-[600px] h-[600px] bg-neon-cyan/[0.03] rounded-full blur-[150px] pointer-events-none z-0" />
-      <div className="fixed bottom-0 right-1/4 w-[500px] h-[500px] bg-neon-purple/[0.04] rounded-full blur-[120px] pointer-events-none z-0" />
+      <div className="fixed top-0 left-1/4 w-[600px] h-[600px] bg-neon-cyan/[0.03] rounded-none blur-[150px] pointer-events-none z-0" />
+      <div className="fixed bottom-0 right-1/4 w-[500px] h-[500px] bg-neon-purple/[0.04] rounded-none blur-[120px] pointer-events-none z-0" />
 
-      {/* ═══════════ HEADER ═══════════ */}
+      {/* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â HEADER Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */}
       <header className="h-[48px] border-b border-[#00f0ff]/30 flex items-center justify-between px-4 bg-[#050505] flex-shrink-0 relative z-50 font-mono">
         <div className="flex items-center gap-3">
           <Link href="/" className="text-white/40 hover:text-[#00f0ff] transition flex items-center gap-1.5">
@@ -682,7 +837,7 @@ export default function SocialPage() {
         </div>
       </header>
 
-      {/* ═══════════ HERO STATS ═══════════ */}
+      {/* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â HERO STATS Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */}
       <section className="relative z-10 max-w-[1600px] mx-auto px-6 pt-8 pb-4">
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {[
@@ -771,7 +926,7 @@ export default function SocialPage() {
         </div>
       </section>
 
-      {/* ═══════════ CONTROLS ═══════════ */}
+      {/* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â CONTROLS Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */}
       <section className="relative z-20 max-w-[1600px] mx-auto px-6 py-4">
         <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
           {/* Timeframe Tabs */}
@@ -802,17 +957,17 @@ export default function SocialPage() {
           <div className="flex items-center gap-3 w-full lg:w-auto">
             {/* Create Strategy Button */}
             {account && (
-              <CubeButton
+              <button
                 onClick={handleRegisterAsLeader}
                 disabled={isRegistering}
-                color="#00f0ff"
-                className="w-48 py-2.5 h-full mr-2 hidden lg:block text-center"
+                className="mr-2 hidden lg:flex items-center justify-center gap-2 px-6 py-2.5 bg-[#00f0ff]/15 text-[#00f0ff] border-b-2 border-[#00f0ff] hover:bg-[#00f0ff]/25 transition-all text-xs font-bold font-mono tracking-wide"
               >
-                <span className="block text-xs font-bold font-mono text-[#00f0ff]">
-                  {isRegistering ? "Registering..." : "Create Strategy"}
-                </span>
-                <span className="block text-[9px] opacity-60 mt-0.5 text-white normal-case">Earn 10% Perf. Fee</span>
-              </CubeButton>
+                <TrendingUp size={14} />
+                <div className="flex flex-col items-start">
+                  <span>{isRegistering ? "REGISTERING..." : "REGISTER AS TRADER"}</span>
+                  <span className="text-[9px] text-[#00f0ff]/70 font-normal">Earn 10% Perf. Fee</span>
+                </div>
+              </button>
             )}
 
             {/* Search */}
@@ -831,7 +986,7 @@ export default function SocialPage() {
             </div>
 
             {/* Sort Dropdown */}
-            <div className="relative">
+            <div className="relative z-50">
               <button
                 onClick={(e) => {
                   e.stopPropagation();
@@ -852,7 +1007,7 @@ export default function SocialPage() {
                     initial={{ opacity: 0, y: -5 }}
                     animate={{ opacity: 1, y: 0 }}
                     exit={{ opacity: 0, y: -5 }}
-                    className="absolute right-0 mt-2 w-44 bg-[#050505] border border-[#00f0ff]/20 rounded-none overflow-hidden shadow-2xl z-30 font-mono text-[10px] uppercase tracking-widest"
+                    className="absolute right-0 mt-2 w-44 bg-[#050505] border border-[#00f0ff]/20 rounded-none overflow-hidden shadow-2xl z-[100] font-mono text-[10px] uppercase tracking-widest"
                   >
                     {SORT_OPTIONS.map((opt) => (
                       <button
@@ -878,7 +1033,7 @@ export default function SocialPage() {
         </div>
       </section>
 
-      {/* ═══════════ LEADERBOARD TABLE ═══════════ */}
+      {/* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â LEADERBOARD TABLE Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */}
       <section className="relative z-10 max-w-[1600px] mx-auto px-6 pb-12">
         <div className="bg-[#050505] border border-[#00f0ff]/20 rounded-none overflow-hidden font-mono text-[10px]">
           {/* Table Header */}
@@ -905,7 +1060,7 @@ export default function SocialPage() {
           {/* Error State */}
           {!loading && error && (
             <div className="flex flex-col items-center justify-center py-20 text-center">
-              <div className="w-16 h-16 rounded-2xl bg-coral/10 flex items-center justify-center mb-4">
+              <div className="w-16 h-16 rounded-none bg-coral/10 flex items-center justify-center mb-4">
                 <Activity size={28} className="text-coral" />
               </div>
               <h3 className="text-lg font-bold text-white mb-2">
@@ -914,7 +1069,7 @@ export default function SocialPage() {
               <p className="text-gray-500 text-sm max-w-md mb-4">{error}</p>
               <button
                 onClick={fetchLeaderboard}
-                className="px-5 py-2.5 rounded-xl border border-neon-cyan/30 text-neon-cyan text-sm font-semibold hover:bg-neon-cyan/10 transition-colors"
+                className="px-5 py-2.5 rounded-none border border-neon-cyan/30 text-neon-cyan text-sm font-semibold hover:bg-neon-cyan/10 transition-colors"
               >
                 Retry
               </button>
@@ -925,10 +1080,10 @@ export default function SocialPage() {
           {!loading && !error && traders.length === 0 && (
             <div className="flex flex-col items-center justify-center py-20 text-center">
               <div className="relative mb-6">
-                <div className="w-20 h-20 rounded-2xl bg-neon-cyan/5 border border-neon-cyan/10 flex items-center justify-center">
+                <div className="w-20 h-20 rounded-none bg-neon-cyan/5 border border-neon-cyan/10 flex items-center justify-center">
                   <Trophy size={36} className="text-neon-cyan/30" />
                 </div>
-                <div className="absolute -bottom-1 -right-1 w-8 h-8 rounded-xl bg-neon-purple/10 border border-neon-purple/20 flex items-center justify-center">
+                <div className="absolute -bottom-1 -right-1 w-8 h-8 rounded-none bg-neon-purple/10 border border-neon-purple/20 flex items-center justify-center">
                   <Star size={14} className="text-neon-purple/40" />
                 </div>
               </div>
@@ -965,7 +1120,7 @@ export default function SocialPage() {
                   {/* Trader Info */}
                   <div className="flex-1 min-w-[200px] flex items-center gap-3">
                     <div
-                      className="w-9 h-9 rounded-full flex items-center justify-center text-white text-xs font-bold shrink-0 ring-2 ring-white/10 group-hover:ring-neon-cyan/30 transition-all"
+                      className="w-9 h-9 rounded-none flex items-center justify-center text-white text-xs font-bold shrink-0 ring-2 ring-white/10 group-hover:ring-neon-cyan/30 transition-all"
                       style={{ background: addrToGradient(trader.address) }}
                     >
                       {trader.address.slice(2, 4).toUpperCase()}
@@ -1026,7 +1181,7 @@ export default function SocialPage() {
                     <Link
                       href={`/social/trader/${trader.address}`}
                       onClick={(e) => e.stopPropagation()}
-                      className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold border border-neon-cyan/30 text-neon-cyan bg-neon-cyan/5 hover:bg-neon-cyan/15 hover:border-neon-cyan/60 hover:shadow-[0_0_20px_rgba(0,240,255,0.15)] transition-all duration-200 group/btn"
+                      className="flex items-center justify-center gap-1.5 px-3 py-2 text-[10px] font-mono font-bold tracking-widest uppercase border border-[#00f0ff]/30 text-[#00f0ff] bg-[#00f0ff]/5 hover:bg-[#00f0ff]/15 hover:border-[#00f0ff]/60 hover:shadow-[0_0_20px_rgba(0,240,255,0.15)] transition-all duration-200 group/btn"
                     >
                       <Copy
                         size={12}
@@ -1048,15 +1203,15 @@ export default function SocialPage() {
                 Showing {traders.length} of {total} traders
               </span>
               <span className="flex items-center gap-1.5">
-                <div className="w-1.5 h-1.5 rounded-full bg-green animate-pulse" />
-                Live · Auto-refresh every 30s
+                <div className="w-1.5 h-1.5 rounded-none bg-green animate-pulse" />
+                Live Ã‚Â· Auto-refresh every 30s
               </span>
             </div>
           )}
         </div>
       </section>
 
-      {/* ═══════════ FOLLOW MODAL ═══════════ */}
+      {/* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â FOLLOW MODAL Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */}
       <AnimatePresence>
         {followModal && (
           <FollowModal

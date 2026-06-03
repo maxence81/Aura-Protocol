@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useMemo, useRef } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef, Suspense } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
@@ -30,7 +30,7 @@ import { defineChain, readContract, getContract, prepareContractCall, waitForRec
 import { client } from "../../../client";
 import { API_URL } from "../../../../lib/config";
 import { CONTRACT_ADDRESSES, AURA_COPY_TRADING_V2_ABI, AUSD_ABI } from "../../../../lib/contracts";
-import { parseEther } from "viem";
+import { parseEther, formatEther } from "viem";
 
 // ─── Chain & wallet config ───────────────────────────────────────────
 const robinhoodChain = defineChain({
@@ -494,6 +494,21 @@ function CircleProgress({
 
 // ─── Main Page Component ─────────────────────────────────────────────
 export default function TraderProfilePage() {
+  return (
+    <Suspense fallback={
+      <div className="min-h-screen bg-cyber-black flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-12 h-12 border-2 border-neon-cyan border-t-transparent rounded-full animate-spin" style={{ boxShadow: '0 0 15px rgba(0,240,255,0.3)' }} />
+          <span className="text-gray-500 font-mono text-sm tracking-widest uppercase">Loading profile…</span>
+        </div>
+      </div>
+    }>
+      <TraderProfileContent />
+    </Suspense>
+  );
+}
+
+function TraderProfileContent() {
   const params = useParams();
   const address = (params?.address as string) || "";
   const account = useActiveAccount();
@@ -513,6 +528,42 @@ export default function TraderProfilePage() {
   const [followAmount, setFollowAmount] = useState("");
   const [allocationPct, setAllocationPct] = useState(25);
   const { mutateAsync: sendTx } = useSendTransaction();
+
+  // aUSD tracking
+  const [ausdBalance, setAusdBalance] = useState<string>("0");
+  const [loadingBalance, setLoadingBalance] = useState(false);
+  const [txStatus, setTxStatus] = useState<"idle" | "approving" | "following" | "done" | "error">("idle");
+  const [txError, setTxError] = useState("");
+
+  useEffect(() => {
+    if (!account?.address || !showModal) return;
+    const fetchBalance = async () => {
+      setLoadingBalance(true);
+      try {
+        const ausdContract = getContract({
+          client,
+          chain: robinhoodChain,
+          address: CONTRACT_ADDRESSES.AUSD,
+          abi: AUSD_ABI as any,
+        });
+        const bal = await readContract({
+          contract: ausdContract,
+          method: "balanceOf",
+          params: [account.address],
+        });
+        setAusdBalance(formatEther(bal as bigint));
+      } catch {
+        setAusdBalance("0");
+      } finally {
+        setLoadingBalance(false);
+      }
+    };
+    fetchBalance();
+  }, [account?.address, showModal]);
+
+  const handleMaxClick = () => {
+    setFollowAmount(parseFloat(ausdBalance).toFixed(2));
+  };
 
   // ── Fetch trader data ──
   const fetchTraderData = useCallback(async () => {
@@ -683,12 +734,11 @@ export default function TraderProfilePage() {
   };
 
   const handleConfirmFollow = async () => {
-    if (!account?.address) {
-      alert("Please connect your wallet first.");
-      return;
-    }
-    
+    if (!account?.address) return;
+
     try {
+      setTxError("");
+      setTxStatus("approving");
       const parsedAmount = parseEther(followAmount || "0");
       
       const ausdContract = getContract({
@@ -719,6 +769,8 @@ export default function TraderProfilePage() {
         transactionHash: txResult.transactionHash,
       });
 
+      setTxStatus("following");
+
       const followCall = prepareContractCall({
         contract: copyTradingContract,
         method: "followLeader",
@@ -726,14 +778,18 @@ export default function TraderProfilePage() {
       });
 
       await sendTx(followCall);
-      
-      alert(`🚀 Copy Trade Activated via Smart Contract!\n\nReplicating trades from ${address}.`);
+      setTxStatus("done");
+      setCopied(true);
+      setTimeout(() => {
+        setShowModal(false);
+        setTxStatus("idle");
+      }, 2000);
     } catch (err: any) {
-      alert(`Error setting up copy trade: ${err.message}`);
+      console.error(err);
+      setTxError(err.message || "Failed to copy trader");
+      setTxStatus("error");
     }
-    setShowModal(false);
   };
-
   // ── Loading state ──
   if (loading) {
     return (
@@ -750,6 +806,24 @@ export default function TraderProfilePage() {
           <span className="text-gray-500 font-mono text-sm tracking-widest uppercase">
             Loading profile…
           </span>
+        </div>
+      </div>
+    );
+  }
+
+  // ── No profile found ──
+  if (!profile) {
+    return (
+      <div className="min-h-screen bg-cyber-black flex items-center justify-center">
+        <div className="flex flex-col items-center gap-4 text-center">
+          <div className="text-4xl mb-2">🔍</div>
+          <h2 className="text-xl font-bold text-white font-mono">Trader Not Found</h2>
+          <p className="text-gray-500 text-sm font-mono max-w-md">
+            No profile data available for this address. The trader may not be registered yet.
+          </p>
+          <Link href="/social" className="mt-4 px-6 py-2 rounded-xl bg-neon-cyan/10 border border-neon-cyan/30 text-neon-cyan text-sm font-bold hover:bg-neon-cyan/20 transition-all">
+            ← Back to Leaderboard
+          </Link>
         </div>
       </div>
     );
@@ -929,16 +1003,16 @@ export default function TraderProfilePage() {
                 <button
                   onClick={() => openCopyTradeModal()}
                   disabled={!account}
-                  className="relative group px-8 py-4 rounded-xl font-display font-bold text-sm uppercase tracking-wider bg-gradient-to-r from-neon-cyan/20 to-neon-green/20 border border-neon-cyan/50 text-neon-cyan hover:text-white disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-300 hover:border-neon-cyan hover:shadow-[0_0_30px_rgba(0,240,255,0.3),0_0_60px_rgba(0,240,255,0.1)]"
+                  className="relative group px-8 py-4 rounded-none font-display font-bold text-sm uppercase tracking-wider bg-gradient-to-r from-neon-cyan/20 to-neon-green/20 border border-neon-cyan/50 text-neon-cyan hover:text-white disabled:opacity-40 disabled:cursor-not-allowed transition-all duration-300 hover:border-neon-cyan hover:shadow-[0_0_30px_rgba(0,240,255,0.3),0_0_60px_rgba(0,240,255,0.1)]"
                 >
                   <span className="relative z-10 flex items-center gap-2">
                     <Zap size={16} />
                     Copy This Trader
                   </span>
                   {/* Animated glow border */}
-                  <div className="absolute inset-0 rounded-xl opacity-0 group-hover:opacity-100 transition-opacity duration-500">
+                  <div className="absolute inset-0 rounded-none opacity-0 group-hover:opacity-100 transition-opacity duration-500">
                     <div
-                      className="absolute inset-0 rounded-xl"
+                      className="absolute inset-0 rounded-none"
                       style={{
                         background:
                           "linear-gradient(135deg, rgba(0,240,255,0.15), rgba(57,255,20,0.15))",
@@ -956,7 +1030,7 @@ export default function TraderProfilePage() {
                       repeat: Infinity,
                       ease: "easeInOut",
                     }}
-                    className="absolute inset-0 rounded-xl border border-neon-cyan/30"
+                    className="absolute inset-0 rounded-none border border-neon-cyan/30"
                   />
                 </button>
                 {!account && (
@@ -1495,9 +1569,21 @@ export default function TraderProfilePage() {
 
                 {/* Amount input */}
                 <div className="mb-5">
-                  <label className="text-[10px] font-mono uppercase tracking-widest text-gray-500 mb-2 block">
-                    Amount (aUSD)
-                  </label>
+                  <div className="flex justify-between items-end mb-2">
+                    <label className="text-[10px] font-mono uppercase tracking-widest text-gray-500 block">
+                      Amount (aUSD)
+                    </label>
+                    <div className="text-[10px] font-mono text-gray-400">
+                      Balance:{" "}
+                      {loadingBalance ? (
+                        <span className="animate-pulse">...</span>
+                      ) : (
+                        <span className="text-white">
+                          {parseFloat(ausdBalance).toFixed(2)}
+                        </span>
+                      )}
+                    </div>
+                  </div>
                   <div className="relative">
                     <input
                       type="number"
@@ -1507,9 +1593,17 @@ export default function TraderProfilePage() {
                       onChange={(e) => setFollowAmount(e.target.value)}
                       className="w-full bg-white/[0.03] border border-white/10 rounded-xl px-4 py-3 text-white text-sm font-mono placeholder-gray-600 focus:outline-none focus:border-neon-cyan/40 transition-colors"
                     />
-                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-xs text-gray-600 font-mono">
-                      aUSD
-                    </span>
+                    <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-2">
+                      <button
+                        onClick={handleMaxClick}
+                        className="text-[10px] bg-white/5 hover:bg-white/10 px-2 py-1 rounded text-neon-cyan font-bold transition-colors uppercase tracking-wider"
+                      >
+                        Max
+                      </button>
+                      <span className="text-xs text-gray-600 font-mono pr-2">
+                        aUSD
+                      </span>
+                    </div>
                   </div>
                 </div>
 
@@ -1613,24 +1707,58 @@ export default function TraderProfilePage() {
                   </p>
                 </div>
 
+                {txError && (
+                  <div className="mb-4 p-3 rounded-xl border border-red-500/30 bg-red-500/10 text-red-400 text-xs text-center font-mono break-words">
+                    {txError}
+                  </div>
+                )}
+
                 {/* Action buttons */}
                 <div className="flex gap-3">
                   <button
                     onClick={() => setShowModal(false)}
-                    className="flex-1 py-3 rounded-xl border border-white/10 text-gray-400 text-sm font-bold hover:border-white/25 hover:text-white transition-all"
+                    disabled={txStatus !== "idle" && txStatus !== "error"}
+                    className="flex-1 py-3 rounded-xl border border-white/10 text-gray-400 text-sm font-bold hover:border-white/25 hover:text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     Cancel
                   </button>
                   <button
                     onClick={handleConfirmFollow}
                     disabled={
-                      !followAmount || parseFloat(followAmount) <= 0
+                      !followAmount ||
+                      parseFloat(followAmount) <= 0 ||
+                      parseFloat(followAmount) > parseFloat(ausdBalance) ||
+                      (txStatus !== "idle" && txStatus !== "error")
                     }
                     className="flex-1 py-3 rounded-xl font-bold text-sm transition-all bg-gradient-to-r from-neon-cyan/20 to-neon-green/20 border border-neon-cyan/50 text-neon-cyan hover:text-white hover:shadow-[0_0_25px_rgba(0,240,255,0.3)] disabled:opacity-30 disabled:cursor-not-allowed disabled:hover:shadow-none"
                   >
                     <span className="flex items-center justify-center gap-2">
-                      <Zap size={14} />
-                      Confirm Copy Trade
+                      {txStatus === "approving" && (
+                        <>
+                          <div className="w-4 h-4 border-2 border-neon-cyan border-t-transparent rounded-full animate-spin" />
+                          Approving aUSD...
+                        </>
+                      )}
+                      {txStatus === "following" && (
+                        <>
+                          <div className="w-4 h-4 border-2 border-neon-cyan border-t-transparent rounded-full animate-spin" />
+                          Confirming...
+                        </>
+                      )}
+                      {txStatus === "done" && (
+                        <>
+                          <Zap size={16} />
+                          Copied!
+                        </>
+                      )}
+                      {(txStatus === "idle" || txStatus === "error") && (
+                        <>
+                          <Zap size={14} />
+                          {parseFloat(followAmount) > parseFloat(ausdBalance)
+                            ? "Insufficient Balance"
+                            : "Confirm Copy Trade"}
+                        </>
+                      )}
                     </span>
                   </button>
                 </div>
