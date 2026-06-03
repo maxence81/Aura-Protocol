@@ -584,7 +584,12 @@ function TraderProfileContent() {
 
       if (profileRes.ok) {
         const data = await profileRes.json();
-        setProfile(data.profile || null);
+        setProfile(data.profile ? {
+          ...data.profile,
+          rank: data.profile.rank ?? 0,
+          maxDrawdown: data.profile.maxDrawdown ?? 0,
+          createdAt: data.profile.createdAt || new Date().toISOString()
+        } : null);
         setStrategies(data.strategies || []);
       }
 
