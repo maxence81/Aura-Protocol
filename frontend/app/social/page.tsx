@@ -169,7 +169,7 @@ function RankBadge({ rank }: { rank: number }) {
   if (rank === 1) {
     return (
       <div className="relative w-10 h-10 rounded-none bg-gradient-to-br from-yellow-400/20 to-yellow-600/10 flex items-center justify-center border border-yellow-400/40 shadow-[0_0_15px_rgba(250,204,21,0.3)]">
-        <Crown size={18} className="text-yellow-400" />
+        <Crown size={18} className="text-white" />
         <div className="absolute -top-1 -right-1 w-4 h-4 rounded-none bg-yellow-400 text-black text-[9px] font-black flex items-center justify-center">
           1
         </div>
@@ -179,7 +179,7 @@ function RankBadge({ rank }: { rank: number }) {
   if (rank === 2) {
     return (
       <div className="relative w-10 h-10 rounded-none bg-gradient-to-br from-gray-300/20 to-gray-500/10 flex items-center justify-center border border-gray-300/40 shadow-[0_0_10px_rgba(200,200,200,0.2)]">
-        <Medal size={18} className="text-gray-300" />
+        <Medal size={18} className="text-white" />
         <div className="absolute -top-1 -right-1 w-4 h-4 rounded-none bg-gray-300 text-black text-[9px] font-black flex items-center justify-center">
           2
         </div>
@@ -189,7 +189,7 @@ function RankBadge({ rank }: { rank: number }) {
   if (rank === 3) {
     return (
       <div className="relative w-10 h-10 rounded-none bg-gradient-to-br from-amber-600/20 to-amber-800/10 flex items-center justify-center border border-amber-600/40 shadow-[0_0_10px_rgba(217,119,6,0.2)]">
-        <Award size={18} className="text-amber-500" />
+        <Award size={18} className="text-white" />
         <div className="absolute -top-1 -right-1 w-4 h-4 rounded-none bg-amber-500 text-black text-[9px] font-black flex items-center justify-center">
           3
         </div>
@@ -197,7 +197,7 @@ function RankBadge({ rank }: { rank: number }) {
     );
   }
   return (
-    <div className="w-10 h-10 rounded-none bg-white/5 flex items-center justify-center border border-white/10 text-gray-400 font-bold text-sm font-mono">
+    <div className="w-10 h-10 rounded-none bg-white/5 flex items-center justify-center border border-white/10 text-white font-bold text-sm font-mono">
       {rank}
     </div>
   );
@@ -462,7 +462,7 @@ function FollowModal({
                 <h2 className="text-lg font-bold font-display text-white">
                   Copy Trader
                 </h2>
-                <p className="text-sm text-gray-400 font-mono">
+                <p className="text-sm text-white font-mono">
                   {shortAddr(trader.address)}
                 </p>
               </div>
@@ -471,7 +471,7 @@ function FollowModal({
               onClick={onClose}
               className="p-2 rounded-none hover:bg-white/10 transition-colors"
             >
-              <X size={18} className="text-gray-400" />
+              <X size={18} className="text-white" />
             </button>
           </div>
 
@@ -481,12 +481,12 @@ function FollowModal({
               {
                 label: "ROI",
                 value: `${trader.roi >= 0 ? "+" : ""}${trader.roi.toFixed(1)}%`,
-                color: trader.roi >= 0 ? "text-green-400" : "text-red-400",
+                color: trader.roi >= 0 ? "text-white" : "text-white",
               },
               {
                 label: "Win Rate",
                 value: `${trader.winRate.toFixed(0)}%`,
-                color: "text-neon-cyan",
+                color: "text-white",
               },
               {
                 label: "Followers",
@@ -498,7 +498,7 @@ function FollowModal({
                 key={s.label}
                 className="bg-white/5 rounded-none p-3 text-center border border-white/5"
               >
-                <div className="text-[10px] uppercase tracking-wider text-gray-500 mb-1">
+                <div className="text-[10px] uppercase tracking-wider text-white mb-1">
                   {s.label}
                 </div>
                 <div className={`font-bold font-mono text-sm ${s.color}`}>
@@ -511,17 +511,17 @@ function FollowModal({
           {/* Amount Input */}
           <div>
             <div className="flex items-center justify-between mb-1.5">
-              <label className="text-xs text-gray-500 uppercase tracking-wider">
+              <label className="text-xs text-white uppercase tracking-wider">
                 Allocation Amount (aUSD)
               </label>
               <div className="flex items-center gap-2">
-                <span className="text-[10px] text-gray-500 font-mono">
+                <span className="text-[10px] text-white font-mono">
                   Balance: {loadingBalance ? "" : `${balanceNum.toFixed(2)} aUSD`}
                 </span>
                 <button
                   onClick={handleMaxClick}
                   disabled={loadingBalance || balanceNum <= 0}
-                  className="text-[10px] font-bold text-neon-cyan bg-neon-cyan/10 border border-neon-cyan/30 px-2 py-0.5 rounded hover:bg-neon-cyan/20 transition-colors disabled:opacity-30"
+                  className="text-[10px] font-bold text-white bg-neon-cyan/10 border border-neon-cyan/30 px-2 py-0.5 rounded hover:bg-neon-cyan/20 transition-colors disabled:opacity-30"
                 >
                   MAX
                 </button>
@@ -542,12 +542,12 @@ function FollowModal({
                 }}
                 className="w-full bg-white/5 border border-white/10 rounded-none px-4 py-3.5 text-white placeholder-gray-600 focus:outline-none focus:border-neon-cyan/50 focus:shadow-[0_0_20px_rgba(0,240,255,0.1)] transition-all font-mono text-lg"
               />
-              <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 text-sm">
+              <span className="absolute right-4 top-1/2 -translate-y-1/2 text-white text-sm">
                 aUSD
               </span>
             </div>
             {amount && parseFloat(amount) > balanceNum && balanceNum > 0 && (
-              <p className="text-[11px] text-red-400 mt-1 font-mono">
+              <p className="text-[11px] text-white mt-1 font-mono">
                  Insufficient balance
               </p>
             )}
@@ -556,10 +556,10 @@ function FollowModal({
           {/* Allocation Slider */}
           <div>
             <div className="flex items-center justify-between mb-2">
-              <label className="text-xs text-gray-500 uppercase tracking-wider">
+              <label className="text-xs text-white uppercase tracking-wider">
                 Portfolio Allocation
               </label>
-              <span className="text-sm text-neon-cyan font-mono font-bold">
+              <span className="text-sm text-white font-mono font-bold">
                 {allocationPct}%
               </span>
             </div>
@@ -576,7 +576,7 @@ function FollowModal({
               }}
               className="w-full h-2 bg-white/10 rounded-none appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:bg-neon-cyan [&::-webkit-slider-thumb]:rounded-none [&::-webkit-slider-thumb]:shadow-[0_0_10px_rgba(0,240,255,0.5)] [&::-webkit-slider-thumb]:cursor-pointer"
             />
-            <div className="flex justify-between text-[10px] text-gray-600 mt-1 font-mono">
+            <div className="flex justify-between text-[10px] text-white mt-1 font-mono">
               <span>10%</span>
               <span>50%</span>
               <span>100%</span>
@@ -586,15 +586,15 @@ function FollowModal({
           {/* Fee Preview */}
           <div className="bg-white/[0.03] rounded-none p-4 space-y-2 border border-white/5">
             <div className="flex items-center justify-between text-sm">
-              <span className="text-gray-400">Performance Fee</span>
-              <span className="text-yellow-400 font-mono">10%</span>
+              <span className="text-white">Performance Fee</span>
+              <span className="text-white font-mono">10%</span>
             </div>
             <div className="flex items-center justify-between text-sm">
-              <span className="text-gray-400">Est. Fee (@ 30% gain)</span>
-              <span className="text-gray-300 font-mono">{estimatedFee} aUSD</span>
+              <span className="text-white">Est. Fee (@ 30% gain)</span>
+              <span className="text-white font-mono">{estimatedFee} aUSD</span>
             </div>
             <div className="border-t border-white/5 my-2" />
-            <div className="flex items-center gap-2 text-[11px] text-gray-500">
+            <div className="flex items-center gap-2 text-[11px] text-white">
               <Shield size={12} />
               Withdraw anytime. Fee only charged on positive returns.
             </div>
@@ -604,10 +604,10 @@ function FollowModal({
           {txStatus !== "idle" && (
             <div className={`rounded-none p-3 border text-sm font-mono ${
               txStatus === "done"
-                ? "bg-green-500/10 border-green-500/30 text-green-400"
+                ? "bg-green-500/10 border-green-500/30 text-white"
                 : txStatus === "error"
-                ? "bg-red-500/10 border-red-500/30 text-red-400"
-                : "bg-neon-cyan/10 border-neon-cyan/30 text-neon-cyan"
+                ? "bg-red-500/10 border-red-500/30 text-white"
+                : "bg-neon-cyan/10 border-neon-cyan/30 text-white"
             }`}>
               {txStatus === "approving" && " Step 1/2  Approving aUSD spend..."}
               {txStatus === "following" && " Step 2/2  Submitting follow transaction..."}
@@ -621,7 +621,7 @@ function FollowModal({
             <button
               onClick={onClose}
               disabled={txStatus === "approving" || txStatus === "following"}
-              className="flex-1 py-3.5 rounded-none border border-white/10 hover:border-white/30 text-gray-400 hover:text-white transition-all font-semibold disabled:opacity-30"
+              className="flex-1 py-3.5 rounded-none border border-white/10 hover:border-white/30 text-white hover:text-white transition-all font-semibold disabled:opacity-30"
             >
               Cancel
             </button>
@@ -635,7 +635,7 @@ function FollowModal({
                 txStatus === "following" ||
                 txStatus === "done"
               }
-              className="flex-1 py-3.5 rounded-none font-bold transition-all relative overflow-hidden group disabled:opacity-30 disabled:cursor-not-allowed bg-gradient-to-r from-neon-cyan/20 to-neon-purple/20 border border-neon-cyan/40 hover:border-neon-cyan hover:shadow-[0_0_30px_rgba(0,240,255,0.3)] text-neon-cyan"
+              className="flex-1 py-3.5 rounded-none font-bold transition-all relative overflow-hidden group disabled:opacity-30 disabled:cursor-not-allowed bg-gradient-to-r from-neon-cyan/20 to-neon-purple/20 border border-neon-cyan/40 hover:border-neon-cyan hover:shadow-[0_0_30px_rgba(0,240,255,0.3)] text-white"
               onClick={handleConfirmCopy}
             >
               <span className="relative z-10 flex items-center justify-center gap-2">
@@ -807,18 +807,18 @@ export default function SocialPage() {
       {/*  HEADER  */}
       <header className="h-[48px] border-b border-[#00f0ff]/30 flex items-center justify-between px-4 bg-[#050505] flex-shrink-0 relative z-50 font-mono">
         <div className="flex items-center gap-3">
-          <Link href="/" className="text-white/40 hover:text-[#00f0ff] transition flex items-center gap-1.5">
+          <Link href="/" className="text-white/40 hover:text-white transition flex items-center gap-1.5">
             <ArrowLeft className="w-3.5 h-3.5" />
             <span className="text-[10px] font-bold uppercase tracking-widest">AURA</span>
           </Link>
           <div className="border-l border-[#00f0ff]/20 pl-3 ml-1">
-            <span className="text-[9px] text-[#00f0ff] font-bold uppercase tracking-widest bg-[#00f0ff]/10 border border-[#00f0ff]/30 px-2 py-0.5">Copy Trade</span>
+            <span className="text-[9px] text-white font-bold uppercase tracking-widest bg-[#00f0ff]/10 border border-[#00f0ff]/30 px-2 py-0.5">Copy Trade</span>
           </div>
-          <Link href="/social/dashboard" className="text-[9px] text-white/30 hover:text-[#00f0ff] font-bold uppercase tracking-widest transition ml-2">Dashboard</Link>
-          <Link href="/trade" className="text-[9px] text-white/30 hover:text-[#00f0ff] font-bold uppercase tracking-widest transition ml-1">Trade</Link>
-          <Link href="/portfolio" className="text-[9px] text-white/30 hover:text-[#00f0ff] font-bold uppercase tracking-widest transition ml-1">Portfolio</Link>
-          <Link href="/perp-vault" className="text-[9px] text-white/30 hover:text-[#00f0ff] font-bold uppercase tracking-widest transition ml-1">Earn Yield</Link>
-          <Link href="/trade/account" className="text-[9px] text-white/30 hover:text-[#00f0ff] font-bold uppercase tracking-widest transition ml-1">Account</Link>
+          <Link href="/social/dashboard" className="text-[9px] text-white/30 hover:text-white font-bold uppercase tracking-widest transition ml-2">Dashboard</Link>
+          <Link href="/trade" className="text-[9px] text-white/30 hover:text-white font-bold uppercase tracking-widest transition ml-1">Trade</Link>
+          <Link href="/portfolio" className="text-[9px] text-white/30 hover:text-white font-bold uppercase tracking-widest transition ml-1">Portfolio</Link>
+          <Link href="/perp-vault" className="text-[9px] text-white/30 hover:text-white font-bold uppercase tracking-widest transition ml-1">Earn Yield</Link>
+          <Link href="/trade/account" className="text-[9px] text-white/30 hover:text-white font-bold uppercase tracking-widest transition ml-1">Account</Link>
         </div>
         <div className="flex items-center gap-3">
           <motion.button
@@ -834,8 +834,8 @@ export default function SocialPage() {
               size={12}
               className={`transition-colors ${
                 refreshing
-                  ? "animate-spin text-neon-cyan"
-                  : "text-gray-500 group-hover:text-neon-cyan"
+                  ? "animate-spin text-white"
+                  : "text-white group-hover:text-white"
               }`}
             />
           </motion.button>
@@ -861,8 +861,8 @@ export default function SocialPage() {
               borderColor: "border-purple-500/30",
               glowColor: "shadow-[0_0_30px_rgba(139,92,246,0.1)]",
               iconBg: "bg-purple-500/10",
-              iconColor: "text-purple-400",
-              textColor: "text-purple-400",
+              iconColor: "text-white",
+              textColor: "text-white",
             },
             {
               label: "Active Traders",
@@ -873,8 +873,8 @@ export default function SocialPage() {
               borderColor: "border-neon-cyan/30",
               glowColor: "shadow-[0_0_30px_rgba(0,240,255,0.1)]",
               iconBg: "bg-neon-cyan/10",
-              iconColor: "text-neon-cyan",
-              textColor: "text-neon-cyan",
+              iconColor: "text-white",
+              textColor: "text-white",
             },
             {
               label: "Total Followers",
@@ -885,8 +885,8 @@ export default function SocialPage() {
               borderColor: "border-green/30",
               glowColor: "shadow-[0_0_30px_rgba(57,255,20,0.08)]",
               iconBg: "bg-green/10",
-              iconColor: "text-green",
-              textColor: "text-green",
+              iconColor: "text-white",
+              textColor: "text-white",
             },
             {
               label: "Total PnL",
@@ -905,9 +905,9 @@ export default function SocialPage() {
               iconBg:
                 (stats.totalPnl || 0) >= 0 ? "bg-[#00f0ff]/10" : "bg-[#FF2A6D]/10",
               iconColor:
-                (stats.totalPnl || 0) >= 0 ? "text-[#00f0ff]" : "text-[#FF2A6D]",
+                (stats.totalPnl || 0) >= 0 ? "text-white" : "text-[#FF2A6D]",
               textColor:
-                (stats.totalPnl || 0) >= 0 ? "text-[#00f0ff]" : "text-[#FF2A6D]",
+                (stats.totalPnl || 0) >= 0 ? "text-white" : "text-[#FF2A6D]",
             },
           ].map((card, i) => (
             <motion.div
@@ -948,7 +948,7 @@ export default function SocialPage() {
                 onClick={() => setTimeframe(tf.value)}
                 className={`relative px-4 py-2 transition-all duration-200 ${
                   timeframe === tf.value
-                    ? "text-[#00f0ff] font-bold"
+                    ? "text-white font-bold"
                     : "text-white/40 hover:text-white/70"
                 }`}
               >
@@ -971,12 +971,12 @@ export default function SocialPage() {
               <button
                 onClick={handleRegisterAsLeader}
                 disabled={isRegistering}
-                className="mr-2 hidden lg:flex items-center justify-center gap-2 px-6 py-2.5 bg-[#00f0ff]/15 text-[#00f0ff] border-b-2 border-[#00f0ff] hover:bg-[#00f0ff]/25 transition-all text-xs font-bold font-mono tracking-wide"
+                className="mr-2 hidden lg:flex items-center justify-center gap-2 px-6 py-2.5 bg-[#00f0ff]/15 text-white border-b-2 border-[#00f0ff] hover:bg-[#00f0ff]/25 transition-all text-xs font-bold font-mono tracking-wide"
               >
                 <TrendingUp size={14} />
                 <div className="flex flex-col items-start">
                   <span>{isRegistering ? "REGISTERING..." : "REGISTER AS TRADER"}</span>
-                  <span className="text-[9px] text-[#00f0ff]/70 font-normal">Earn 10% Perf. Fee</span>
+                  <span className="text-[9px] text-white font-normal">Earn 10% Perf. Fee</span>
                 </div>
               </button>
             )}
@@ -985,7 +985,7 @@ export default function SocialPage() {
             <div className="relative flex-1 lg:flex-none lg:w-64">
               <Search
                 size={15}
-                className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-600"
+                className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white"
               />
               <input
                 type="text"
@@ -1029,8 +1029,8 @@ export default function SocialPage() {
                         }}
                         className={`w-full text-left px-4 py-2.5 text-sm transition-colors ${
                           sortBy === opt.value
-                            ? "bg-neon-cyan/10 text-neon-cyan"
-                            : "text-gray-400 hover:bg-white/5 hover:text-white"
+                            ? "bg-neon-cyan/10 text-white"
+                            : "text-white hover:bg-white/5 hover:text-white"
                         }`}
                       >
                         {opt.label}
@@ -1048,7 +1048,7 @@ export default function SocialPage() {
       <section className="relative z-10 max-w-[1600px] mx-auto px-6 pb-12">
         <div className="bg-[#050505] border border-[#00f0ff]/20 rounded-none overflow-hidden font-mono text-[10px]">
           {/*  HEADER  */}
-          <div className="hidden lg:flex items-center gap-4 px-5 py-3 border-b border-[#00f0ff]/30 text-[#00f0ff]/50 uppercase tracking-widest font-bold bg-[#0a0a0a]">
+          <div className="hidden lg:flex items-center gap-4 px-5 py-3 border-b border-[#00f0ff]/30 text-white uppercase tracking-widest font-bold bg-[#0a0a0a]">
             <div className="w-10 text-center">#</div>
             <div className="flex-1 min-w-[200px]">Trader</div>
             <div className="w-24 text-right">PnL</div>
@@ -1077,10 +1077,10 @@ export default function SocialPage() {
               <h3 className="text-lg font-bold text-white mb-2">
                 Connection Error
               </h3>
-              <p className="text-gray-500 text-sm max-w-md mb-4">{error}</p>
+              <p className="text-white text-sm max-w-md mb-4">{error}</p>
               <button
                 onClick={fetchLeaderboard}
-                className="px-5 py-2.5 rounded-none border border-neon-cyan/30 text-neon-cyan text-sm font-semibold hover:bg-neon-cyan/10 transition-colors"
+                className="px-5 py-2.5 rounded-none border border-neon-cyan/30 text-white text-sm font-semibold hover:bg-neon-cyan/10 transition-colors"
               >
                 Retry
               </button>
@@ -1092,7 +1092,7 @@ export default function SocialPage() {
             <div className="flex flex-col items-center justify-center py-20 text-center">
               <div className="relative mb-6">
                 <div className="w-20 h-20 rounded-none bg-neon-cyan/5 border border-neon-cyan/10 flex items-center justify-center">
-                  <Trophy size={36} className="text-neon-cyan/30" />
+                  <Trophy size={36} className="text-white" />
                 </div>
                 <div className="absolute -bottom-1 -right-1 w-8 h-8 rounded-none bg-neon-purple/10 border border-neon-purple/20 flex items-center justify-center">
                   <Star size={14} className="text-neon-purple/40" />
@@ -1101,7 +1101,7 @@ export default function SocialPage() {
               <h3 className="text-lg font-bold text-white mb-2 font-display">
                 No Traders Yet
               </h3>
-              <p className="text-gray-500 text-sm max-w-md">
+              <p className="text-white text-sm max-w-md">
                 The leaderboard is waiting for its first strategist.
                 <br />
                 Deploy a strategy on AuraSocialTrading to appear here.
@@ -1157,7 +1157,7 @@ export default function SocialPage() {
                   <div className="w-24 text-right">
                     <span
                       className={`text-[10px] font-bold font-mono ${
-                        trader.totalPnl >= 0 ? "text-[#00f0ff]" : "text-[#FF2A6D]"
+                        trader.totalPnl >= 0 ? "text-white" : "text-[#FF2A6D]"
                       }`}
                     >
                       {trader.totalPnl >= 0 ? "+" : ""}
@@ -1196,7 +1196,7 @@ export default function SocialPage() {
                         e.stopPropagation();
                         setFollowModal(trader);
                       }}
-                      className="flex items-center justify-center gap-1.5 px-3 py-2 text-[10px] font-mono font-bold tracking-widest uppercase border border-[#00f0ff]/30 text-[#00f0ff] bg-[#00f0ff]/5 hover:bg-[#00f0ff]/15 hover:border-[#00f0ff]/60 hover:shadow-[0_0_20px_rgba(0,240,255,0.15)] transition-all duration-200 group/btn"
+                      className="flex items-center justify-center gap-1.5 px-3 py-2 text-[10px] font-mono font-bold tracking-widest uppercase border border-[#00f0ff]/30 text-white bg-[#00f0ff]/5 hover:bg-[#00f0ff]/15 hover:border-[#00f0ff]/60 hover:shadow-[0_0_20px_rgba(0,240,255,0.15)] transition-all duration-200 group/btn"
                     >
                       <Copy
                         size={12}
@@ -1212,7 +1212,7 @@ export default function SocialPage() {
 
           {/* Footer with total count */}
           {!loading && traders.length > 0 && (
-            <div className="px-5 py-3 border-t border-white/[0.06] flex items-center justify-between text-xs text-gray-500">
+            <div className="px-5 py-3 border-t border-white/[0.06] flex items-center justify-between text-xs text-white">
               <span>
                 Showing {traders.length} of {total} traders
               </span>
