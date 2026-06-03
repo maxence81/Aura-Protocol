@@ -126,9 +126,54 @@ async function getLeaderProfile(req, res) {
         const address = req.params.address;
         if (!ethers.isAddress(address)) return res.status(400).json({ error: "Invalid address" });
 
-        const profile = await contract.leaders(address);
-        if (!profile.isRegistered) {
+        const profileRaw = await contract.leaders(address);
+        if (!profileRaw.isRegistered) {
             return res.status(404).json({ error: "Leader not found" });
+        }
+
+        let profile = {
+            isRegistered: profileRaw.isRegistered,
+            isActive: profileRaw.isActive,
+            performanceFeeBps: profileRaw.performanceFeeBps,
+            totalFollowers: profileRaw.totalFollowers,
+            totalCopiedCapital: profileRaw.totalCopiedCapital,
+            totalRealizedPnl: profileRaw.totalRealizedPnl,
+            isPnlPositive: profileRaw.isPnlPositive,
+            tradesExecuted: Number(profileRaw.tradesExecuted),
+            tradesWon: Number(profileRaw.tradesWon),
+            joinedAt: profileRaw.joinedAt
+        };
+
+        // Merge personal AuraPerps history
+        const perps = getPerpsContract();
+        if (perps) {
+            try {
+                const closedFilter = perps.filters.PositionClosed(null, address);
+                const currentBlock = await perps.runner.provider.getBlockNumber();
+                const fromBlock = Math.max(0, currentBlock - 345600 * 30);
+                const events = await perps.queryFilter(closedFilter, fromBlock, currentBlock);
+                
+                let personalPnl = 0;
+                let personalWins = 0;
+                let personalTrades = events.length;
+
+                for (const ev of events) {
+                    const p = parseFloat(ethers.formatEther(ev.args.pnl));
+                    if (ev.args.isProfit) { personalPnl += p; personalWins++; }
+                    else { personalPnl -= p; }
+                }
+
+                const socialPnlStr = ethers.formatEther(profile.totalRealizedPnl);
+                const socialPnl = parseFloat(socialPnlStr) * (profile.isPnlPositive ? 1 : -1);
+                const combinedPnl = socialPnl + personalPnl;
+
+                profile.totalRealizedPnl = ethers.parseEther(Math.abs(combinedPnl).toFixed(18));
+                profile.isPnlPositive = combinedPnl >= 0;
+                profile.tradesExecuted += personalTrades;
+                profile.tradesWon += personalWins;
+            } catch (e) {
+                console.log('Error merging personal history:', e.message);
+            }
         }
 
         const followers = await contract.getLeaderFollowers(address);
@@ -271,7 +316,51 @@ async function getLeaderboard(req, res) {
 
         // Fetch all active leaders
         const [addrs, profiles] = await contract.getActiveLeaders(0, 100);
-        let leaders = addrs.map((addr, i) => formatLeaderProfile(addr, profiles[i]));
+        let leaders = [];
+        
+        const perps = getPerpsContract();
+        for (let i = 0; i < addrs.length; i++) {
+            let profileRaw = profiles[i];
+            let profile = {
+                isRegistered: profileRaw.isRegistered,
+                isActive: profileRaw.isActive,
+                performanceFeeBps: profileRaw.performanceFeeBps,
+                totalFollowers: profileRaw.totalFollowers,
+                totalCopiedCapital: profileRaw.totalCopiedCapital,
+                totalRealizedPnl: profileRaw.totalRealizedPnl,
+                isPnlPositive: profileRaw.isPnlPositive,
+                tradesExecuted: Number(profileRaw.tradesExecuted),
+                tradesWon: Number(profileRaw.tradesWon),
+                joinedAt: profileRaw.joinedAt
+            };
+
+            if (perps) {
+                try {
+                    const closedFilter = perps.filters.PositionClosed(null, addrs[i]);
+                    const currentBlock = await perps.runner.provider.getBlockNumber();
+                    const fromBlock = Math.max(0, currentBlock - 345600 * 30);
+                    const events = await perps.queryFilter(closedFilter, fromBlock, currentBlock);
+                    
+                    let personalPnl = 0;
+                    let personalWins = 0;
+                    
+                    for (const ev of events) {
+                        const p = parseFloat(ethers.formatEther(ev.args.pnl));
+                        if (ev.args.isProfit) { personalPnl += p; personalWins++; }
+                        else { personalPnl -= p; }
+                    }
+
+                    const socialPnl = parseFloat(ethers.formatEther(profile.totalRealizedPnl)) * (profile.isPnlPositive ? 1 : -1);
+                    const combinedPnl = socialPnl + personalPnl;
+
+                    profile.totalRealizedPnl = ethers.parseEther(Math.abs(combinedPnl).toFixed(18));
+                    profile.isPnlPositive = combinedPnl >= 0;
+                    profile.tradesExecuted += events.length;
+                    profile.tradesWon += personalWins;
+                } catch(e) {}
+            }
+            leaders.push(formatLeaderProfile(addrs[i], profile));
+        }
 
         // Search filter
         if (search) {
