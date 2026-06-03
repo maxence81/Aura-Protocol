@@ -522,6 +522,7 @@ function TraderProfileContent() {
   >({});
   const [selectedPeriod, setSelectedPeriod] = useState<7 | 30 | 90>(30);
   const [loading, setLoading] = useState(true);
+  const initialFetchDone = useRef(false);
   const [copied, setCopied] = useState(false);
   const [showModal, setShowModal] = useState(false);
   const [modalStrategy, setModalStrategy] = useState<Strategy | null>(null);
@@ -568,7 +569,7 @@ function TraderProfileContent() {
   const fetchTraderData = useCallback(async () => {
     if (!address) return;
     try {
-      setLoading(true);
+      if (!initialFetchDone.current) setLoading(true);
 
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), 5000);
@@ -663,6 +664,7 @@ function TraderProfileContent() {
       });
     } finally {
       setLoading(false);
+      initialFetchDone.current = true;
     }
   }, [address, selectedPeriod]);
 
@@ -1084,8 +1086,9 @@ function TraderProfileContent() {
                 isPositive={history.totalPnl >= 0}
               />
             ) : (
-              <div className="h-64 flex items-center justify-center text-white/80 font-mono text-sm">
-                No performance data available
+              <div className="h-64 flex flex-col items-center justify-center text-white/50 font-mono text-sm border border-white/5 bg-white/[0.01]">
+                <TrendingUp size={24} className="mb-2 opacity-20" />
+                No trading data yet for this period
               </div>
             )}
           </div>
