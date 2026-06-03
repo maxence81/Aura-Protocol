@@ -476,8 +476,9 @@ function FollowModal({
               disabled={!amount || parseFloat(amount) <= 0}
               className="flex-1 py-3.5 rounded-xl font-bold transition-all relative overflow-hidden group disabled:opacity-30 disabled:cursor-not-allowed bg-gradient-to-r from-neon-cyan/20 to-neon-purple/20 border border-neon-cyan/40 hover:border-neon-cyan hover:shadow-[0_0_30px_rgba(0,240,255,0.3)] text-neon-cyan"
               onClick={() => {
-                alert("Proceeding to trader page to copy...");
-                onClose();
+                if (followModal?.address) {
+                  window.location.href = `/social/trader/${followModal.address}`;
+                }
               }}
             >
               <span className="relative z-10 flex items-center justify-center gap-2">
@@ -531,7 +532,7 @@ export default function SocialPage() {
   const [isRegistering, setIsRegistering] = useState(false);
 
   const handleRegisterAsLeader = async () => {
-    if (!account) return alert("Please connect wallet first");
+    if (!account) return;
     
     try {
       setIsRegistering(true);
@@ -546,7 +547,7 @@ export default function SocialPage() {
         transport: custom((window as any).ethereum)
       });
 
-      const tx = await wc.writeContract({
+      await wc.writeContract({
         chain: null,
         address: CONTRACT_ADDRESSES.AURA_COPY_TRADING_V2 as `0x${string}`,
         abi: AURA_COPY_TRADING_V2_ABI as any,
@@ -554,10 +555,8 @@ export default function SocialPage() {
         args: [1000] // 10% performance fee (1000 bps)
       });
       
-      alert(`Transaction submitted! Hash: ${tx}`);
     } catch (e: any) {
       console.error(e);
-      alert(`Registration failed: ${e.message}`);
     } finally {
       setIsRegistering(false);
     }
@@ -631,12 +630,14 @@ export default function SocialPage() {
   return (
     <div className="min-h-screen bg-cyber-black text-white relative overflow-x-hidden">
       {/* Background effects */}
-      <div className="cyber-grid-bg" />
-      <div className="noise-overlay" />
+      <img src="/assets/fond_social.png" className="fixed inset-0 z-0 h-full w-full object-cover opacity-30 pointer-events-none" alt="" />
+      <div className="cyber-grid-bg fixed inset-0 z-0" />
+      <div className="scanlines fixed inset-0 z-[1]" />
+      <div className="noise-overlay fixed inset-0 z-[1]" />
 
       {/* Ambient glow blobs */}
-      <div className="fixed top-0 left-1/4 w-[600px] h-[600px] bg-neon-cyan/[0.03] rounded-full blur-[150px] pointer-events-none" />
-      <div className="fixed bottom-0 right-1/4 w-[500px] h-[500px] bg-neon-purple/[0.04] rounded-full blur-[120px] pointer-events-none" />
+      <div className="fixed top-0 left-1/4 w-[600px] h-[600px] bg-neon-cyan/[0.03] rounded-full blur-[150px] pointer-events-none z-0" />
+      <div className="fixed bottom-0 right-1/4 w-[500px] h-[500px] bg-neon-purple/[0.04] rounded-full blur-[120px] pointer-events-none z-0" />
 
       {/* ═══════════ HEADER ═══════════ */}
       <header className="h-[48px] border-b border-[#00f0ff]/30 flex items-center justify-between px-4 bg-[#050505] flex-shrink-0 relative z-50 font-mono">

@@ -26,7 +26,7 @@ import {
 } from "lucide-react";
 import { ConnectButton, useActiveAccount, useSendTransaction } from "thirdweb/react";
 import { createWallet } from "thirdweb/wallets";
-import { defineChain, readContract, getContract, prepareContractCall } from "thirdweb";
+import { defineChain, readContract, getContract, prepareContractCall, waitForReceipt } from "thirdweb";
 import { client } from "../../../client";
 import { API_URL } from "../../../../lib/config";
 import { CONTRACT_ADDRESSES, AURA_COPY_TRADING_V2_ABI, AUSD_ABI } from "../../../../lib/contracts";
@@ -111,6 +111,7 @@ function addressToGradient(address: string): [string, string] {
     "#00f0ff", "#ff00a0", "#39ff14", "#bd00ff", "#f0e800",
     "#ffae00", "#0088ff", "#E86A56", "#8B5CF6", "#1FCB4F",
   ];
+  if (!address || address.length < 10) return [colors[0], colors[1]];
   const hash = address.toLowerCase().replace("0x", "");
   const i1 = parseInt(hash.slice(0, 4), 16) % colors.length;
   let i2 = parseInt(hash.slice(4, 8), 16) % colors.length;
@@ -136,16 +137,16 @@ function TraderAvatar({ address, size = 96 }: { address: string; size?: number }
       <g clipPath={`url(#clip-${id})`}>
         <rect width="96" height="96" fill={`url(#${id})`} />
         {/* Geometric pattern from address */}
-        {Array.from({ length: 9 }, (_, i) => {
+        {address && address.length >= 42 && Array.from({ length: 9 }, (_, i) => {
           const x = (parseInt(address.slice(2 + i * 2, 4 + i * 2), 16) / 255) * 96;
           const y = (parseInt(address.slice(12 + i * 2, 14 + i * 2), 16) / 255) * 96;
           const r = 4 + (parseInt(address.slice(22 + i, 23 + i), 16) / 15) * 12;
           return (
             <circle
               key={i}
-              cx={x}
-              cy={y}
-              r={r}
+              cx={x || 0}
+              cy={y || 0}
+              r={r || 0}
               fill="rgba(255,255,255,0.12)"
               stroke="rgba(255,255,255,0.2)"
               strokeWidth="0.5"
@@ -494,7 +495,7 @@ function CircleProgress({
 // ─── Main Page Component ─────────────────────────────────────────────
 export default function TraderProfilePage() {
   const params = useParams();
-  const address = (params.address as string) || "";
+  const address = (params?.address as string) || "";
   const account = useActiveAccount();
 
   // ── State ──
@@ -710,7 +711,13 @@ export default function TraderProfilePage() {
         params: [CONTRACT_ADDRESSES.AURA_COPY_TRADING_V2, parsedAmount]
       });
 
-      await sendTx(approveCall);
+      const txResult = await sendTx(approveCall);
+      
+      await waitForReceipt({
+        client,
+        chain: robinhoodChain,
+        transactionHash: txResult.transactionHash,
+      });
 
       const followCall = prepareContractCall({
         contract: copyTradingContract,
@@ -749,10 +756,12 @@ export default function TraderProfilePage() {
   }
 
   return (
-    <div className="min-h-screen bg-cyber-black text-white relative overflow-hidden">
+    <div className="min-h-screen bg-cyber-black text-white selection:bg-neon-cyan/30 overflow-x-hidden font-sans relative">
       {/* Background effects */}
-      <div className="cyber-grid-bg" />
-      <div className="noise-overlay" />
+      <img src="/assets/fond_social.png" className="fixed inset-0 z-0 h-full w-full object-cover opacity-30 pointer-events-none" alt="" />
+      <div className="cyber-grid-bg fixed inset-0 z-0" />
+      <div className="scanlines fixed inset-0 z-[1]" />
+      <div className="noise-overlay fixed inset-0 z-[1]" />
 
       {/* ═══════════════ HEADER ═══════════════ */}
       <header className="h-[48px] border-b border-[#00f0ff]/30 flex items-center justify-between px-4 bg-[#050505] flex-shrink-0 relative z-50 font-mono">
