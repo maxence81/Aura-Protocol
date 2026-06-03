@@ -30,7 +30,7 @@ import { defineChain, readContract, getContract, prepareContractCall } from "thi
 import { client } from "../../../client";
 import { API_URL } from "../../../../lib/config";
 import { CONTRACT_ADDRESSES, AURA_COPY_TRADING_V2_ABI, AUSD_ABI } from "../../../../lib/contracts";
-import { ethers } from "ethers";
+import { parseEther } from "viem";
 
 // ─── Chain & wallet config ───────────────────────────────────────────
 const robinhoodChain = defineChain({
@@ -688,7 +688,7 @@ export default function TraderProfilePage() {
     }
     
     try {
-      const parsedAmount = ethers.parseEther(followAmount || "0");
+      const parsedAmount = parseEther(followAmount || "0");
       
       const ausdContract = getContract({
         client,
