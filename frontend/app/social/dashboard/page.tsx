@@ -92,20 +92,22 @@ export default function SocialDashboardPage() {
         return;
       }
 
-      // Fetch allocations for the current user for all these leaders using multicall
-      const contracts = activeAddrs.map(addr => ({
-        address: CONTRACT_ADDRESSES.AURA_COPY_TRADING_V2 as `0x${string}`,
-        abi: AURA_COPY_TRADING_V2_ABI as any,
-        functionName: "allocations",
-        args: [addr, account.address],
-      }));
+      // Fetch allocations for the current user for all these leaders using Promise.all
+      const allocPromises = activeAddrs.map(addr => 
+        publicClient.readContract({
+          address: CONTRACT_ADDRESSES.AURA_COPY_TRADING_V2 as `0x${string}`,
+          abi: AURA_COPY_TRADING_V2_ABI as any,
+          functionName: "allocations",
+          args: [addr, account.address],
+        })
+      );
 
-      const allocResults = await publicClient.multicall({ contracts });
+      const allocResults = await Promise.all(allocPromises);
       
       const activeAllocations: FollowerAllocation[] = [];
       allocResults.forEach((res, index) => {
-        if (res.status === "success" && res.result) {
-          const alloc = res.result as any;
+        if (res) {
+          const alloc = res as any;
           if (alloc[0]) { // isActive
             activeAllocations.push({
               leader: activeAddrs[index],
