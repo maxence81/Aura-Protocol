@@ -182,7 +182,7 @@ export const LIQUIDATION_SHIELD_ABI = [
 
 export const AURA_COPY_TRADING_V2_ABI = [
   { type: "function", name: "registerAsLeader", inputs: [{ name: "performanceFeeBps", type: "uint16" }], outputs: [], stateMutability: "nonpayable" },
-  { type: "function", name: "followLeader", inputs: [{ name: "leader", type: "address" }, { name: "amount", type: "uint256" }, { name: "scaleFactor", type: "uint256" }, { name: "maxSlippageBps", type: "uint16" }], outputs: [], stateMutability: "nonpayable" },
+  { type: "function", name: "followLeader", inputs: [{ name: "leader", type: "address" }, { name: "amount", type: "uint256" }, { name: "scaleFactor", type: "uint256" }, { name: "maxSlippageBps", type: "uint256" }], outputs: [], stateMutability: "nonpayable" },
   { type: "function", name: "addCapital", inputs: [{ name: "leader", type: "address" }, { name: "amount", type: "uint256" }], outputs: [], stateMutability: "nonpayable" },
   { type: "function", name: "unfollowLeader", inputs: [{ name: "leader", type: "address" }], outputs: [], stateMutability: "nonpayable" },
   { type: "function", name: "updateFollowerParams", inputs: [{ name: "leader", type: "address" }, { name: "newSF", type: "uint256" }, { name: "newSlip", type: "uint256" }], outputs: [], stateMutability: "nonpayable" },
