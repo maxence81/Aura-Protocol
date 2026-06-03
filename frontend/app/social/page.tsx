@@ -209,8 +209,7 @@ function WinRateCircle({ rate }: { rate: number }) {
   const r = 16;
   const circumference = 2 * Math.PI * r;
   const progress = (rate / 100) * circumference;
-  const color =
-    rate >= 70 ? "#39ff14" : rate >= 50 ? "#00f0ff" : rate >= 30 ? "#ffae00" : "#E86A56";
+  const color = rate >= 50 ? "#00f0ff" : "#FF2A6D";
 
   return (
     <div className="relative w-10 h-10 flex items-center justify-center">
@@ -254,7 +253,7 @@ function WinRateCircle({ rate }: { rate: number }) {
 function RoiBar({ roi }: { roi: number }) {
   const isPositive = roi >= 0;
   const barWidth = Math.min(Math.abs(roi), 200);
-  const color = isPositive ? "#39ff14" : "#E86A56";
+  const color = isPositive ? "#00f0ff" : "#FF2A6D";
 
   return (
     <div className="flex items-center gap-2 min-w-[120px]">
@@ -727,21 +726,21 @@ export default function SocialPage() {
               value: Number(stats.totalPnl || 0),
               prefix: Number(stats.totalPnl || 0) >= 0 ? "+$" : "-$",
               icon: (stats.totalPnl || 0) >= 0 ? TrendingUp : TrendingDown,
-              color: (stats.totalPnl || 0) >= 0 ? "green" : "red",
+              color: (stats.totalPnl || 0) >= 0 ? "cyan" : "pink",
               borderColor:
                 (stats.totalPnl || 0) >= 0
-                  ? "border-green/30"
-                  : "border-coral/30",
+                  ? "border-[#00f0ff]/30"
+                  : "border-[#FF2A6D]/30",
               glowColor:
                 (stats.totalPnl || 0) >= 0
-                  ? "shadow-[0_0_30px_rgba(57,255,20,0.08)]"
-                  : "shadow-[0_0_30px_rgba(232,106,86,0.1)]",
+                  ? "shadow-[0_0_30px_rgba(0,240,255,0.08)]"
+                  : "shadow-[0_0_30px_rgba(255,42,109,0.1)]",
               iconBg:
-                (stats.totalPnl || 0) >= 0 ? "bg-green/10" : "bg-coral/10",
+                (stats.totalPnl || 0) >= 0 ? "bg-[#00f0ff]/10" : "bg-[#FF2A6D]/10",
               iconColor:
-                (stats.totalPnl || 0) >= 0 ? "text-green" : "text-coral",
+                (stats.totalPnl || 0) >= 0 ? "text-[#00f0ff]" : "text-[#FF2A6D]",
               textColor:
-                (stats.totalPnl || 0) >= 0 ? "text-green" : "text-coral",
+                (stats.totalPnl || 0) >= 0 ? "text-[#00f0ff]" : "text-[#FF2A6D]",
             },
           ].map((card, i) => (
             <motion.div
@@ -772,7 +771,7 @@ export default function SocialPage() {
       </section>
 
       {/* ═══════════ CONTROLS ═══════════ */}
-      <section className="relative z-10 max-w-[1600px] mx-auto px-6 py-4">
+      <section className="relative z-20 max-w-[1600px] mx-auto px-6 py-4">
         <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
           {/* Timeframe Tabs */}
           <div className="flex items-center bg-[#050505] border border-[#00f0ff]/20 p-1 font-mono text-[10px] uppercase tracking-widest">
@@ -988,8 +987,8 @@ export default function SocialPage() {
                   {/* PnL */}
                   <div className="w-24 text-right">
                     <span
-                      className={`text-sm font-bold font-mono ${
-                        trader.totalPnl >= 0 ? "text-green-400" : "text-red-400"
+                      className={`text-[10px] font-bold font-mono ${
+                        trader.totalPnl >= 0 ? "text-[#00f0ff]" : "text-[#FF2A6D]"
                       }`}
                     >
                       {trader.totalPnl >= 0 ? "+" : ""}
@@ -1009,14 +1008,14 @@ export default function SocialPage() {
 
                   {/* Followers */}
                   <div className="w-16 text-center">
-                    <span className="text-sm text-gray-300 font-mono">
+                    <span className="text-[10px] text-white/60 font-mono">
                       {formatCompact(trader.totalFollowers)}
                     </span>
                   </div>
 
                   {/* AUM */}
                   <div className="w-20 text-right">
-                    <span className="text-sm text-purple-300 font-mono">
+                    <span className="text-[10px] text-white/60 font-mono">
                       {formatUSD(trader.totalCopiedCapital)}
                     </span>
                   </div>
