@@ -476,8 +476,8 @@ function FollowModal({
               disabled={!amount || parseFloat(amount) <= 0}
               className="flex-1 py-3.5 rounded-xl font-bold transition-all relative overflow-hidden group disabled:opacity-30 disabled:cursor-not-allowed bg-gradient-to-r from-neon-cyan/20 to-neon-purple/20 border border-neon-cyan/40 hover:border-neon-cyan hover:shadow-[0_0_30px_rgba(0,240,255,0.3)] text-neon-cyan"
               onClick={() => {
-                if (followModal?.address) {
-                  window.location.href = `/social/trader/${followModal.address}`;
+                if (trader?.address) {
+                  window.location.href = `/social/trader/${trader.address}`;
                 }
               }}
             >
