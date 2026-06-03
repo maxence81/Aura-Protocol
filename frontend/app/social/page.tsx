@@ -318,7 +318,7 @@ function FollowModal({
 }) {
   const [amount, setAmount] = useState("");
   const [allocation, setAllocation] = useState(50);
-  const estimatedFee = amount ? (parseFloat(amount) * 0.1).toFixed(2) : "0.00";
+  const estimatedFee = amount ? (parseFloat(amount) * 0.30 * 0.10).toFixed(2) : "0.00";
 
   return (
     <motion.div
@@ -452,7 +452,7 @@ function FollowModal({
               <span className="text-yellow-400 font-mono">10%</span>
             </div>
             <div className="flex items-center justify-between text-sm">
-              <span className="text-gray-400">Est. Fee on Profits</span>
+              <span className="text-gray-400">Est. Fee (@ 30% gain)</span>
               <span className="text-gray-300 font-mono">{estimatedFee} aUSD</span>
             </div>
             <div className="border-t border-white/5 my-2" />

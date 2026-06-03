@@ -154,8 +154,22 @@ async function getLeaderProfile(req, res) {
 
         const pendingFees = await contract.pendingFees(address);
 
+        const formattedLeader = formatLeaderProfile(address, profile);
         res.json({
-            leader: formatLeaderProfile(address, profile),
+            profile: formattedLeader,
+            leader: formattedLeader,
+            strategies: [{
+                id: 1,
+                name: "Main Strategy",
+                description: "Copy all trades from this leader.",
+                totalPnl: formattedLeader.totalPnl.toFixed(2),
+                roi: formattedLeader.roi,
+                winRate: formattedLeader.winRate,
+                followerCount: formattedLeader.totalFollowers,
+                totalFollowerCapital: formattedLeader.totalCopiedCapital.toString(),
+                performanceFeeBps: Number(profile.performanceFeeBps),
+                isActive: profile.isActive
+            }],
             followers: followerDetails,
             pendingFees: parseFloat(ethers.formatEther(pendingFees)),
         });
