@@ -32,7 +32,7 @@ import { API_URL } from "../../../../lib/config";
 import { CONTRACT_ADDRESSES, AURA_COPY_TRADING_V2_ABI, AUSD_ABI } from "../../../../lib/contracts";
 import { parseEther, formatEther } from "viem";
 
-// ─── Chain & wallet config ───────────────────────────────────────────
+//  Chain & wallet config 
 const robinhoodChain = defineChain({
   id: 46630,
   name: "Robinhood Chain Testnet",
@@ -45,7 +45,7 @@ const wallets = [
   createWallet("com.coinbase.wallet"),
 ];
 
-// ─── Types ───────────────────────────────────────────────────────────
+//  Types 
 type HistoryEntry = {
   date: string;
   cumulativePnl: number;
@@ -94,9 +94,9 @@ type FollowerPosition = {
   followedAt: string;
 };
 
-// ─── Helpers ─────────────────────────────────────────────────────────
+//  Helpers 
 function shortAddr(addr: string) {
-  return addr ? `${addr.slice(0, 6)}…${addr.slice(-4)}` : "";
+  return addr ? `${addr.slice(0, 6)}${addr.slice(-4)}` : "";
 }
 
 function formatNumber(n: number, decimals = 2): string {
@@ -119,7 +119,7 @@ function addressToGradient(address: string): [string, string] {
   return [colors[i1], colors[i2]];
 }
 
-// ─── Avatar Component ────────────────────────────────────────────────
+//  Avatar Component 
 function TraderAvatar({ address, size = 96 }: { address: string; size?: number }) {
   const [c1, c2] = addressToGradient(address);
   const id = `avatar-${address.slice(2, 10)}`;
@@ -176,7 +176,7 @@ function TraderAvatar({ address, size = 96 }: { address: string; size?: number }
   );
 }
 
-// ─── SVG Performance Chart ───────────────────────────────────────────
+//  SVG Performance Chart 
 function PerformanceChart({
   history,
   isPositive,
@@ -446,7 +446,7 @@ function PerformanceChart({
   );
 }
 
-// ─── Circular Progress Ring ──────────────────────────────────────────
+//  Circular Progress Ring 
 function CircleProgress({
   value,
   max = 100,
@@ -492,14 +492,14 @@ function CircleProgress({
   );
 }
 
-// ─── Main Page Component ─────────────────────────────────────────────
+//  Main Page Component 
 export default function TraderProfilePage() {
   return (
     <Suspense fallback={
       <div className="min-h-screen bg-cyber-black flex items-center justify-center">
         <div className="flex flex-col items-center gap-4">
           <div className="w-12 h-12 border-2 border-neon-cyan border-t-transparent rounded-full animate-spin" style={{ boxShadow: '0 0 15px rgba(0,240,255,0.3)' }} />
-          <span className="text-gray-500 font-mono text-sm tracking-widest uppercase">Loading profile…</span>
+          <span className="text-gray-500 font-mono text-sm tracking-widest uppercase">Loading profile</span>
         </div>
       </div>
     }>
@@ -513,7 +513,7 @@ function TraderProfileContent() {
   const address = (params?.address as string) || "";
   const account = useActiveAccount();
 
-  // ── State ──
+  //  State 
   const [profile, setProfile] = useState<TraderProfile | null>(null);
   const [strategies, setStrategies] = useState<Strategy[]>([]);
   const [history, setHistory] = useState<TraderHistory | null>(null);
@@ -534,7 +534,6 @@ function TraderProfileContent() {
   const [loadingBalance, setLoadingBalance] = useState(false);
   const [txStatus, setTxStatus] = useState<"idle" | "approving" | "following" | "done" | "error">("idle");
   const [txError, setTxError] = useState("");
-
   useEffect(() => {
     if (!account?.address || !showModal) return;
     const fetchBalance = async () => {
@@ -565,7 +564,7 @@ function TraderProfileContent() {
     setFollowAmount(parseFloat(ausdBalance).toFixed(2));
   };
 
-  // ── Fetch trader data ──
+  //  Fetch trader data 
   const fetchTraderData = useCallback(async () => {
     if (!address) return;
     try {
@@ -588,7 +587,7 @@ function TraderProfileContent() {
         setHistory(hData);
       }
     } catch {
-      // Backend not available — use mock data for demo
+      // Backend not available  use mock data for demo
       setProfile({
         address,
         rank: 3,
@@ -660,7 +659,7 @@ function TraderProfileContent() {
     fetchTraderData();
   }, [fetchTraderData]);
 
-  // ── Fetch follower positions ──
+  //  Fetch follower positions 
   useEffect(() => {
     if (!account?.address || strategies.length === 0) return;
     const fetchPositions = async () => {
@@ -685,7 +684,7 @@ function TraderProfileContent() {
     fetchPositions();
   }, [account?.address, strategies]);
 
-  // ── Derived ──
+  //  Derived 
   const isPositivePnl = (profile?.totalPnl ?? 0) >= 0;
   const daysActive = profile ? Math.max(1, Math.floor((Date.now() - new Date(profile.createdAt).getTime()) / 86400000)) : 0;
   const badges = useMemo(() => {
@@ -718,14 +717,14 @@ function TraderProfileContent() {
     return b;
   }, [profile]);
 
-  // ── Copy address ──
+  //  Copy address 
   const copyAddress = () => {
     navigator.clipboard.writeText(address);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
 
-  // ── Modal helpers ──
+  //  Modal helpers 
   const openCopyTradeModal = (strategy?: Strategy) => {
     setModalStrategy(strategy || null);
     setFollowAmount("");
@@ -790,7 +789,7 @@ function TraderProfileContent() {
       setTxStatus("error");
     }
   };
-  // ── Loading state ──
+  //  Loading state 
   if (loading) {
     return (
       <div className="min-h-screen bg-cyber-black flex items-center justify-center">
@@ -804,25 +803,25 @@ function TraderProfileContent() {
             }}
           />
           <span className="text-gray-500 font-mono text-sm tracking-widest uppercase">
-            Loading profile…
+            Loading profile
           </span>
         </div>
       </div>
     );
   }
 
-  // ── No profile found ──
+  //  No profile found 
   if (!profile) {
     return (
       <div className="min-h-screen bg-cyber-black flex items-center justify-center">
         <div className="flex flex-col items-center gap-4 text-center">
-          <div className="text-4xl mb-2">🔍</div>
+          <div className="text-4xl mb-2"></div>
           <h2 className="text-xl font-bold text-white font-mono">Trader Not Found</h2>
           <p className="text-gray-500 text-sm font-mono max-w-md">
             No profile data available for this address. The trader may not be registered yet.
           </p>
           <Link href="/social" className="mt-4 px-6 py-2 rounded-xl bg-neon-cyan/10 border border-neon-cyan/30 text-neon-cyan text-sm font-bold hover:bg-neon-cyan/20 transition-all">
-            ← Back to Leaderboard
+             Back to Leaderboard
           </Link>
         </div>
       </div>
@@ -831,13 +830,13 @@ function TraderProfileContent() {
 
   return (
     <div className="min-h-screen bg-cyber-black text-white selection:bg-neon-cyan/30 overflow-x-hidden font-sans relative">
-      {/* Background effects */}
+      {/* Background */}
       <img src="/assets/fond_social.png" className="fixed inset-0 z-0 h-full w-full object-cover opacity-30 pointer-events-none" alt="" />
       <div className="cyber-grid-bg fixed inset-0 z-0" />
       <div className="scanlines fixed inset-0 z-[1]" />
       <div className="noise-overlay fixed inset-0 z-[1]" />
 
-      {/* ═══════════════ HEADER ═══════════════ */}
+      {/*  HEADER  */}
       <header className="h-[48px] border-b border-[#00f0ff]/30 flex items-center justify-between px-4 bg-[#050505] flex-shrink-0 relative z-50 font-mono">
         <div className="flex items-center gap-3">
           <Link href="/social" className="text-white/40 hover:text-[#00f0ff] transition flex items-center gap-1.5">
@@ -861,7 +860,7 @@ function TraderProfileContent() {
       </header>
 
       <main className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 pb-20">
-        {/* ═══════════════ HERO SECTION ═══════════════ */}
+        {/*  HERO SECTION  */}
         <motion.section
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -873,7 +872,7 @@ function TraderProfileContent() {
             <div className="absolute top-0 left-0 w-20 h-20 border-l-2 border-t-2 border-neon-cyan/20 rounded-tl-2xl" />
             <div className="absolute bottom-0 right-0 w-20 h-20 border-r-2 border-b-2 border-neon-cyan/20 rounded-br-2xl" />
 
-            {/* Background glow */}
+            {/* Background */}
             <div
               className="absolute -top-20 -right-20 w-60 h-60 rounded-full opacity-10 blur-3xl pointer-events-none"
               style={{
@@ -892,7 +891,7 @@ function TraderProfileContent() {
                 className="relative"
               >
                 <TraderAvatar address={address} size={96} />
-                {/* Rank badge */}
+                {/*  Rank Badge  */}
                 {profile && (
                   <div className="absolute -top-2 -right-2 w-8 h-8 rounded-full bg-gradient-to-br from-yellow-400 to-amber-600 flex items-center justify-center text-xs font-bold text-black shadow-lg">
                     #{profile.rank}
@@ -1043,7 +1042,7 @@ function TraderProfileContent() {
           </div>
         </motion.section>
 
-        {/* ═══════════════ PERFORMANCE CHART ═══════════════ */}
+        {/*  PERFORMANCE CHART  */}
         <motion.section
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -1103,7 +1102,7 @@ function TraderProfileContent() {
           </div>
         </motion.section>
 
-        {/* ═══════════════ DETAILED STATS GRID ═══════════════ */}
+        {/*  DETAILED STATS GRID  */}
         <motion.section
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -1296,7 +1295,7 @@ function TraderProfileContent() {
           </div>
         </motion.section>
 
-        {/* ═══════════════ STRATEGIES LIST ═══════════════ */}
+        {/*  STRATEGIES LIST  */}
         <motion.section
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
@@ -1477,7 +1476,7 @@ function TraderProfileContent() {
         </motion.section>
       </main>
 
-      {/* ═══════════════ COPY TRADING MODAL ═══════════════ */}
+      {/*  COPY TRADING MODAL  */}
       <AnimatePresence>
         {showModal && (
           <motion.div
@@ -1500,7 +1499,7 @@ function TraderProfileContent() {
               transition={{ type: "spring", damping: 25, stiffness: 300 }}
               className="relative w-full max-w-lg glass-card-cyber rounded-2xl overflow-hidden"
             >
-              {/* Modal header accent */}
+              {/*  HEADER  */}
               <div className="h-1 w-full bg-gradient-to-r from-neon-cyan via-neon-green to-neon-cyan" />
 
               <div className="p-6 sm:p-8">
@@ -1663,7 +1662,7 @@ function TraderProfileContent() {
                       <span className="font-mono text-white font-bold">
                         {followAmount
                           ? `${parseFloat(followAmount).toFixed(2)} aUSD`
-                          : "—"}
+                          : ""}
                       </span>
                     </div>
                     <div className="flex justify-between">

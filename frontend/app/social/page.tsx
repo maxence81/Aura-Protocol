@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useState, useEffect, useCallback, useRef } from "react";
 import Link from "next/link";
@@ -36,7 +36,7 @@ import { createWalletClient, custom, parseEther, formatEther } from "viem";
 import { CONTRACT_ADDRESSES, AURA_COPY_TRADING_V2_ABI, AUSD_ABI } from "../../lib/contracts";
 import CubeButton from "../trade/CubeButton";
 
-/* Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ Chain & Wallet Config Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ */
+/*  Chain & Wallet Config  */
 
 const robinhoodChain = defineChain({
   id: 46630,
@@ -51,7 +51,7 @@ const wallets = [
   createWallet("me.rainbow"),
 ];
 
-/* Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ Types Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ */
+/*  Types  */
 
 type Trader = {
   rank: number;
@@ -73,10 +73,10 @@ type SocialStats = {
   totalPnl: number;
 };
 
-/* Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ Helpers Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ */
+/*  Helpers  */
 
 function shortAddr(addr: string) {
-  return addr ? `${addr.slice(0, 6)}Ã¢â‚¬Â¦${addr.slice(-4)}` : "";
+  return addr ? `${addr.slice(0, 6)}${addr.slice(-4)}` : "";
 }
 
 function formatUSD(v: number) {
@@ -106,7 +106,7 @@ function addrToGradient(addr: string): string {
   return `linear-gradient(135deg, hsl(${h1}, 80%, 55%), hsl(${h2}, 90%, 45%))`;
 }
 
-/* Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ Animated Counter Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ */
+/*  Animated Counter  */
 
 function AnimatedCounter({
   value,
@@ -163,7 +163,7 @@ function AnimatedCounter({
   );
 }
 
-/* Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ Rank Badge Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ */
+/*  Rank Badge  */
 
 function RankBadge({ rank }: { rank: number }) {
   if (rank === 1) {
@@ -203,7 +203,7 @@ function RankBadge({ rank }: { rank: number }) {
   );
 }
 
-/* Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ Win Rate Circle Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ */
+/*  Win Rate Circle  */
 
 function WinRateCircle({ rate }: { rate: number }) {
   const r = 16;
@@ -248,7 +248,7 @@ function WinRateCircle({ rate }: { rate: number }) {
   );
 }
 
-/* Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ ROI Bar Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ */
+/*  ROI Bar  */
 
 function RoiBar({ roi }: { roi: number }) {
   const isPositive = roi >= 0;
@@ -280,7 +280,7 @@ function RoiBar({ roi }: { roi: number }) {
   );
 }
 
-/* Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ Skeleton Row Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ */
+/*  Skeleton Row  */
 
 function SkeletonRow({ index }: { index: number }) {
   return (
@@ -309,7 +309,7 @@ function SkeletonRow({ index }: { index: number }) {
   );
 }
 
-/* Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ Follow Modal Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ */
+{/*  FOLLOW MODAL  */}
 
 function FollowModal({
   trader,
@@ -321,7 +321,7 @@ function FollowModal({
   const account = useActiveAccount();
   const { mutateAsync: sendTx } = useSendTransaction();
   const [amount, setAmount] = useState("");
-  const [allocation, setAllocation] = useState(50);
+  const [allocationPct, setAllocationPct] = useState(50);
   const [ausdBalance, setAusdBalance] = useState<string>("0");
   const [loadingBalance, setLoadingBalance] = useState(false);
   const [txStatus, setTxStatus] = useState<"idle" | "approving" | "following" | "done" | "error">("idle");
@@ -404,7 +404,7 @@ function FollowModal({
 
       // Step 2: Follow Leader
       setTxStatus("following");
-      const scaleFactor = BigInt(Math.floor((allocation / 100) * 10000));
+      const scaleFactor = 10000n; // Fixed 1x scale factor (10000 bps)
       const followCall = prepareContractCall({
         contract: copyTradingContract,
         method: "followLeader",
@@ -449,7 +449,7 @@ function FollowModal({
         <div className="h-1 bg-gradient-to-r from-neon-cyan via-neon-purple to-neon-pink" />
 
         <div className="bg-[#0a0a14] border border-white/10 p-6 space-y-5">
-          {/* Header */}
+          {/*  HEADER  */}
           <div className="flex items-start justify-between">
             <div className="flex items-center gap-3">
               <div
@@ -516,7 +516,7 @@ function FollowModal({
               </label>
               <div className="flex items-center gap-2">
                 <span className="text-[10px] text-gray-500 font-mono">
-                  Balance: {loadingBalance ? "Ã¢â‚¬Â¦" : `${balanceNum.toFixed(2)} aUSD`}
+                  Balance: {loadingBalance ? "" : `${balanceNum.toFixed(2)} aUSD`}
                 </span>
                 <button
                   onClick={handleMaxClick}
@@ -533,7 +533,13 @@ function FollowModal({
                 min="0"
                 placeholder="Enter amount to allocate..."
                 value={amount}
-                onChange={(e) => setAmount(e.target.value)}
+                onChange={(e) => {
+                  setAmount(e.target.value);
+                  const val = parseFloat(e.target.value);
+                  if (!isNaN(val) && balanceNum > 0) {
+                    setAllocationPct(Math.min(100, Math.round((val / balanceNum) * 100)));
+                  }
+                }}
                 className="w-full bg-white/5 border border-white/10 rounded-none px-4 py-3.5 text-white placeholder-gray-600 focus:outline-none focus:border-neon-cyan/50 focus:shadow-[0_0_20px_rgba(0,240,255,0.1)] transition-all font-mono text-lg"
               />
               <span className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-500 text-sm">
@@ -542,7 +548,7 @@ function FollowModal({
             </div>
             {amount && parseFloat(amount) > balanceNum && balanceNum > 0 && (
               <p className="text-[11px] text-red-400 mt-1 font-mono">
-                Ã¢Å¡Â  Insufficient balance
+                 Insufficient balance
               </p>
             )}
           </div>
@@ -551,19 +557,23 @@ function FollowModal({
           <div>
             <div className="flex items-center justify-between mb-2">
               <label className="text-xs text-gray-500 uppercase tracking-wider">
-                Scale Factor
+                Portfolio Allocation
               </label>
               <span className="text-sm text-neon-cyan font-mono font-bold">
-                {allocation}%
+                {allocationPct}%
               </span>
             </div>
             <input
               type="range"
-              min="10"
+              min="1"
               max="100"
-              step="5"
-              value={allocation}
-              onChange={(e) => setAllocation(parseInt(e.target.value))}
+              step="1"
+              value={allocationPct}
+              onChange={(e) => {
+                const pct = parseInt(e.target.value);
+                setAllocationPct(pct);
+                setAmount(((balanceNum * pct) / 100).toFixed(2));
+              }}
               className="w-full h-2 bg-white/10 rounded-none appearance-none cursor-pointer [&::-webkit-slider-thumb]:appearance-none [&::-webkit-slider-thumb]:w-5 [&::-webkit-slider-thumb]:h-5 [&::-webkit-slider-thumb]:bg-neon-cyan [&::-webkit-slider-thumb]:rounded-none [&::-webkit-slider-thumb]:shadow-[0_0_10px_rgba(0,240,255,0.5)] [&::-webkit-slider-thumb]:cursor-pointer"
             />
             <div className="flex justify-between text-[10px] text-gray-600 mt-1 font-mono">
@@ -599,10 +609,10 @@ function FollowModal({
                 ? "bg-red-500/10 border-red-500/30 text-red-400"
                 : "bg-neon-cyan/10 border-neon-cyan/30 text-neon-cyan"
             }`}>
-              {txStatus === "approving" && "Ã¢ÂÂ³ Step 1/2 Ã¢â‚¬â€ Approving aUSD spendÃ¢â‚¬Â¦"}
-              {txStatus === "following" && "Ã¢ÂÂ³ Step 2/2 Ã¢â‚¬â€ Submitting follow transactionÃ¢â‚¬Â¦"}
-              {txStatus === "done" && "Ã¢Å“â€¦ Copy Trade Activated! Replicating trades."}
-              {txStatus === "error" && `Ã¢ÂÅ’ ${txError}`}
+              {txStatus === "approving" && " Step 1/2  Approving aUSD spend..."}
+              {txStatus === "following" && " Step 2/2  Submitting follow transaction..."}
+              {txStatus === "done" && " Copy Trade Activated! Replicating trades."}
+              {txStatus === "error" && ` ${txError}`}
             </div>
           )}
 
@@ -634,9 +644,9 @@ function FollowModal({
                 ) : (
                   <Zap size={16} />
                 )}
-                {txStatus === "approving" ? "ApprovingÃ¢â‚¬Â¦" :
-                 txStatus === "following" ? "FollowingÃ¢â‚¬Â¦" :
-                 txStatus === "done" ? "Done Ã¢Å“â€œ" :
+                {txStatus === "approving" ? "Approving" :
+                 txStatus === "following" ? "Following" :
+                 txStatus === "done" ? "Done " :
                  !account?.address ? "Connect Wallet" :
                  "Confirm Copy"}
               </span>
@@ -649,7 +659,7 @@ function FollowModal({
   );
 }
 
-/* Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ Main Page Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬Ã¢â€â‚¬ */
+/*  Main Page  */
 
 const TIMEFRAMES = [
   { label: "24h", value: "24h" },
@@ -726,7 +736,7 @@ export default function SocialPage() {
         setStats(data);
       }
     } catch {
-      // stats endpoint may not exist yet Ã¢â‚¬â€ use defaults
+      // stats endpoint may not exist yet  use defaults
     }
   }, []);
 
@@ -784,7 +794,7 @@ export default function SocialPage() {
 
   return (
     <div className="min-h-screen bg-cyber-black text-white relative overflow-x-hidden">
-      {/* Background effects */}
+      {/* Background */}
       <img src="/assets/fond_social.png" className="fixed inset-0 z-0 h-full w-full object-cover opacity-30 pointer-events-none" alt="" />
       <div className="cyber-grid-bg fixed inset-0 z-0" />
       <div className="scanlines fixed inset-0 z-[1]" />
@@ -794,7 +804,7 @@ export default function SocialPage() {
       <div className="fixed top-0 left-1/4 w-[600px] h-[600px] bg-neon-cyan/[0.03] rounded-none blur-[150px] pointer-events-none z-0" />
       <div className="fixed bottom-0 right-1/4 w-[500px] h-[500px] bg-neon-purple/[0.04] rounded-none blur-[120px] pointer-events-none z-0" />
 
-      {/* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â HEADER Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */}
+      {/*  HEADER  */}
       <header className="h-[48px] border-b border-[#00f0ff]/30 flex items-center justify-between px-4 bg-[#050505] flex-shrink-0 relative z-50 font-mono">
         <div className="flex items-center gap-3">
           <Link href="/" className="text-white/40 hover:text-[#00f0ff] transition flex items-center gap-1.5">
@@ -837,7 +847,7 @@ export default function SocialPage() {
         </div>
       </header>
 
-      {/* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â HERO STATS Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */}
+      {/*  HERO STATS  */}
       <section className="relative z-10 max-w-[1600px] mx-auto px-6 pt-8 pb-4">
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
           {[
@@ -926,7 +936,7 @@ export default function SocialPage() {
         </div>
       </section>
 
-      {/* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â CONTROLS Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */}
+      {/*  CONTROLS  */}
       <section className="relative z-20 max-w-[1600px] mx-auto px-6 py-4">
         <div className="flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4">
           {/* Timeframe Tabs */}
@@ -1033,10 +1043,10 @@ export default function SocialPage() {
         </div>
       </section>
 
-      {/* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â LEADERBOARD TABLE Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */}
+      {/*  LEADERBOARD TABLE  */}
       <section className="relative z-10 max-w-[1600px] mx-auto px-6 pb-12">
         <div className="bg-[#050505] border border-[#00f0ff]/20 rounded-none overflow-hidden font-mono text-[10px]">
-          {/* Table Header */}
+          {/*  HEADER  */}
           <div className="hidden lg:flex items-center gap-4 px-5 py-3 border-b border-[#00f0ff]/30 text-[#00f0ff]/50 uppercase tracking-widest font-bold bg-[#0a0a0a]">
             <div className="w-10 text-center">#</div>
             <div className="flex-1 min-w-[200px]">Trader</div>
@@ -1204,14 +1214,14 @@ export default function SocialPage() {
               </span>
               <span className="flex items-center gap-1.5">
                 <div className="w-1.5 h-1.5 rounded-none bg-green animate-pulse" />
-                Live Ã‚Â· Auto-refresh every 30s
+                Live  Auto-refresh every 30s
               </span>
             </div>
           )}
         </div>
       </section>
 
-      {/* Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â FOLLOW MODAL Ã¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢ÂÃ¢â€¢Â */}
+      {/*  FOLLOW MODAL  */}
       <AnimatePresence>
         {followModal && (
           <FollowModal
