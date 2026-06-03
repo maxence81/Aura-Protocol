@@ -1122,7 +1122,9 @@ export default function SocialPage() {
                     ease: "easeOut",
                   }}
                   className="group flex flex-col lg:flex-row lg:items-center gap-3 lg:gap-4 px-5 py-4 border-b border-white/5 hover:bg-[#00f0ff]/[0.02] transition-colors duration-200 cursor-pointer"
-                  onClick={() => setFollowModal(trader)}
+                  onClick={() => {
+                    window.location.href = `/social/trader/${trader.address}`;
+                  }}
                 >
                   {/* Rank */}
                   <RankBadge rank={trader.rank} />
@@ -1188,9 +1190,11 @@ export default function SocialPage() {
 
                   {/* Copy Button */}
                   <div className="w-24">
-                    <Link
-                      href={`/social/trader/${trader.address}`}
-                      onClick={(e) => e.stopPropagation()}
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setFollowModal(trader);
+                      }}
                       className="flex items-center justify-center gap-1.5 px-3 py-2 text-[10px] font-mono font-bold tracking-widest uppercase border border-[#00f0ff]/30 text-[#00f0ff] bg-[#00f0ff]/5 hover:bg-[#00f0ff]/15 hover:border-[#00f0ff]/60 hover:shadow-[0_0_20px_rgba(0,240,255,0.15)] transition-all duration-200 group/btn"
                     >
                       <Copy
@@ -1198,8 +1202,7 @@ export default function SocialPage() {
                         className="group-hover/btn:scale-110 transition-transform"
                       />
                       Copy
-                      <ExternalLink size={10} className="opacity-50" />
-                    </Link>
+                    </button>
                   </div>
                 </motion.div>
               ))}
