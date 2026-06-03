@@ -814,6 +814,7 @@ export default function SocialPage() {
           <div className="border-l border-[#00f0ff]/20 pl-3 ml-1">
             <span className="text-[9px] text-[#00f0ff] font-bold uppercase tracking-widest bg-[#00f0ff]/10 border border-[#00f0ff]/30 px-2 py-0.5">Copy Trade</span>
           </div>
+          <Link href="/social/dashboard" className="text-[9px] text-white/30 hover:text-[#00f0ff] font-bold uppercase tracking-widest transition ml-2">Dashboard</Link>
           <Link href="/trade" className="text-[9px] text-white/30 hover:text-[#00f0ff] font-bold uppercase tracking-widest transition ml-1">Trade</Link>
           <Link href="/portfolio" className="text-[9px] text-white/30 hover:text-[#00f0ff] font-bold uppercase tracking-widest transition ml-1">Portfolio</Link>
           <Link href="/perp-vault" className="text-[9px] text-white/30 hover:text-[#00f0ff] font-bold uppercase tracking-widest transition ml-1">Earn Yield</Link>
