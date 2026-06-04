@@ -5,7 +5,7 @@ const fs = require("fs");
 const path = require("path");
 
 // ==========================================
-// CONFIGURATION DES AGENTS (GLADIATEURS IA)
+// CONFIGURATION DES AGENTS
 // ==========================================
 const ARENA_CONFIG = [
     {
@@ -219,10 +219,18 @@ Do NOT wrap the JSON in Markdown code blocks. Just output raw JSON.
             const wallet = new ethers.Wallet(walletInfo.privateKey, provider);
             const perps = new ethers.Contract(PERPS_ADDRESS, PERPS_ABI, wallet);
             
-            // const collateralWei = ethers.parseUnits(decision.collateral.toString(), 18);
-            // const tx = await perps.openPosition(decision.asset, decision.isLong, collateralWei, decision.leverage);
-            // console.log(`[Arena] Tx envoyee: ${tx.hash}`);
-            console.log(`[Arena] Simulation: Ordre place avec succes sur la Robinhood Chain.`);
+            try {
+                // Collateral est fourni par l'IA (max 100), converti en Wei (18 décimales)
+                const safeCollateral = Math.min(Number(decision.collateral) || 50, 10000); 
+                const collateralWei = ethers.parseUnits(safeCollateral.toString(), 18);
+                const safeLeverage = Math.min(Number(decision.leverage) || 2, 20);
+
+                const tx = await perps.openPosition(decision.asset, decision.isLong, collateralWei, safeLeverage);
+                console.log(`[Arena] Tx envoyee: ${tx.hash}`);
+                console.log(`[Arena] Succes: Ordre reel place sur la Robinhood Chain !`);
+            } catch (txError) {
+                console.error(`[Arena] Echec de la transaction on-chain:`, txError.reason || txError.message);
+            }
         }
 
     } catch (error) {
