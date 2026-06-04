@@ -378,7 +378,8 @@ async function getLatestNews() {
     }
 
     try {
-        const query = encodeURIComponent("crypto OR DeFi OR \"stock market\" OR \"S&P 500\" OR arbitrum OR blockchain OR (TSLA stock) OR (AMZN stock) OR (AMD stock) OR (NFLX stock) OR (PLTR stock)");
+        // Requête très stricte pour n'avoir que de la macroéconomie, des annonces de la FED, des ETF, ou du pur crypto trading
+        const query = encodeURIComponent("(Bitcoin OR Ethereum OR \"stock market\" OR macroeconomics OR Arbitrum OR DeFi) AND (SEC OR ETF OR inflation OR \"interest rates\" OR Fed OR CPI OR bullish OR bearish OR rally OR crash)");
         const url = `https://newsapi.org/v2/everything?q=${query}&language=en&sortBy=publishedAt&pageSize=30&apiKey=${apiKey}`;
         
         const response = await fetch(url);
@@ -386,9 +387,11 @@ async function getLatestNews() {
         
         const data = await response.json();
 
-        // Filter out irrelevant articles (deals, entertainment, lifestyle)
-        const NOISE_PATTERNS = /coupon|deal[s ]|promo|discount|off at amazon|free shipping|slickdeal|dealnews|streaming|tv show|series|movie|episode|season \d|rotten tomatoes|celebrity|murder|homicide|headphone|hoodie|jacket|underwear|owl|garden|piracy|dog rain/i;
-        const RELEVANCE_PATTERNS = /crypto|bitcoin|ethereum|defi|blockchain|arbitrum|token|stock|market|investor|trading|finance|economy|fed |inflation|earnings|IPO|SEC|ETF|yield|treasury|bull|bear|rally|hedge|portfolio|wall street|nasdaq|dow jones/i;
+        // Filtre agressif anti-bruit (on supprime tout ce qui concerne le lifestyle, les produits, le sport, etc)
+        const NOISE_PATTERNS = /coupon|deal[s ]|promo|discount|off at amazon|free shipping|slickdeal|dealnews|streaming|tv show|series|movie|episode|season \d|rotten tomatoes|celebrity|murder|homicide|headphone|hoodie|jacket|underwear|owl|garden|piracy|sport|gaming|console|player|review|recipe|diet/i;
+        
+        // On exige des mots clés purs finance/trading
+        const RELEVANCE_PATTERNS = /crypto|bitcoin|ethereum|defi|blockchain|arbitrum|token|stock|market|investor|trading|finance|economy|fed |inflation|earnings|IPO|SEC|ETF|yield|treasury|bull|bear|rally|hedge|portfolio|wall street|nasdaq|dow jones|liquidat|long|short/i;
 
         const articles = (data.articles || [])
             .filter(a => a.title && a.title !== "[Removed]")
