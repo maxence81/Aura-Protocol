@@ -196,10 +196,10 @@ ${marketContextData.text}
 
 Based on this, decide if you want to OPEN a trade, CLOSE existing, or HOLD.
 Available assets: ${marketContextData.availableAssets.map(a => `"${a}"`).join(', ')}.
-If you OPEN, specify leverage (max 20) and collateral (max 100).
+If you OPEN, specify leverage (max 20) and collateral (between 10000 and 250000).
 
 You MUST respond ONLY with a valid JSON in this exact format:
-{"action": "OPEN", "asset": "BTC", "isLong": true, "leverage": 10, "collateral": 50, "reasoning": "RSI is low, going long."}
+{"action": "OPEN", "asset": "BTC", "isLong": true, "leverage": 10, "collateral": 50000, "reasoning": "RSI is low, going long."}
 OR
 {"action": "HOLD", "reasoning": "Market too choppy."}
 
@@ -219,17 +219,20 @@ Do NOT wrap the JSON in Markdown code blocks. Just output raw JSON.
         console.log(`[Arena] Raison: ${decision.reasoning}`);
 
         if (decision.action === "OPEN") {
-            console.log(`[Arena] Execution: Lancement d'un ${decision.isLong ? 'LONG' : 'SHORT'} sur ${decision.asset} (Levier: x${decision.leverage})`);
+            const safeCollateral = Math.min(Math.max(Number(decision.collateral) || 50000, 10000), 250000); 
+            const safeLeverage = Math.min(Number(decision.leverage) || 2, 20);
+            const totalPositionSize = safeCollateral * safeLeverage;
+
+            console.log(`[Arena] Execution: Lancement d'un ${decision.isLong ? 'LONG' : 'SHORT'} sur ${decision.asset}`);
+            console.log(`[Arena] Paramètres: Marge = $${safeCollateral.toLocaleString()} | Levier = x${safeLeverage} | Taille Totale = $${totalPositionSize.toLocaleString()}`);
             
             // Integration blockchain (Demonstration on-chain)
             const wallet = new ethers.Wallet(walletInfo.privateKey, provider);
             const perps = new ethers.Contract(PERPS_ADDRESS, PERPS_ABI, wallet);
             
             try {
-                // Collateral est fourni par l'IA (max 100), converti en Wei (18 décimales)
-                const safeCollateral = Math.min(Number(decision.collateral) || 50, 10000); 
+                // Collateral converti en Wei (18 décimales)
                 const collateralWei = ethers.parseUnits(safeCollateral.toString(), 18);
-                const safeLeverage = Math.min(Number(decision.leverage) || 2, 20);
 
                 // --- GESTION DE L'APPROBATION aUSD ---
                 const ausd = new ethers.Contract(AUSD_ADDRESS, AUSD_ABI, wallet);
@@ -247,6 +250,32 @@ Do NOT wrap the JSON in Markdown code blocks. Just output raw JSON.
                 console.log(`[Arena] Succes: Ordre reel place sur la Robinhood Chain !`);
             } catch (txError) {
                 console.error(`[Arena] Echec de la transaction on-chain:`, txError.reason || txError.message);
+            }
+        } else if (decision.action === "CLOSE") {
+            console.log(`[Arena] Execution: Tentative de cloture des positions pour l'agent`);
+            const wallet = new ethers.Wallet(walletInfo.privateKey, provider);
+            const perps = new ethers.Contract(PERPS_ADDRESS, PERPS_ABI, wallet);
+            
+            try {
+                // In a real scenario, the agent would close a specific position ID. 
+                // For the hackathon, we simply fetch all open positions of this agent and close them.
+                const nextId = await perps.nextPositionId();
+                let closedCount = 0;
+                for (let i = 1; i < nextId; i++) {
+                    const pos = await perps.positions(i);
+                    if (pos.isOpen && pos.owner.toLowerCase() === wallet.address.toLowerCase()) {
+                        console.log(`[Arena] Closing position #${i} on ${pos.asset}...`);
+                        const tx = await perps.closePosition(i);
+                        await tx.wait();
+                        console.log(`[Arena] Position #${i} closed. Tx: ${tx.hash}`);
+                        closedCount++;
+                    }
+                }
+                if (closedCount === 0) {
+                    console.log(`[Arena] Aucune position ouverte à cloturer.`);
+                }
+            } catch (txError) {
+                console.error(`[Arena] Echec de la cloture:`, txError.reason || txError.message);
             }
         }
 
