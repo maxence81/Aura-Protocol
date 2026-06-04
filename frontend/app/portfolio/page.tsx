@@ -176,12 +176,13 @@ export default function PortfolioPage() {
             <ArrowLeft className="w-3.5 h-3.5" />
             <span className="text-[10px] font-bold uppercase tracking-widest">AURA</span>
           </Link>
-          <div className="border-l border-[#00f0ff]/20 pl-3 ml-1">
+          <div className="border-l border-[#00f0ff]/20 pl-3 ml-1 flex items-center gap-3">
+            <Link href="/trade" className="text-[9px] text-white/30 hover:text-[#00f0ff] font-bold uppercase tracking-widest transition">Trade</Link>
             <span className="text-[9px] text-[#00f0ff] font-bold uppercase tracking-widest bg-[#00f0ff]/10 border border-[#00f0ff]/30 px-2 py-0.5">Portfolio</span>
+            <Link href="/perp-vault" className="text-[9px] text-white/30 hover:text-[#00f0ff] font-bold uppercase tracking-widest transition">Earn Yield</Link>
+            <Link href="/social" className="text-[9px] text-white/30 hover:text-[#00f0ff] font-bold uppercase tracking-widest transition">Copy Trade</Link>
+            <Link href="/trade/account" className="text-[9px] text-white/30 hover:text-[#00f0ff] font-bold uppercase tracking-widest transition">Account</Link>
           </div>
-          <Link href="/trade" className="text-[9px] text-white/30 hover:text-[#00f0ff] font-bold uppercase tracking-widest transition ml-1">Trade</Link>
-          <Link href="/perp-vault" className="text-[9px] text-white/30 hover:text-[#00f0ff] font-bold uppercase tracking-widest transition ml-1">Earn Yield</Link>
-          <Link href="/trade/account" className="text-[9px] text-white/30 hover:text-[#00f0ff] font-bold uppercase tracking-widest transition ml-1">Account</Link>
         </div>
         <ConnectButton client={client} wallets={wallets} chain={robinhoodChain} connectButton={{ label: "Connect", style: { fontSize: "10px", padding: "6px 12px", height: "28px" } }} />
       </header>

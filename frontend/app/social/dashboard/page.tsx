@@ -247,8 +247,13 @@ export default function SocialDashboardPage() {
             <ArrowLeft className="w-3.5 h-3.5" />
             <span className="text-[10px] font-bold uppercase tracking-widest">Back</span>
           </Link>
-          <div className="border-l border-[#00f0ff]/20 pl-3 ml-1">
-            <span className="text-[9px] text-white font-bold uppercase tracking-widest bg-[#00f0ff]/10 border border-[#00f0ff]/30 px-2 py-0.5">My Copy Trades</span>
+          <div className="border-l border-[#00f0ff]/20 pl-3 ml-1 flex items-center gap-3">
+            <Link href="/trade" className="text-[9px] text-white/30 hover:text-[#00f0ff] font-bold uppercase tracking-widest transition">Trade</Link>
+            <Link href="/portfolio" className="text-[9px] text-white/30 hover:text-[#00f0ff] font-bold uppercase tracking-widest transition">Portfolio</Link>
+            <Link href="/perp-vault" className="text-[9px] text-white/30 hover:text-[#00f0ff] font-bold uppercase tracking-widest transition">Earn Yield</Link>
+            <Link href="/social" className="text-[9px] text-white/30 hover:text-[#00f0ff] font-bold uppercase tracking-widest transition">Copy Trade</Link>
+            <Link href="/trade/account" className="text-[9px] text-white/30 hover:text-[#00f0ff] font-bold uppercase tracking-widest transition">Account</Link>
+            <span className="text-[9px] text-white font-bold uppercase tracking-widest bg-[#00f0ff]/10 border border-[#00f0ff]/30 px-2 py-0.5 ml-2">My Copy Trades</span>
           </div>
         </div>
         <div className="flex items-center gap-3">
@@ -266,7 +271,7 @@ export default function SocialDashboardPage() {
 
       {/* CONTENT */}
       <main className="relative z-10 p-4 max-w-6xl mx-auto mt-6">
-        <h1 className="text-3xl font-bold mb-8 text-white  bg-gradient-to-r from-neon-cyan to-blue-500 font-mono">
+        <h1 className="text-3xl font-bold mb-8 text-white font-mono">
           Dashboard: Copy Trading
         </h1>
 
