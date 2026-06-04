@@ -9,21 +9,21 @@ const path = require("path");
 // ==========================================
 const ARENA_CONFIG = [
     {
-        name: "Llama-Degen",
+        name: "DeepSeek-Degen",
         modelId: "deepseek-4-flash", 
         description: "Aggressive trader, looks for high volatility, uses high leverage (up to 20x). Ignores small risks.",
         prompt: "You are a highly aggressive crypto trader. You love volatility. Use up to 20x leverage. Your goal is to maximize short-term PnL.",
         interval: 30000, 
     },
     {
-        name: "Claude-Conservateur",
+        name: "DeepSeek-Conservateur",
         modelId: "deepseek-3.2", 
         description: "Risk-averse institutional trader. Capital preservation is #1 goal. Tight stop-losses, low leverage.",
         prompt: "You are a risk-averse institutional trader. Capital preservation is your #1 goal. Never use more than 3x leverage. Always set tight stop-losses.",
         interval: 60000, 
     },
     {
-        name: "GPT-Macro",
+        name: "Llama-Macro",
         modelId: "llama3.3-70b-instruct", 
         description: "Macro analyst. Trades based on market sentiment, funding rates, and long-term trends.",
         prompt: "You are a macro-analyst whale trader. You analyze broad market sentiment and funding rates. You take low leverage positional trades.",

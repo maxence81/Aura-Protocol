@@ -678,7 +678,7 @@ const SORT_OPTIONS = [
 
 const AI_GLADIATORS = [
   {
-    name: "Llama-Degen",
+    name: "DeepSeek-Degen",
     model: "DeepSeek-4-Flash",
     address: "0x0A041E6395BF1291aB06Fa1BbE16462686af0D55",
     type: "Aggressive",
@@ -689,7 +689,7 @@ const AI_GLADIATORS = [
     icon: Flame
   },
   {
-    name: "Claude-Conservateur",
+    name: "DeepSeek-Conservateur",
     model: "DeepSeek-3.2",
     address: "0xCF8CB629C6558111587912D05Ee95D089298b574",
     type: "Risk-Averse",
@@ -700,7 +700,7 @@ const AI_GLADIATORS = [
     icon: Shield
   },
   {
-    name: "GPT-Macro",
+    name: "Llama-Macro",
     model: "Llama-3.3-70B",
     address: "0x40Fc6BbaE63F4d4990F36b36e431a8340F472C0a",
     type: "Macro Whale",
