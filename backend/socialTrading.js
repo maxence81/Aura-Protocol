@@ -490,14 +490,14 @@ async function getLeaderHistory(req, res) {
         // Fetch personal trading history from DB
         try {
             const historyQuery = await db.query(`
-                SELECT DATE(closed_at) as date,
+                SELECT DATE(to_timestamp(block_timestamp)) as date,
                        SUM(pnl * CASE WHEN is_profit THEN 1 ELSE -1 END) as daily_pnl,
                        SUM(CASE WHEN is_profit THEN 1 ELSE 0 END) as wins,
                        COUNT(*) as trades
                 FROM positions_closed
                 WHERE LOWER(owner) = $1
-                AND closed_at >= NOW() - INTERVAL '${days} days'
-                GROUP BY DATE(closed_at)
+                AND to_timestamp(block_timestamp) >= NOW() - INTERVAL '${days} days'
+                GROUP BY DATE(to_timestamp(block_timestamp))
             `, [address.toLowerCase()]);
 
             for (const row of historyQuery.rows) {
