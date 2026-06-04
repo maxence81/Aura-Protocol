@@ -676,6 +676,42 @@ const SORT_OPTIONS = [
   { label: "Copied Capital", value: "totalCopiedCapital" },
 ];
 
+const AI_GLADIATORS = [
+  {
+    name: "Llama-Degen",
+    model: "DeepSeek-4-Flash",
+    address: "0x0A041E6395BF1291aB06Fa1BbE16462686af0D55",
+    type: "Aggressive",
+    color: "from-white/20 to-white/5",
+    border: "border-white/20",
+    shadow: "hover:shadow-[0_0_30px_rgba(255,255,255,0.05)]",
+    desc: "Uses max leverage (20x) on extreme Fear & Greed indices. High risk, high reward.",
+    icon: Flame
+  },
+  {
+    name: "Claude-Conservateur",
+    model: "DeepSeek-3.2",
+    address: "0xCF8CB629C6558111587912D05Ee95D089298b574",
+    type: "Risk-Averse",
+    color: "from-white/20 to-white/5",
+    border: "border-white/20",
+    shadow: "hover:shadow-[0_0_30px_rgba(255,255,255,0.05)]",
+    desc: "Focuses on capital preservation. Tight stop-losses, max 3x leverage. Trades on solid macro structures.",
+    icon: Shield
+  },
+  {
+    name: "GPT-Macro",
+    model: "Llama-3.3-70B",
+    address: "0x40Fc6BbaE63F4d4990F36b36e431a8340F472C0a",
+    type: "Macro Whale",
+    color: "from-white/20 to-white/5",
+    border: "border-white/20",
+    shadow: "hover:shadow-[0_0_30px_rgba(255,255,255,0.05)]",
+    desc: "Analyzes Pyth Oracle feeds and global NewsAPI sentiment. Low leverage positional trading.",
+    icon: Target
+  }
+];
+
 export default function SocialPage() {
   const account = useActiveAccount();
   const [traders, setTraders] = useState<Trader[]>([]);
@@ -931,6 +967,89 @@ export default function SocialPage() {
                   prefix={card.prefix !== undefined ? card.prefix : "$"}
                   decimals={card.label === "Active Traders" || card.label === "Total Followers" ? 0 : 2}
                 />
+              </div>
+            </motion.div>
+          ))}
+        </div>
+      </section>
+
+      {/* AI GLADIATORS ARENA */}
+      <section className="relative z-10 max-w-[1600px] mx-auto px-6 pb-6">
+        <div className="flex items-center gap-3 mb-4">
+          <div className="p-2 bg-white/5 border border-white/20 rounded-sm">
+            <Target size={16} className="text-white" />
+          </div>
+          <div>
+            <h2 className="text-xl font-display font-bold text-white tracking-widest uppercase flex items-center gap-2">
+              AI Trading Arena <Zap size={18} className="text-white" />
+            </h2>
+            <p className="text-[10px] text-white/50 font-mono uppercase tracking-widest">
+              Live Autonomous Agents • 100% On-Chain Execution
+            </p>
+          </div>
+          <div className="ml-4 px-2 py-0.5 bg-white/10 border border-white/30 text-[9px] text-white font-mono uppercase animate-pulse">
+            LIVE BETA
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          {AI_GLADIATORS.map((bot, i) => (
+            <motion.div
+              key={bot.name}
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.2 + i * 0.1 }}
+              className={`bg-[#050505] border ${bot.border} p-5 rounded-none flex flex-col justify-between ${bot.shadow} transition-all duration-300 font-mono relative overflow-hidden group`}
+            >
+              <div className={`absolute top-0 left-0 w-full h-1 bg-gradient-to-r ${bot.color}`} />
+              
+              <div>
+                <div className="flex justify-between items-start mb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-sm bg-white/5 border border-white/10 flex items-center justify-center">
+                      <bot.icon size={20} className="text-white" />
+                    </div>
+                    <div>
+                      <h3 className="text-sm font-bold text-white uppercase tracking-wider">{bot.name}</h3>
+                      <p className="text-[9px] text-white/50 uppercase tracking-widest">{bot.model}</p>
+                    </div>
+                  </div>
+                  <span className="text-[9px] bg-white/5 border border-white/10 px-2 py-1 uppercase text-white/70">
+                    {bot.type}
+                  </span>
+                </div>
+                
+                <p className="text-[11px] text-white/60 mb-5 leading-relaxed min-h-[40px]">
+                  {bot.desc}
+                </p>
+              </div>
+
+              <div className="mt-auto">
+                <button
+                  onClick={() => {
+                    const traderObj = traders.find(t => t.address.toLowerCase() === bot.address.toLowerCase());
+                    if (traderObj) {
+                      setFollowModal(traderObj);
+                    } else {
+                      // Fallback si le backend n'a pas encore indexé l'agent
+                      setFollowModal({
+                        rank: 0,
+                        address: bot.address,
+                        totalPnl: 0,
+                        totalCopiedCapital: 0,
+                        totalFollowers: 0,
+                        tradesExecuted: 0,
+                        roi: 0,
+                        winRate: 0,
+                        maxDrawdown: 0,
+                        ageDays: 1
+                      });
+                    }
+                  }}
+                  className={`w-full py-2.5 text-[10px] font-bold uppercase tracking-widest bg-white/5 hover:bg-white/10 border border-white/10 hover:${bot.border} transition-all flex items-center justify-center gap-2 text-white group-hover:shadow-[0_0_20px_rgba(255,255,255,0.05)]`}
+                >
+                  <Copy size={14} /> Copy Agent
+                </button>
               </div>
             </motion.div>
           ))}
