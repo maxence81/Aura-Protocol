@@ -493,7 +493,16 @@ function pearsonCorrelation(seriesA, seriesB) {
     return den === 0 ? 0 : parseFloat((num / den).toFixed(4));
 }
 
+let correlationCache = null;
+let lastCorrelationFetch = 0;
+const CORRELATION_TTL = 3600_000; // 1 hour
+
 async function getCorrelationMatrix() {
+    const now = Date.now();
+    if (correlationCache && (now - lastCorrelationFetch) < CORRELATION_TTL) {
+        return correlationCache;
+    }
+
     const symbols = ["ETH", "BTC", "TSLA", "AMZN", "NFLX"];
     const histories = {};
 
@@ -524,7 +533,11 @@ async function getCorrelationMatrix() {
         }
     }
 
-    return { pairs };
+    const result = { pairs };
+    correlationCache = result;
+    lastCorrelationFetch = now;
+    
+    return result;
 }
 
 // ── Full Market Context ────────────────────────────────────────────
