@@ -6,7 +6,7 @@ export const CONTRACT_ADDRESSES = {
   INTELLIGENCE_VAULT: "0x69A88c72eAda96A515e0dc57632A6Abf59EA2E38",
   AURA_ACCOUNT: "0x0C42313e922E7d8b2A1175a695f083Bb0e0cF64A",
   AURA_GUARDRAIL: "0x53d7ED1bD27bdCA3813050dE90D7D545DB800900",
-  AURA_COPY_TRADING_V2: process.env.NEXT_PUBLIC_COPY_TRADING_V2_ADDRESS || "0x73F7033D6105884E743678278EF33ba70a0DB9c2", // Make sure to load from env
+  AURA_COPY_TRADING_V2: process.env.NEXT_PUBLIC_COPY_TRADING_V2_ADDRESS || "0xcd0e61E845E4Ca278f636A32465Ed88A70B59a1b", // Make sure to load from env
 
   // ────────────────────────────────────────────────────────────────
   // Two completely different routers, used by two different flows:

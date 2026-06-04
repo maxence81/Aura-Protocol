@@ -305,8 +305,18 @@ contract AuraCopyTradingV2 is ReentrancyGuard, Ownable {
     function unfollowLeader(address leader) external nonReentrant {
         FollowerAllocation storage fa = allocations[leader][msg.sender];
         if (!fa.isActive) revert NotFollowing();
-        if (_followerOpenPos[leader][msg.sender].length > 0)
-            revert HasOpenPositions(_followerOpenPos[leader][msg.sender].length);
+
+        // Force close all active copied positions for this follower before unfollowing
+        uint256[] memory openPositions = _followerOpenPos[leader][msg.sender];
+        for (uint256 i = 0; i < openPositions.length; i++) {
+            uint256 followerPerpsPositionId = openPositions[i];
+            uint256 lPosId = followerPosToLeaderPos[followerPerpsPositionId];
+            uint256 idx = followerPosToIndex[followerPerpsPositionId];
+            CopyPosition storage cp = copyPositionsByLeader[lPosId][idx];
+            if (cp.isOpen) {
+                _closeCopyPosition(cp);
+            }
+        }
 
         uint256 amount = fa.capitalDeposited;
         _removeFollower(leader, msg.sender);
