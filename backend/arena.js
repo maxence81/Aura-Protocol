@@ -37,10 +37,16 @@ const ARENA_CONFIG = [
 const RPC_URL = process.env.RPC_URL || "https://rpc.testnet.chain.robinhood.com";
 const provider = new ethers.JsonRpcProvider(RPC_URL);
 const PERPS_ADDRESS = process.env.AURA_PERPS_ADDRESS || "0x8AECF449B27BB41E34C04D8C99F4348FF38bB9a2";
+const AUSD_ADDRESS = process.env.AUSD_ADDRESS || "0x359961489f069F16E5dbA46d9b174bBF7b25147B";
 
 const PERPS_ABI = [
     "function openPosition(string asset, bool isLong, uint256 collateralAmount, uint256 leverage) returns (uint256)",
     "function closePosition(uint256 positionId) external"
+];
+
+const AUSD_ABI = [
+    "function approve(address spender, uint256 amount) returns (bool)",
+    "function allowance(address owner, address spender) view returns (uint256)"
 ];
 
 let agentsData = [];
@@ -224,6 +230,17 @@ Do NOT wrap the JSON in Markdown code blocks. Just output raw JSON.
                 const safeCollateral = Math.min(Number(decision.collateral) || 50, 10000); 
                 const collateralWei = ethers.parseUnits(safeCollateral.toString(), 18);
                 const safeLeverage = Math.min(Number(decision.leverage) || 2, 20);
+
+                // --- GESTION DE L'APPROBATION aUSD ---
+                const ausd = new ethers.Contract(AUSD_ADDRESS, AUSD_ABI, wallet);
+                const allowance = await ausd.allowance(wallet.address, PERPS_ADDRESS);
+                if (allowance < collateralWei) {
+                    console.log(`[Arena] Approve aUSD pour le contrat AuraPerps...`);
+                    const approveTx = await ausd.approve(PERPS_ADDRESS, ethers.MaxUint256);
+                    await approveTx.wait();
+                    console.log(`[Arena] Approve aUSD reussi.`);
+                }
+                // -------------------------------------
 
                 const tx = await perps.openPosition(decision.asset, decision.isLong, collateralWei, safeLeverage);
                 console.log(`[Arena] Tx envoyee: ${tx.hash}`);
