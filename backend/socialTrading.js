@@ -465,9 +465,27 @@ async function getLeaderHistory(req, res) {
         try {
             events = await contract.queryFilter(closedFilter, fromBlock, currentBlock);
         } catch (err) {
-            // If range too large, try with smaller range
+            console.warn(`[SocialTrading] queryFilter failed for ${fromBlock}-${currentBlock}, trying chunked fallback...`);
+            // If range too large, try with smaller chunked range (last 7 days)
             const fallbackFrom = Math.max(0, currentBlock - blocksPerDay * 7);
-            events = await contract.queryFilter(closedFilter, fallbackFrom, currentBlock);
+            let currentFrom = fallbackFrom;
+            let chunkSize = 50000;
+            
+            while (currentFrom <= currentBlock) {
+                let currentTo = Math.min(currentFrom + chunkSize - 1, currentBlock);
+                try {
+                    const chunk = await contract.queryFilter(closedFilter, currentFrom, currentTo);
+                    events = events.concat(chunk);
+                    currentFrom = currentTo + 1;
+                } catch (chunkErr) {
+                    if (chunkSize > 5000) {
+                        chunkSize = Math.floor(chunkSize / 2); // Halve the chunk size and retry
+                    } else {
+                        console.warn(`[SocialTrading] Chunked fetch failed at size ${chunkSize}, aborting log fetch:`, chunkErr.message);
+                        break; // Stop fetching if chunk size gets too small (like 10 block limits on free tiers)
+                    }
+                }
+            }
         }
 
         // Build daily PnL history from events
