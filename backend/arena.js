@@ -310,10 +310,10 @@ ${portfolioContext}
 
 Based on the market and your past performance, decide if you want to OPEN a new trade, CLOSE existing, or HOLD.
 Available assets: ${marketContextData.availableAssets.map(a => `"${a}"`).join(', ')}.
-If you OPEN, specify leverage (max 20) and collateral (between 10000 and 250000).
+If you OPEN, specify leverage (max 20) and collateral (between 100 and 5000).
 
 You MUST respond ONLY with a valid JSON in this exact format:
-{"action": "OPEN", "asset": "BTC", "isLong": true, "leverage": 10, "collateral": 50000, "confidence_score": 85, "reasoning": "RSI is low, and my win-rate suggests I should take this."}
+{"action": "OPEN", "asset": "BTC", "isLong": true, "leverage": 10, "collateral": 2000, "confidence_score": 85, "reasoning": "RSI is low, and my win-rate suggests I should take this."}
 OR
 {"action": "CLOSE", "confidence_score": 90, "reasoning": "Market is turning, closing all positions to secure capital."}
 OR
@@ -344,7 +344,7 @@ RULES:
         }
 
         if (decision.action === "OPEN") {
-            const safeCollateral = Math.min(Math.max(Number(decision.collateral) || 50000, 10000), 250000); 
+            const safeCollateral = Math.min(Math.max(Number(decision.collateral) || 1000, 100), 10000); 
             const safeLeverage = Math.min(Number(decision.leverage) || 2, 20);
             const totalPositionSize = safeCollateral * safeLeverage;
 
@@ -419,7 +419,8 @@ async function startArena() {
     ARENA_CONFIG.forEach((config, index) => {
         const walletInfo = agentsData[index];
         
-        setTimeout(() => runAgent(config, walletInfo), index * 2000); 
+        // Stagger agents by 15 seconds to avoid Alchemy burst rate limits (HTTP 429)
+        setTimeout(() => runAgent(config, walletInfo), index * 15000); 
         
         setInterval(() => {
             runAgent(config, walletInfo);
