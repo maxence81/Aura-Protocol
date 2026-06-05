@@ -109,16 +109,20 @@ async function runLiquidator() {
                         }
                     }
                 } catch (err) {
-                    console.error(`[Liquidator] Failed to check #${posId}:`, err.message);
+                    if (err.code === "CALL_EXCEPTION" || (err.message && err.message.includes("429"))) {
+                        // Rate limit ou RPC surcharge, on ignore silencieusement
+                    } else {
+                        console.error(`[Liquidator] Failed to check #${posId}:`, err.shortMessage || err.message);
+                    }
                 }
                 
-                // Sleep slightly to avoid RPC rate limit
-                await new Promise(r => setTimeout(r, 50));
+                // Sleep pour eviter le rate limit RPC d'Alchemy
+                await new Promise(r => setTimeout(r, 300));
             }
         } catch (err) {
             console.error("[Liquidator] Scan cycle error:", err.message);
         }
-    }, 10000); // Check every 10 seconds
+    }, 15000); // Check every 15 seconds
 }
 
 runLiquidator();
