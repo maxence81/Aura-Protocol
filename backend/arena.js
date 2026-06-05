@@ -259,10 +259,16 @@ async function runAgent(agentConfig, walletInfo) {
     let ragContext = "";
     try {
         const fear = marketContextData.fearScore || 50;
-        console.log(`[Arena] [${agentConfig.name}] Recherche de similarité historique (GCP RAG)...`);
-        // We use mock values for current BTC return/volatility since TA calculation isn't fully implemented
-        const result = execSync(`python data_ingestion/similarity_search.py ${fear} -0.02 0.04 52.0`, { cwd: process.cwd() });
-        ragContext = result.toString().trim();
+        console.log(`[Arena] [${agentConfig.name}] Recherche de similarité historique pour tous les actifs (GCP RAG)...`);
+        
+        for (const asset of marketContextData.availableAssets) {
+            try {
+                const res = execSync(`python data_ingestion/similarity_search.py ${asset} ${fear} -0.02 0.04 52.0`, { cwd: process.cwd() });
+                ragContext += `--- ${asset} LONG-TERM MEMORY ---\n` + res.toString().trim() + "\n\n";
+            } catch (innerE) {
+                // Ignore missing asset in DB
+            }
+        }
     } catch (e) {
         console.error("[Arena] RAG Error:", e.message);
     }
