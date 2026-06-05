@@ -367,26 +367,36 @@ RULES:
             const wallet = new ethers.Wallet(walletInfo.privateKey, provider);
             const perps = new ethers.Contract(PERPS_ADDRESS, PERPS_ABI, wallet);
             
+            const db = new Client({
+                connectionString: process.env.GCP_DB_URL || process.env.DATABASE_URL,
+                ssl: { rejectUnauthorized: false }
+            });
+            
             try {
-                // In a real scenario, the agent would close a specific position ID. 
-                // For the hackathon, we simply fetch all open positions of this agent and close them.
-                const nextId = await perps.nextPositionId();
+                await db.connect();
+                const address = wallet.address.toLowerCase();
+                const openRes = await db.query(
+                    "SELECT position_id, asset FROM positions_opened WHERE LOWER(owner) = $1 AND position_id NOT IN (SELECT position_id FROM positions_closed)",
+                    [address]
+                );
+                
                 let closedCount = 0;
-                for (let i = 0; i < nextId; i++) {
-                    const pos = await perps.positions(i);
-                    if (pos.isOpen && pos.owner.toLowerCase() === wallet.address.toLowerCase()) {
-                        console.log(`[Arena] Closing position #${i} on ${pos.asset}...`);
-                        const tx = await perps.closePosition(i);
-                        await tx.wait();
-                        console.log(`[Arena] Position #${i} closed. Tx: ${tx.hash}`);
-                        closedCount++;
-                    }
+                for (const row of openRes.rows) {
+                    const posId = row.position_id;
+                    console.log(`[Arena] Closing position #${posId} on ${row.asset}...`);
+                    const tx = await perps.closePosition(posId);
+                    await tx.wait();
+                    console.log(`[Arena] Position #${posId} closed. Tx: ${tx.hash}`);
+                    closedCount++;
                 }
+                
                 if (closedCount === 0) {
                     console.log(`[Arena] Aucune position ouverte à cloturer.`);
                 }
             } catch (txError) {
                 console.error(`[Arena] Echec de la cloture:`, txError.reason || txError.message);
+            } finally {
+                await db.end();
             }
         }
 
