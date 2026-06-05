@@ -373,6 +373,21 @@ Claude → "Done! Limit order placed on Stylus LOB. TX: 0xabc..."
 
 ---
 
+## Future Plans: x402 Protocol Integration (Monetization for AI Agents)
+
+As presented during the Arbitrum hackathon, Aura Protocol plans to integrate the **x402 protocol** (HTTP 402 Payment Required) to monetize its MCP Server and API endpoints. 
+
+Since Aura exposes a Model Context Protocol (MCP) server for remote AI agents (like Claude Desktop or custom trading bots), these agents consume computational resources and premium data (e.g., Pyth Network feeds, NewsAPI sentiment analysis).
+
+In the future, the Express backend and MCP server will be protected by an x402 middleware:
+1. Remote AI agents will receive an HTTP 402 response when requesting premium analyses (`get_market_analysis`) or executing complex on-chain strategies.
+2. The agent will settle a micro-payment (e.g., 0.50 USDC) natively on Arbitrum.
+3. Upon verifying the payment receipt, the Aura backend will serve the data/execution.
+
+This turns Aura into a true "Machine-to-Machine" (M2M) economy, where autonomous agents pay for services programmatically without human intervention.
+
+---
+
 ## Setup & Quickstart
 
 ### Prerequisites

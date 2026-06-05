@@ -41,7 +41,9 @@ const AUSD_ADDRESS = process.env.AUSD_ADDRESS || "0x359961489f069F16E5dbA46d9b17
 
 const PERPS_ABI = [
     "function openPosition(string asset, bool isLong, uint256 collateralAmount, uint256 leverage) returns (uint256)",
-    "function closePosition(uint256 positionId) external"
+    "function closePosition(uint256 positionId) external",
+    "function nextPositionId() view returns (uint256)",
+    "function positions(uint256) view returns (address owner, string asset, bool isLong, uint256 collateralAmount, uint256 leverage, uint256 entryPrice, uint256 positionSize, bool isOpen, uint256 openedAt, uint256 realizedPnl, bool isProfitRealized, uint256 exitPrice, uint256 takeProfitPrice, uint256 stopLossPrice)"
 ];
 
 const AUSD_ABI = [
@@ -165,13 +167,74 @@ async function getArenaContext() {
             text += `  * No significant news currently.\n`;
         }
         
-        return { text, availableAssets };
+        return { text, availableAssets, fearScore: sentiment.value };
     } catch (error) {
         console.error("[Arena] Erreur lors de la recuperation des donnees Pyth :", error.message);
         return { 
             text: "CURRENT MARKET STATE:\n- BTC/USD: $65000\n- ETH/USD: $3500\n- Sentiment: NEUTRAL",
-            availableAssets: ["BTC", "ETH"]
+            availableAssets: ["BTC", "ETH"],
+            fearScore: 50
         };
+    }
+}
+
+async function getAgentPortfolioContext(wallet) {
+    const perps = new ethers.Contract(PERPS_ADDRESS, PERPS_ABI, wallet);
+    try {
+        const nextId = await perps.nextPositionId();
+        let openPos = [];
+        let closedCount = 0;
+        let wins = 0;
+        let losses = 0;
+        let totalPnlWei = 0n;
+
+        for (let i = 0; i < nextId; i++) {
+            const pos = await perps.positions(i);
+            if (pos.owner.toLowerCase() === wallet.address.toLowerCase()) {
+                if (pos.isOpen) {
+                    openPos.push(`- Position #${i}: ${pos.isLong ? 'LONG' : 'SHORT'} on ${pos.asset} (Leverage: x${pos.leverage}, Collateral: $${ethers.formatUnits(pos.collateralAmount, 18)})`);
+                } else {
+                    closedCount++;
+                    if (pos.isProfitRealized) {
+                        wins++;
+                        totalPnlWei += pos.realizedPnl;
+                    } else {
+                        losses++;
+                        totalPnlWei -= pos.realizedPnl;
+                    }
+                }
+            }
+        }
+
+        let context = "";
+        
+        // 1. Open Positions
+        if (openPos.length > 0) {
+            context += `[CURRENT OPEN POSITIONS]\n${openPos.join('\n')}\n(Note: if you choose CLOSE, all your open positions will be closed to secure PnL or stop losses.)\n\n`;
+        } else {
+            context += `[CURRENT OPEN POSITIONS]\nYou currently have NO open positions.\n\n`;
+        }
+
+        // 2. Historical Reflection (Self-Correction)
+        if (closedCount > 0) {
+            const winRate = ((wins / closedCount) * 100).toFixed(2);
+            const netPnl = ethers.formatUnits(totalPnlWei > 0n ? totalPnlWei : -totalPnlWei, 18);
+            const sign = totalPnlWei >= 0n ? "+" : "-";
+            context += `[SELF-REFLECTION: PAST PERFORMANCE]\nTotal Past Trades: ${closedCount}\nWins: ${wins} | Losses: ${losses} (Win Rate: ${winRate}%)\nNet Realized PnL: ${sign}$${netPnl}\n`;
+            
+            if (totalPnlWei < 0n) {
+                context += `CRITICAL INSTRUCTION: You are currently losing money. Your past strategies failed. Reflect on your losses, avoid over-leveraging, and DO NOT force trades. Demand a much higher edge before opening a new position.\n`;
+            } else {
+                context += `INSTRUCTION: You are profitable. Keep applying your winning patterns but manage your risk.\n`;
+            }
+        } else {
+            context += `[SELF-REFLECTION]\nNo past trades found. This is your first trade. Be cautious.\n`;
+        }
+
+        return context;
+    } catch (e) {
+        console.error("Error fetching portfolio context", e);
+        return "[PORTFOLIO INFO UNAVAILABLE]";
     }
 }
 
@@ -189,21 +252,45 @@ async function runAgent(agentConfig, walletInfo) {
 
     const marketContextData = await getArenaContext();
     
+    const wallet = new ethers.Wallet(walletInfo.privateKey, provider);
+    const portfolioContext = await getAgentPortfolioContext(wallet);
+
+    const { execSync } = require('child_process');
+    let ragContext = "";
+    try {
+        const fear = marketContextData.fearScore || 50;
+        console.log(`[Arena] [${agentConfig.name}] Recherche de similarité historique (GCP RAG)...`);
+        // We use mock values for current BTC return/volatility since TA calculation isn't fully implemented
+        const result = execSync(`python data_ingestion/similarity_search.py ${fear} -0.02 0.04 52.0`, { cwd: process.cwd() });
+        ragContext = result.toString().trim();
+    } catch (e) {
+        console.error("[Arena] RAG Error:", e.message);
+    }
+
     const systemPrompt = `
 ${agentConfig.prompt}
 
 ${marketContextData.text}
 
-Based on this, decide if you want to OPEN a trade, CLOSE existing, or HOLD.
+${ragContext}
+
+${portfolioContext}
+
+Based on the market and your past performance, decide if you want to OPEN a new trade, CLOSE existing, or HOLD.
 Available assets: ${marketContextData.availableAssets.map(a => `"${a}"`).join(', ')}.
 If you OPEN, specify leverage (max 20) and collateral (between 10000 and 250000).
 
 You MUST respond ONLY with a valid JSON in this exact format:
-{"action": "OPEN", "asset": "BTC", "isLong": true, "leverage": 10, "collateral": 50000, "reasoning": "RSI is low, going long."}
+{"action": "OPEN", "asset": "BTC", "isLong": true, "leverage": 10, "collateral": 50000, "confidence_score": 85, "reasoning": "RSI is low, and my win-rate suggests I should take this."}
 OR
-{"action": "HOLD", "reasoning": "Market too choppy."}
+{"action": "CLOSE", "confidence_score": 90, "reasoning": "Market is turning, closing all positions to secure capital."}
+OR
+{"action": "HOLD", "confidence_score": 100, "reasoning": "Market too choppy, confidence in edge is too low (< 75)."}
 
-Do NOT wrap the JSON in Markdown code blocks. Just output raw JSON.
+RULES:
+1. Do NOT wrap the JSON in Markdown code blocks. Just output raw JSON.
+2. Provide a "confidence_score" between 0 and 100 representing how certain you are of your edge.
+3. If your confidence is below 75, you MUST choose HOLD. Do not trade just to trade.
 `;
 
     try {
@@ -215,8 +302,14 @@ Do NOT wrap the JSON in Markdown code blocks. Just output raw JSON.
         }
         
         const decision = JSON.parse(answer);
-        console.log(`[Arena] [${agentConfig.name}] Decision: ${decision.action}`);
+        console.log(`[Arena] [${agentConfig.name}] Decision: ${decision.action} (Confidence: ${decision.confidence_score}%)`);
         console.log(`[Arena] Raison: ${decision.reasoning}`);
+
+        // ANTI-SPAM: Enforce high confidence threshold
+        if (decision.action === "OPEN" && decision.confidence_score < 75) {
+            console.log(`[Arena] 🛡️ ANTI-SPAM TRIGGERED: Confidence (${decision.confidence_score}%) too low. Forcing HOLD to protect capital.`);
+            return;
+        }
 
         if (decision.action === "OPEN") {
             const safeCollateral = Math.min(Math.max(Number(decision.collateral) || 50000, 10000), 250000); 
@@ -261,7 +354,7 @@ Do NOT wrap the JSON in Markdown code blocks. Just output raw JSON.
                 // For the hackathon, we simply fetch all open positions of this agent and close them.
                 const nextId = await perps.nextPositionId();
                 let closedCount = 0;
-                for (let i = 1; i < nextId; i++) {
+                for (let i = 0; i < nextId; i++) {
                     const pos = await perps.positions(i);
                     if (pos.isOpen && pos.owner.toLowerCase() === wallet.address.toLowerCase()) {
                         console.log(`[Arena] Closing position #${i} on ${pos.asset}...`);
