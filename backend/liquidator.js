@@ -75,6 +75,21 @@ async function runLiquidator() {
         try {
             const prices = await fetchPythPrices();
             if (Object.keys(prices).length > 0) {
+                
+                // --- HEARTBEAT ORACLE UPDATE FOR UI / MANUAL TRADERS ---
+                // We update the Mock Oracle for all assets so the UI gets fresh prices
+                // when users manually click Long/Short.
+                let nonce = await wallet.getNonce();
+                for (const [asset, priceWei] of Object.entries(prices)) {
+                    try {
+                        const tx = await oracle.setPrice(asset, priceWei, { nonce: nonce++ });
+                        // No wait here to make it fast (fire and forget)
+                    } catch (e) {
+                        // Ignore rate limits or nonce errors silently
+                    }
+                }
+                // -------------------------------------------------------
+
                 // Fetch all open positions across the entire protocol
                 const openRes = await db.query(
                     "SELECT position_id FROM positions_opened WHERE position_id NOT IN (SELECT position_id FROM positions_closed)"
