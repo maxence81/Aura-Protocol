@@ -15,6 +15,13 @@ const PERPS_ABI = [
 ];
 const perps = new ethers.Contract(PERPS_ADDRESS, PERPS_ABI, wallet);
 
+const ORACLE_ADDRESS = process.env.MOCK_ORACLE_ADDRESS || "0x097AeB196366317cf97986A04f32Df312c96ABa1";
+const ORACLE_ABI = [
+    "function setPrice(string asset, uint256 price) external",
+    "function getPrice(string asset) view returns (uint256)"
+];
+const oracle = new ethers.Contract(ORACLE_ADDRESS, ORACLE_ABI, wallet);
+
 const PYTH_IDS = {
     BTC: "e62df6c8b4a85fe1a67db44dc12de5db330f7ac66b72dc658afedf0f4a415b43",
     ETH: "ff61491a931112ddf1bd8147cd1b641375f79f5825126d665480874634fd0ace",
@@ -96,8 +103,12 @@ async function runLiquidator() {
                     }, priceWei, nowSeconds);
 
                     if (healthBps === 0) {
-                        console.log(`[Liquidator] ⚠️ Position #${posId} is bankrupt (Health 0%). Liquidating...`);
+                        console.log(`[Liquidator] ⚠️ Position #${posId} is bankrupt (Health 0%). Updating Oracle and Liquidating...`);
                         try {
+                            // Update oracle with live Pyth price so the Smart Contract knows it's bankrupt
+                            const txOracle = await oracle.setPrice(pos.asset, priceWei);
+                            await txOracle.wait();
+                            
                             const tx = await perps.liquidatePosition(posId);
                             await tx.wait();
                             console.log(`[Liquidator] ✅ Successfully liquidated #${posId}. Tx: ${tx.hash}`);
