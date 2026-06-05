@@ -181,7 +181,7 @@ async function getArenaContext() {
 
 async function getAgentPortfolioContext(wallet) {
     const db = new Client({
-        connectionString: process.env.DATABASE_URL,
+        connectionString: process.env.GCP_DB_URL || process.env.DATABASE_URL,
         ssl: { rejectUnauthorized: false }
     });
     
