@@ -74,66 +74,100 @@ async function runLiquidator() {
     setInterval(async () => {
         try {
             const prices = await fetchPythPrices();
-            if (Object.keys(prices).length === 0) return;
+    async function runCycle() {
+        try {
+            const prices = await fetchPythPrices();
+            if (Object.keys(prices).length > 0) {
+                // Fetch all open positions across the entire protocol
+                const openRes = await db.query(
+                    "SELECT position_id FROM positions_opened WHERE position_id NOT IN (SELECT position_id FROM positions_closed)"
+                );
 
-            // Fetch all open positions across the entire protocol
-            const openRes = await db.query(
-                "SELECT position_id FROM positions_opened WHERE position_id NOT IN (SELECT position_id FROM positions_closed)"
-            );
+                if (openRes.rows.length > 0) {
+                    const nowSeconds = BigInt(Math.floor(Date.now() / 1000));
 
-            if (openRes.rows.length === 0) return;
-            
-            const nowSeconds = BigInt(Math.floor(Date.now() / 1000));
-
-            for (const row of openRes.rows) {
-                const posId = row.position_id;
-                try {
-                    const pos = await perps.positions(posId);
-                    if (!pos.isOpen) continue;
-
-                    const priceWei = prices[pos.asset];
-                    if (!priceWei) continue;
-
-                    const { healthBps } = computeHealth({
-                        isLong: pos.isLong,
-                        collateralAmount: pos.collateralAmount,
-                        entryPrice: pos.entryPrice,
-                        positionSize: pos.positionSize,
-                        openedAt: pos.openedAt
-                    }, priceWei, nowSeconds);
-
-                    if (healthBps === 0) {
-                        console.log(`[Liquidator] ⚠️ Position #${posId} is bankrupt (Health 0%). Updating Oracle and Liquidating...`);
+                    for (const row of openRes.rows) {
+                        const posId = row.position_id;
                         try {
-                            // Update oracle with live Pyth price so the Smart Contract knows it's bankrupt
-                            const txOracle = await oracle.setPrice(pos.asset, priceWei);
-                            await txOracle.wait();
-                            
-                            const tx = await perps.liquidatePosition(posId);
-                            await tx.wait();
-                            console.log(`[Liquidator] ✅ Successfully liquidated #${posId}. Tx: ${tx.hash}`);
-                        } catch (txErr) {
-                            // If reverted, maybe already liquidated or in grace period
-                            if (!txErr.message.includes("Position not open")) {
-                                console.error(`[Liquidator] ❌ Failed to liquidate #${posId}:`, txErr.shortMessage || txErr.message);
+                            const pos = await perps.positions(posId);
+                            if (!pos.isOpen) continue;
+
+                            const priceWei = prices[pos.asset];
+                            if (!priceWei) continue;
+
+                            const { healthBps } = computeHealth({
+                                isLong: pos.isLong,
+                                collateralAmount: pos.collateralAmount,
+                                entryPrice: pos.entryPrice,
+                                positionSize: pos.positionSize,
+                                openedAt: pos.openedAt
+                            }, priceWei, nowSeconds);
+
+                            if (healthBps === 0) {
+                                const entryNum = Number(ethers.formatUnits(pos.entryPrice, 18));
+                                const levNum = Number(pos.leverage);
+                                let liqNum = 0;
+                                if (pos.isLong) {
+                                    liqNum = entryNum * (1 - 1 / levNum);
+                                } else {
+                                    liqNum = entryNum * (1 + 1 / levNum);
+                                }
+
+                                const entryFormatted = entryNum.toFixed(2);
+                                const liqFormatted = liqNum.toFixed(2);
+                                const pythFormatted = Number(ethers.formatUnits(priceWei, 18)).toFixed(2);
+                                const collateralFormatted = Number(ethers.formatUnits(pos.collateralAmount, 18)).toFixed(2);
+                                const type = pos.isLong ? "LONG" : "SHORT";
+                                const lev = pos.leverage.toString();
+
+                                console.log(`\n=========================================================`);
+                                console.log(`[Liquidator] ⚠️ BANKRUPT DETECTED: Position #${posId}`);
+                                console.log(`[Liquidator] Asset: ${pos.asset} | Type: ${type} ${lev}x`);
+                                console.log(`[Liquidator] Collateral: $${collateralFormatted}`);
+                                console.log(`[Liquidator] Entry Price: $${entryFormatted}`);
+                                console.log(`[Liquidator] Liq. Price : ~$${liqFormatted}`);
+                                console.log(`[Liquidator] Pyth Price :  $${pythFormatted}`);
+                                console.log(`[Liquidator] Updating Oracle & Sending Transaction...`);
+                                console.log(`=========================================================\n`);
+
+                                try {
+                                    // Update oracle with live Pyth price so the Smart Contract knows it's bankrupt
+                                    const txOracle = await oracle.setPrice(pos.asset, priceWei);
+                                    await txOracle.wait();
+                                    
+                                    const tx = await perps.liquidatePosition(posId);
+                                    await tx.wait();
+                                    console.log(`[Liquidator] ✅ Successfully liquidated #${posId}. Tx: ${tx.hash}`);
+                                } catch (txErr) {
+                                    // If reverted, maybe already liquidated or in grace period
+                                    if (!txErr.message.includes("Position not open")) {
+                                        console.error(`[Liquidator] ❌ Failed to liquidate #${posId}:`, txErr.shortMessage || txErr.message);
+                                    }
+                                }
+                            }
+                        } catch (err) {
+                            if (err.code === "CALL_EXCEPTION" || (err.message && err.message.includes("429"))) {
+                                // Rate limit ou RPC surcharge, on ignore silencieusement
+                            } else {
+                                console.error(`[Liquidator] Failed to check #${posId}:`, err.shortMessage || err.message);
                             }
                         }
-                    }
-                } catch (err) {
-                    if (err.code === "CALL_EXCEPTION" || (err.message && err.message.includes("429"))) {
-                        // Rate limit ou RPC surcharge, on ignore silencieusement
-                    } else {
-                        console.error(`[Liquidator] Failed to check #${posId}:`, err.shortMessage || err.message);
+                        
+                        // Sleep pour eviter le rate limit RPC d'Alchemy
+                        await new Promise(r => setTimeout(r, 300));
                     }
                 }
-                
-                // Sleep pour eviter le rate limit RPC d'Alchemy
-                await new Promise(r => setTimeout(r, 300));
             }
         } catch (err) {
             console.error("[Liquidator] Scan cycle error:", err.message);
         }
-    }, 15000); // Check every 15 seconds
+
+        // Relance le prochain cycle 15 secondes APRES la fin de celui-ci (empeche les conflits de nonce)
+        setTimeout(runCycle, 15000);
+    }
+
+    // Demarrage du premier cycle
+    runCycle();
 }
 
 runLiquidator();
