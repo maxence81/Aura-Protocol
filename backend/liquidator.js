@@ -71,9 +71,6 @@ async function runLiquidator() {
         return;
     }
 
-    setInterval(async () => {
-        try {
-            const prices = await fetchPythPrices();
     async function runCycle() {
         try {
             const prices = await fetchPythPrices();
