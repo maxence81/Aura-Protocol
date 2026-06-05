@@ -13,21 +13,21 @@ const ARENA_CONFIG = [
         modelId: "deepseek-4-flash", 
         description: "Aggressive trader, looks for high volatility, uses high leverage (up to 20x). Ignores small risks.",
         prompt: "You are a highly aggressive crypto trader. You love volatility. Use up to 20x leverage. Your goal is to maximize short-term PnL.",
-        interval: 30000, 
+        interval: 600000, // 10 minutes (was 30s)
     },
     {
         name: "DeepSeek-Conservateur",
         modelId: "deepseek-3.2", 
         description: "Risk-averse institutional trader. Capital preservation is #1 goal. Tight stop-losses, low leverage.",
         prompt: "You are a risk-averse institutional trader. Capital preservation is your #1 goal. Never use more than 3x leverage. Always set tight stop-losses.",
-        interval: 60000, 
+        interval: 1800000, // 30 minutes (was 60s)
     },
     {
         name: "Llama-Macro",
         modelId: "llama3.3-70b-instruct", 
         description: "Macro analyst. Trades based on market sentiment, funding rates, and long-term trends.",
         prompt: "You are a macro-analyst whale trader. You analyze broad market sentiment and funding rates. You take low leverage positional trades.",
-        interval: 120000, 
+        interval: 3600000, // 60 minutes (was 120s)
     }
 ];
 
@@ -181,30 +181,56 @@ async function getArenaContext() {
 async function getAgentPortfolioContext(wallet) {
     const perps = new ethers.Contract(PERPS_ADDRESS, PERPS_ABI, wallet);
     try {
-        const nextId = await perps.nextPositionId();
-        let openPos = [];
-        let closedCount = 0;
-        let wins = 0;
-        let losses = 0;
-        let totalPnlWei = 0n;
+        if (!wallet._agentCache) {
+            wallet._agentCache = { openIds: new Set(), wins: 0, losses: 0, totalPnlWei: 0n, lastCheckedId: 0 };
+        }
+        const cache = wallet._agentCache;
+        const nextId = Number(await perps.nextPositionId());
 
-        for (let i = 0; i < nextId; i++) {
+        // 1. Verify previously open positions
+        for (const posId of Array.from(cache.openIds)) {
+            const pos = await perps.positions(posId);
+            if (!pos.isOpen) {
+                cache.openIds.delete(posId);
+                if (pos.isProfitRealized) {
+                    cache.wins++;
+                    cache.totalPnlWei += BigInt(pos.realizedPnl);
+                } else {
+                    cache.losses++;
+                    cache.totalPnlWei -= BigInt(pos.realizedPnl);
+                }
+            }
+        }
+
+        // 2. Fetch new positions since last check
+        for (let i = cache.lastCheckedId; i < nextId; i++) {
             const pos = await perps.positions(i);
             if (pos.owner.toLowerCase() === wallet.address.toLowerCase()) {
                 if (pos.isOpen) {
-                    openPos.push(`- Position #${i}: ${pos.isLong ? 'LONG' : 'SHORT'} on ${pos.asset} (Leverage: x${pos.leverage}, Collateral: $${ethers.formatUnits(pos.collateralAmount, 18)})`);
+                    cache.openIds.add(i);
                 } else {
-                    closedCount++;
                     if (pos.isProfitRealized) {
-                        wins++;
-                        totalPnlWei += pos.realizedPnl;
+                        cache.wins++;
+                        cache.totalPnlWei += BigInt(pos.realizedPnl);
                     } else {
-                        losses++;
-                        totalPnlWei -= pos.realizedPnl;
+                        cache.losses++;
+                        cache.totalPnlWei -= BigInt(pos.realizedPnl);
                     }
                 }
             }
         }
+        cache.lastCheckedId = nextId;
+
+        let openPos = [];
+        for (const posId of Array.from(cache.openIds)) {
+            const pos = await perps.positions(posId);
+            openPos.push(`- Position #${posId}: ${pos.isLong ? 'LONG' : 'SHORT'} on ${pos.asset} (Leverage: x${pos.leverage}, Collateral: $${ethers.formatUnits(pos.collateralAmount, 18)})`);
+        }
+        
+        let wins = cache.wins;
+        let losses = cache.losses;
+        let closedCount = wins + losses;
+        let totalPnlWei = cache.totalPnlWei;
 
         let context = "";
         
@@ -255,7 +281,7 @@ async function runAgent(agentConfig, walletInfo) {
     const wallet = new ethers.Wallet(walletInfo.privateKey, provider);
     const portfolioContext = await getAgentPortfolioContext(wallet);
 
-    const { execSync } = require('child_process');
+    const { getMostSimilarHistoricalDays } = require('./similaritySearch');
     let ragContext = "";
     try {
         const fear = marketContextData.fearScore || 50;
@@ -263,8 +289,8 @@ async function runAgent(agentConfig, walletInfo) {
         
         for (const asset of marketContextData.availableAssets) {
             try {
-                const res = execSync(`python data_ingestion/similarity_search.py ${asset} ${fear} -0.02 0.04 52.0`, { cwd: process.cwd() });
-                ragContext += `--- ${asset} LONG-TERM MEMORY ---\n` + res.toString().trim() + "\n\n";
+                const res = await getMostSimilarHistoricalDays(asset, fear, -0.02, 0.04, 52.0);
+                ragContext += `--- ${asset} LONG-TERM MEMORY ---\n` + res.trim() + "\n\n";
             } catch (innerE) {
                 // Ignore missing asset in DB
             }
