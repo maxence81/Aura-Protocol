@@ -218,8 +218,8 @@ async function getAgentPortfolioContext(wallet) {
                     }
                 }
             }
-            // ANTI-RATE LIMIT: sleep 25ms between RPC calls to avoid Alchemy 429 CUPS limit on first run
-            await new Promise(r => setTimeout(r, 25));
+            // ANTI-RATE LIMIT: sleep 100ms between RPC calls to safely stay below Alchemy 330 CUPS limit
+            await new Promise(r => setTimeout(r, 100));
         }
         cache.lastCheckedId = nextId;
 
