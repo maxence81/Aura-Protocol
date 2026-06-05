@@ -1,6 +1,7 @@
 require('dotenv').config({ override: true });
 const { ethers } = require("ethers");
 const { ChatOpenAI } = require("@langchain/openai");
+const { Client } = require("pg");
 const fs = require("fs");
 const path = require("path");
 
@@ -179,90 +180,73 @@ async function getArenaContext() {
 }
 
 async function getAgentPortfolioContext(wallet) {
-    const perps = new ethers.Contract(PERPS_ADDRESS, PERPS_ABI, wallet);
+    const db = new Client({
+        connectionString: process.env.DATABASE_URL,
+        ssl: { rejectUnauthorized: false }
+    });
+    
+    let context = "";
     try {
-        if (!wallet._agentCache) {
-            wallet._agentCache = { openIds: new Set(), wins: 0, losses: 0, totalPnlWei: 0n, lastCheckedId: 0 };
-        }
-        const cache = wallet._agentCache;
-        const nextId = Number(await perps.nextPositionId());
+        await db.connect();
+        const address = wallet.address.toLowerCase();
 
-        // 1. Verify previously open positions
-        for (const posId of Array.from(cache.openIds)) {
-            const pos = await perps.positions(posId);
-            if (!pos.isOpen) {
-                cache.openIds.delete(posId);
-                if (pos.isProfitRealized) {
-                    cache.wins++;
-                    cache.totalPnlWei += BigInt(pos.realizedPnl);
-                } else {
-                    cache.losses++;
-                    cache.totalPnlWei -= BigInt(pos.realizedPnl);
-                }
-            }
-        }
-
-        // 2. Fetch new positions since last check
-        for (let i = cache.lastCheckedId; i < nextId; i++) {
-            const pos = await perps.positions(i);
-            if (pos.owner.toLowerCase() === wallet.address.toLowerCase()) {
-                if (pos.isOpen) {
-                    cache.openIds.add(i);
-                } else {
-                    if (pos.isProfitRealized) {
-                        cache.wins++;
-                        cache.totalPnlWei += BigInt(pos.realizedPnl);
-                    } else {
-                        cache.losses++;
-                        cache.totalPnlWei -= BigInt(pos.realizedPnl);
-                    }
-                }
-            }
-            // ANTI-RATE LIMIT: sleep 100ms between RPC calls to safely stay below Alchemy 330 CUPS limit
-            await new Promise(r => setTimeout(r, 100));
-        }
-        cache.lastCheckedId = nextId;
-
+        // 1. Fetch Open Positions
+        const openRes = await db.query(
+            "SELECT position_id, asset, is_long, leverage, collateral FROM positions_opened WHERE LOWER(owner) = $1 AND position_id NOT IN (SELECT position_id FROM positions_closed)",
+            [address]
+        );
+        
         let openPos = [];
-        for (const posId of Array.from(cache.openIds)) {
-            const pos = await perps.positions(posId);
-            openPos.push(`- Position #${posId}: ${pos.isLong ? 'LONG' : 'SHORT'} on ${pos.asset} (Leverage: x${pos.leverage}, Collateral: $${ethers.formatUnits(pos.collateralAmount, 18)})`);
+        for (const row of openRes.rows) {
+            openPos.push(`- Position #${row.position_id}: ${row.is_long ? 'LONG' : 'SHORT'} on ${row.asset} (Leverage: x${row.leverage}, Collateral: $${row.collateral})`);
         }
         
-        let wins = cache.wins;
-        let losses = cache.losses;
-        let closedCount = wins + losses;
-        let totalPnlWei = cache.totalPnlWei;
-
-        let context = "";
-        
-        // 1. Open Positions
         if (openPos.length > 0) {
             context += `[CURRENT OPEN POSITIONS]\n${openPos.join('\n')}\n(Note: if you choose CLOSE, all your open positions will be closed to secure PnL or stop losses.)\n\n`;
         } else {
             context += `[CURRENT OPEN POSITIONS]\nYou currently have NO open positions.\n\n`;
         }
-
-        // 2. Historical Reflection (Self-Correction)
+        
+        // 2. Fetch Closed Performance
+        const closedRes = await db.query(`
+            SELECT 
+                COUNT(*) as closed_count,
+                SUM(CASE WHEN is_profit THEN 1 ELSE 0 END) as wins,
+                SUM(CASE WHEN NOT is_profit THEN 1 ELSE 0 END) as losses,
+                SUM(pnl) as total_pnl
+            FROM positions_closed
+            WHERE LOWER(owner) = $1
+        `, [address]);
+        
+        const stats = closedRes.rows[0];
+        const closedCount = Number(stats.closed_count) || 0;
+        
         if (closedCount > 0) {
+            const wins = Number(stats.wins) || 0;
+            const losses = Number(stats.losses) || 0;
             const winRate = ((wins / closedCount) * 100).toFixed(2);
-            const netPnl = ethers.formatUnits(totalPnlWei > 0n ? totalPnlWei : -totalPnlWei, 18);
-            const sign = totalPnlWei >= 0n ? "+" : "-";
-            context += `[SELF-REFLECTION: PAST PERFORMANCE]\nTotal Past Trades: ${closedCount}\nWins: ${wins} | Losses: ${losses} (Win Rate: ${winRate}%)\nNet Realized PnL: ${sign}$${netPnl}\n`;
             
-            if (totalPnlWei < 0n) {
-                context += `CRITICAL INSTRUCTION: You are currently losing money. Your past strategies failed. Reflect on your losses, avoid over-leveraging, and DO NOT force trades. Demand a much higher edge before opening a new position.\n`;
+            let totalPnlNum = Number(stats.total_pnl) || 0;
+            const sign = totalPnlNum >= 0 ? "+" : "-";
+            totalPnlNum = Math.abs(totalPnlNum);
+            
+            context += `[SELF-REFLECTION: PAST PERFORMANCE]\nTotal Past Trades: ${closedCount}\nWins: ${wins} | Losses: ${losses} (Win Rate: ${winRate}%)\nNet Realized PnL: ${sign}$${totalPnlNum.toFixed(2)}\n`;
+            
+            if (winRate < 40) {
+                context += "WARNING: Your win-rate is extremely low. You must adopt a highly risk-averse stance and only take trades with > 90% confidence.\n\n";
+            } else if (winRate > 60) {
+                context += "NOTE: Your win-rate is solid. You may take calculated risks if your confidence edge is strong.\n\n";
             } else {
-                context += `INSTRUCTION: You are profitable. Keep applying your winning patterns but manage your risk.\n`;
+                context += "NOTE: Your performance is average. Maintain strict risk management.\n\n";
             }
-        } else {
-            context += `[SELF-REFLECTION]\nNo past trades found. This is your first trade. Be cautious.\n`;
         }
-
+        
         return context;
     } catch (e) {
-        console.error("Error fetching portfolio context", e);
+        console.error("Error fetching portfolio context from DB", e);
         return "[PORTFOLIO INFO UNAVAILABLE]";
+    } finally {
+        await db.end();
     }
 }
 
@@ -421,8 +405,8 @@ async function startArena() {
     ARENA_CONFIG.forEach((config, index) => {
         const walletInfo = agentsData[index];
         
-        // Stagger agents by 15 seconds to avoid Alchemy burst rate limits (HTTP 429)
-        setTimeout(() => runAgent(config, walletInfo), index * 15000); 
+        // Stagger agents by 60 seconds to avoid overlap during their initial 50-second history sync
+        setTimeout(() => runAgent(config, walletInfo), index * 60000); 
         
         setInterval(() => {
             runAgent(config, walletInfo);
