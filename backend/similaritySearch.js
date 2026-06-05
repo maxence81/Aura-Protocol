@@ -8,7 +8,7 @@ const GCP_DB_URL = process.env.GCP_DB_URL || "postgresql://postgres:postgres@loc
 async function getMostSimilarHistoricalDays(coin, currentFear, currentReturn, currentVolatility, currentDominance, limit = 3) {
     const client = new Client({
         connectionString: GCP_DB_URL,
-        // ssl: { rejectUnauthorized: false } // uncomment if GCP strictly requires SSL
+        ssl: { rejectUnauthorized: false } // Required by GCP
     });
 
     try {
@@ -56,7 +56,7 @@ async function getMostSimilarHistoricalDays(coin, currentFear, currentReturn, cu
         
         return contextPrompt;
     } catch (err) {
-        console.error("RAG Query Error:", err.message);
+        console.error("RAG Query Error:", err);
         return "[HISTORICAL MARKET PATTERNS (LONG-TERM MEMORY)]\nDatabase unavailable.";
     } finally {
         try {
