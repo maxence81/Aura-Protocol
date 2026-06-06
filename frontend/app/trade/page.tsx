@@ -141,7 +141,7 @@ export default function TradeDashboard() {
 
             <div><p className="text-[8px] text-white/30 uppercase tracking-widest">24h Change</p><p className="text-[10px] text-[#00f0ff] font-bold">+1.45%</p></div>
             <div><p className="text-[8px] text-white/30 uppercase tracking-widest">24h Volume</p><p className="text-[10px] text-white/60">{selectedMarket === "BTC-PERP" ? "1.29 M" : "850 K"} USDC</p></div>
-            <div><p className="text-[8px] text-white/30 uppercase tracking-widest">Funding Rate</p><p className="text-[10px] text-[#00f0ff]/70 font-bold">{selectedMarket === "BTC-PERP" ? "0.0015%" : "0.0021%"}</p></div>
+            <div><p className="text-[8px] text-white/30 uppercase tracking-widest">Funding Rate</p><p className="text-[10px] text-[#00f0ff]/70 font-bold">{state.fundingRate}</p></div>
           </div>
         </div>
 

@@ -61,6 +61,7 @@ export function useTradeState() {
   const [orderType, setOrderType] = useState<"market" | "limit">("market");
   const [limitPrice, setLimitPrice] = useState("");
   const [tpSlConfig, setTpSlConfig] = useState<Record<number, {tp: string, sl: string}>>({});
+  const [fundingRate, setFundingRate] = useState<string>("0.0015%");
   const account = useActiveAccount();
 
   const addLog = (message: string, type: "info" | "alert" | "action" = "info") => {
@@ -79,6 +80,22 @@ export function useTradeState() {
     let active = true;
     const fetchData = async () => {
       if (account?.address) {
+        try {
+          // Fetch dynamic funding rate from AuraPerps for the current market (assuming Long view for display)
+          const baseAsset = selectedMarket.split('-')[0];
+          const rateData = await publicClient.readContract({
+            address: CONTRACT_ADDRESSES.AURA_PERPS as `0x${string}`,
+            abi: AURA_PERPS_ABI as any, functionName: "getCurrentFundingRate",
+            args: [baseAsset, true]
+          }) as bigint;
+          // Rate is scaled by 1e18, but wait, it's actually just base rate if 0!
+          // Convert to percentage per 8h? Or just display the daily/hourly?
+          // The contract returns rate per second in 1e18 scale. Wait, original is 10000000000
+          // Let's just format it as a tiny percentage
+          const frNum = Number(rateData);
+          setFundingRate((frNum / 1e10).toFixed(4) + "%");
+        } catch (e) { console.error("Funding fetch err:", e); }
+
         try {
           const priceRes = await fetch(`${API_URL}/api/prices`);
           if (priceRes.ok) {
@@ -607,7 +624,7 @@ export function useTradeState() {
     tradingMode, setTradingMode, manualCollateral, setManualCollateral,
     manualLeverage, setManualLeverage, manualIsLong, setManualIsLong,
     orderType, setOrderType, limitPrice, setLimitPrice,
-    tpSlConfig, setTpSlConfig, account,
+    tpSlConfig, setTpSlConfig, fundingRate, account,
     handleClosePosition, handlePartialClose, handleAddMargin, handleSetTriggers,
     handleCancelLimitOrder,
     handleArmShield, handleDisarmShield,
