@@ -300,8 +300,15 @@ async function main() {
     console.log(`Assets:        ${ASSETS.join(", ")}`);
     console.log(`Cycle every:   ${INTERVAL_MS / 1000}s\n`);
 
-    await cycle();
-    setInterval(cycle, INTERVAL_MS);
+    const runLoop = async () => {
+        try {
+            await cycle();
+        } catch (e) {
+            console.error("Cycle error:", e);
+        }
+        setTimeout(runLoop, INTERVAL_MS);
+    };
+    runLoop();
 }
 
 main().catch((e) => { console.error(e); process.exit(1); });
