@@ -195,8 +195,8 @@ async function runLiquidator() {
             console.error("[Liquidator] Scan cycle error:", err.message);
         }
 
-        // Relance le prochain cycle 15 secondes APRES la fin de celui-ci (empeche les conflits de nonce)
-        setTimeout(runCycle, 15000);
+        // Relance le prochain cycle 5 secondes APRES la fin de celui-ci pour des prix ultra-rapides
+        setTimeout(runCycle, 5000);
     }
 
     // Demarrage du premier cycle
