@@ -598,24 +598,24 @@ export function useTradeState() {
       } else {
         tx = await wc.writeContract({ chain: null, address: CONTRACT_ADDRESSES.AURA_PERPS as `0x${string}`, abi: AURA_PERPS_ABI as any, functionName: "openPosition", args: [assetName, isLong, amountWei, BigInt(leverage)] });
         addLog(`Position confirmed (TX: ${tx.slice(0,6)}...${tx.slice(-4)})`, "action");
+      }
 
-        // Immediately configure TP/SL if provided in UI
-        if (tpStr || slStr) {
-           await publicClient.waitForTransactionReceipt({ hash: tx });
-           const nextId = await publicClient.readContract({ address: CONTRACT_ADDRESSES.AURA_PERPS as `0x${string}`, abi: AURA_PERPS_ABI as any, functionName: "nextPositionId" }) as bigint;
-           const newId = nextId - 1n; // Assuming we are the ones who just opened it
-           
-           const tpWei = tpStr ? BigInt(Math.floor(Number(tpStr) * 1e18)) : BigInt(0);
-           const slWei = slStr ? BigInt(Math.floor(Number(slStr) * 1e18)) : BigInt(0);
-           
-           const tpTx = await wc.writeContract({ chain: null, address: CONTRACT_ADDRESSES.AURA_PERPS as `0x${string}`, abi: AURA_PERPS_ABI as any, functionName: "setTriggerOrders", args: [newId, tpWei, slWei] });
-           addLog(`Triggers configured (TX: ${tpTx.slice(0,6)}...)`, "action");
+      // Immediately configure TP/SL if provided in UI
+      if (tpStr || slStr) {
+         await publicClient.waitForTransactionReceipt({ hash: tx });
+         const nextId = await publicClient.readContract({ address: CONTRACT_ADDRESSES.AURA_PERPS as `0x${string}`, abi: AURA_PERPS_ABI as any, functionName: "nextPositionId" }) as bigint;
+         const newId = nextId - 1n; // Assuming we are the ones who just opened it
+         
+         const tpWei = tpStr ? BigInt(Math.floor(Number(tpStr) * 1e18)) : BigInt(0);
+         const slWei = slStr ? BigInt(Math.floor(Number(slStr) * 1e18)) : BigInt(0);
+         
+         const tpTx = await wc.writeContract({ chain: null, address: CONTRACT_ADDRESSES.AURA_PERPS as `0x${string}`, abi: AURA_PERPS_ABI as any, functionName: "setTriggerOrders", args: [newId, tpWei, slWei] });
+         addLog(`Triggers configured (TX: ${tpTx.slice(0,6)}...)`, "action");
 
-           if (CONTRACT_ADDRESSES.CONDITIONAL_ORDER_MANAGER) {
-             if (slWei > 0n) await wc.writeContract({ chain: null, address: CONTRACT_ADDRESSES.CONDITIONAL_ORDER_MANAGER as `0x${string}`, abi: CONDITIONAL_ORDER_MANAGER_ABI as any, functionName: "createOrder", args: [newId, 0, slWei] });
-             if (tpWei > 0n) await wc.writeContract({ chain: null, address: CONTRACT_ADDRESSES.CONDITIONAL_ORDER_MANAGER as `0x${string}`, abi: CONDITIONAL_ORDER_MANAGER_ABI as any, functionName: "createOrder", args: [newId, 1, tpWei] });
-           }
-        }
+         if (CONTRACT_ADDRESSES.CONDITIONAL_ORDER_MANAGER) {
+           if (slWei > 0n) await wc.writeContract({ chain: null, address: CONTRACT_ADDRESSES.CONDITIONAL_ORDER_MANAGER as `0x${string}`, abi: CONDITIONAL_ORDER_MANAGER_ABI as any, functionName: "createOrder", args: [newId, 0, slWei] });
+           if (tpWei > 0n) await wc.writeContract({ chain: null, address: CONTRACT_ADDRESSES.CONDITIONAL_ORDER_MANAGER as `0x${string}`, abi: CONDITIONAL_ORDER_MANAGER_ABI as any, functionName: "createOrder", args: [newId, 1, tpWei] });
+         }
       }
     } catch(e: any) { addLog(`TX Error: ${e.message.split("\n")[0].substring(0, 50)}...`, "alert"); }
     setIsProcessing(false);
