@@ -152,6 +152,15 @@ async function cycle() {
 
                 if (shouldExecute) {
                     console.log(`[CondKeeper]  Trigger hit! Position #${i} (${pos.isLong ? "LONG" : "SHORT"} ${asset}) @ $${currentPrice.toFixed(2)}`);
+                    
+                    // Force update the oracle on-chain so the smart contract sees the trigger price
+                    try {
+                        const oracleTx = await oracle.setPrice(asset, priceWei);
+                        await oracleTx.wait();
+                    } catch (oe) {
+                        console.warn(`[CondKeeper] Failed to update oracle for #${i}:`, oe.shortMessage || oe.message);
+                    }
+
                     const tx = await perps.executeTriggerOrder(i);
                     await tx.wait();
                     console.log(`[CondKeeper]  Position #${i} closed via trigger | tx: ${tx.hash}`);
