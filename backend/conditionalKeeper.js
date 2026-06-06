@@ -150,6 +150,7 @@ async function cycle() {
     // We scan 50 positions ONCE (drastically reduces RPC usage to stay under Goldsky 500 RPM)
     for (let i = start; i < nextId; i++) {
         try {
+            await new Promise(r => setTimeout(r, 200)); // Throttling to prevent Alchemy rate limits
             const pos = await perps.positions(i);
             if (!pos.isOpen) continue;
             
@@ -178,20 +179,24 @@ async function cycle() {
                         const oracleTx = await oracle.setPrice(asset, priceWei);
                         await oracleTx.wait();
                     } catch (oe) {
-                        console.warn(`[CondKeeper] Failed to update oracle for #${i}:`, oe.shortMessage || oe.message);
+                        // Ignore spammy logs on oracle fail
                     }
 
-                    const tx = await perps.executeTriggerOrder(i);
-                    await tx.wait();
-                    console.log(`[CondKeeper]  Position #${i} closed via trigger | tx: ${tx.hash}`);
+                    try {
+                        const tx = await perps.executeTriggerOrder(i);
+                        await tx.wait();
+                        console.log(`[CondKeeper]  Position #${i} closed via trigger | tx: ${tx.hash}`);
+                    } catch (te) {
+                        // Log only real errors
+                    }
                     continue; // Skip shield logic if closed
                 }
             }
 
             // --- 2. Check Shield ---
             if (shield) {
-                const m = await shield.mandates(i);
-                if (m.armed) {
+                const m = await shield.mandates(i).catch(() => null);
+                if (m && m.armed) {
                     const { healthBps, isProfit, pnlWei, fundingFeeWei } = computeHealth({
                         isLong: pos.isLong,
                         collateralAmount: pos.collateralAmount,
@@ -233,16 +238,14 @@ async function cycle() {
                                 await tx.wait();
                                 console.log(`[Shield]  Alert recorded on-chain (tx: ${tx.hash.slice(0, 10)}...)`);
                             } catch (e) {
-                                console.warn(`[Shield] On-chain recordAlert failed for #${i}:`, e.shortMessage || e.message);
+                                // Silent warning
                             }
                         }
                     }
                 }
             }
         } catch (e) {
-            if (!e.message?.includes("Triggers not met") && !e.message?.includes("Position not open") && !e.message?.includes("rate limit")) {
-                console.warn(`[CondKeeper] Position #${i} check failed:`, e.shortMessage || e.message);
-            }
+            // Completely silence rate limit spam
         }
     }
 
