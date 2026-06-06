@@ -107,160 +107,6 @@ async function fetchPythPrices() {
     }
 }
 
-/// Path 1: Scan AuraPerps positions with on-chain triggers and execute them
-async function scanPerpsTriggersForAsset(asset, currentPrice) {
-    if (!perps) return;
-
-    const nextId = Number(await perps.nextPositionId());
-    const priceWei = ethers.parseUnits(currentPrice.toFixed(2), 18);
-
-    // Oracle is now updated globally by liquidator.js heartbeat, no need to do it here
-
-    // Scan last 50 positions (bounded for gas/time)
-    const start = Math.max(0, nextId - 50);
-    let executed = 0;
-
-    for (let i = start; i < nextId; i++) {
-        try {
-            const pos = await perps.positions(i);
-            if (!pos.isOpen) continue;
-            if (pos.asset !== asset) continue;
-            if (pos.takeProfitPrice === 0n && pos.stopLossPrice === 0n) continue;
-
-            // Check if trigger is met
-            let shouldExecute = false;
-            if (pos.isLong) {
-                if (pos.takeProfitPrice > 0n && priceWei >= pos.takeProfitPrice) shouldExecute = true;
-                if (pos.stopLossPrice > 0n && priceWei <= pos.stopLossPrice) shouldExecute = true;
-            } else {
-                if (pos.takeProfitPrice > 0n && priceWei <= pos.takeProfitPrice) shouldExecute = true;
-                if (pos.stopLossPrice > 0n && priceWei >= pos.stopLossPrice) shouldExecute = true;
-            }
-
-            if (shouldExecute) {
-                console.log(`[CondKeeper]  Trigger hit! Position #${i} (${pos.isLong ? "LONG" : "SHORT"} ${asset}) @ $${currentPrice.toFixed(2)}`);
-                const tx = await perps.executeTriggerOrder(i);
-                await tx.wait();
-                console.log(`[CondKeeper]  Position #${i} closed via trigger | tx: ${tx.hash}`);
-                executed++;
-            }
-        } catch (e) {
-            // Skip positions that fail (already closed, etc.)
-            if (!e.message?.includes("Triggers not met") && !e.message?.includes("Position not open")) {
-                console.warn(`[CondKeeper] Position #${i} check failed:`, e.shortMessage || e.message);
-            }
-        }
-    }
-
-    if (executed > 0) {
-        console.log(`[CondKeeper]  Executed ${executed} trigger(s) for ${asset}`);
-    }
-}
-
-/// Path 2: Scan ConditionalOrderManager for executable orders
-async function scanConditionalOrders(asset) {
-    if (!com) return;
-
-    try {
-        const executable = await com.getExecutableOrders(asset, 20);
-        if (executable.length === 0) return;
-
-        console.log(`[CondKeeper]  ${executable.length} conditional order(s) ready for ${asset}`);
-
-        for (const orderId of executable) {
-            try {
-                const tx = await com.executeOrder(orderId);
-                await tx.wait();
-                console.log(`[CondKeeper]  Conditional order #${orderId} executed | tx: ${tx.hash}`);
-            } catch (e) {
-                console.warn(`[CondKeeper] Order #${orderId} execution failed:`, e.shortMessage || e.message);
-            }
-        }
-    } catch (e) {
-        // COM might not be deployed yet
-        if (!e.message?.includes("call revert")) {
-            console.warn(`[CondKeeper] COM scan failed for ${asset}:`, e.shortMessage || e.message);
-        }
-    }
-}
-
-/// Path 3: Liquidation Shield — scan armed positions, alert on health breach
-async function scanLiquidationRisk(asset, currentPrice) {
-    if (!shield) return;
-
-    const nextId = Number(await perps.nextPositionId());
-    const start = Math.max(0, nextId - 50);
-    const priceWei = ethers.parseUnits(currentPrice.toFixed(2), 18);
-    const nowSeconds = BigInt(Math.floor(Date.now() / 1000));
-
-    for (let i = start; i < nextId; i++) {
-        try {
-            const pos = await perps.positions(i);
-            if (!pos.isOpen) continue;
-            if (pos.asset !== asset) continue;
-
-            // Check if shield is armed for this position
-            const m = await shield.mandates(i);
-            if (!m.armed) continue;
-
-            // Compute health
-            const { healthBps, isProfit, pnlWei, fundingFeeWei } = computeHealth({
-                isLong: pos.isLong,
-                collateralAmount: pos.collateralAmount,
-                entryPrice: pos.entryPrice,
-                positionSize: pos.positionSize,
-                openedAt: pos.openedAt,
-            }, priceWei, nowSeconds);
-
-            // Below threshold? Alert.
-            if (healthBps < Number(m.thresholdBps)) {
-                const last = recentAlerts.get(i) || 0;
-                if (Date.now() - last < ALERT_COOLDOWN_MS) continue;
-                recentAlerts.set(i, Date.now());
-
-                console.log(
-                    `[Shield]  Position #${i} (${pos.isLong ? "LONG" : "SHORT"} ${asset} ${pos.leverage}x) ` +
-                    `health=${(healthBps/100).toFixed(1)}% < ${(Number(m.thresholdBps)/100).toFixed(1)}% | ` +
-                    `recommendedTopUp=${ethers.formatUnits(m.recommendedTopUp, 18)} aUSD`
-                );
-
-                // Push to SSE log
-                logLiquidationAlert({
-                    positionId: i,
-                    owner: pos.owner,
-                    asset: pos.asset,
-                    isLong: pos.isLong,
-                    leverage: Number(pos.leverage),
-                    collateral: ethers.formatUnits(pos.collateralAmount, 18),
-                    entryPrice: ethers.formatUnits(pos.entryPrice, 18),
-                    currentPrice: currentPrice,
-                    healthBps,
-                    healthPct: healthBps / 100,
-                    thresholdBps: Number(m.thresholdBps),
-                    recommendedTopUp: ethers.formatUnits(m.recommendedTopUp, 18),
-                    maxTopUpPerEvent: ethers.formatUnits(m.maxTopUpPerEvent, 18),
-                    pnl: ethers.formatUnits(pnlWei, 18),
-                    isProfit,
-                    fundingFee: ethers.formatUnits(fundingFeeWei, 18),
-                });
-
-                // Record on-chain (auditability)
-                try {
-                    const tx = await shield.recordAlert(i, healthBps);
-                    await tx.wait();
-                    console.log(`[Shield]  Alert recorded on-chain (tx: ${tx.hash.slice(0, 10)}...)`);
-                } catch (e) {
-                    console.warn(`[Shield] On-chain recordAlert failed for #${i}:`, e.shortMessage || e.message);
-                }
-            }
-        } catch (e) {
-            if (!e.message?.includes("call revert")) {
-                console.warn(`[Shield] Health check failed for #${i}:`, e.shortMessage || e.message);
-            }
-        }
-    }
-}
-
 async function cycle() {
     const prices = await fetchPythPrices();
     if (Object.keys(prices).length === 0) {
@@ -268,15 +114,133 @@ async function cycle() {
         return;
     }
 
-    for (const asset of ASSETS) {
-        const price = prices[asset];
-        if (!price) continue;
+    if (!perps) return;
 
-        await scanPerpsTriggersForAsset(asset, price);
-        await scanConditionalOrders(asset);
-        await scanLiquidationRisk(asset, price);
+    let nextId;
+    try {
+        nextId = Number(await perps.nextPositionId());
+    } catch(e) {
+        console.warn("[CondKeeper] Failed to fetch nextPositionId:", e.shortMessage || e.message);
+        return;
+    }
+
+    const start = Math.max(0, nextId - 50);
+    const nowSeconds = BigInt(Math.floor(Date.now() / 1000));
+    
+    // We scan 50 positions ONCE (drastically reduces RPC usage to stay under Goldsky 500 RPM)
+    for (let i = start; i < nextId; i++) {
+        try {
+            const pos = await perps.positions(i);
+            if (!pos.isOpen) continue;
+            
+            const asset = pos.asset;
+            const currentPrice = prices[asset];
+            if (!currentPrice) continue;
+            
+            const priceWei = ethers.parseUnits(currentPrice.toFixed(2), 18);
+            
+            // --- 1. Check TP/SL Triggers ---
+            if (pos.takeProfitPrice > 0n || pos.stopLossPrice > 0n) {
+                let shouldExecute = false;
+                if (pos.isLong) {
+                    if (pos.takeProfitPrice > 0n && priceWei >= pos.takeProfitPrice) shouldExecute = true;
+                    if (pos.stopLossPrice > 0n && priceWei <= pos.stopLossPrice) shouldExecute = true;
+                } else {
+                    if (pos.takeProfitPrice > 0n && priceWei <= pos.takeProfitPrice) shouldExecute = true;
+                    if (pos.stopLossPrice > 0n && priceWei >= pos.stopLossPrice) shouldExecute = true;
+                }
+
+                if (shouldExecute) {
+                    console.log(`[CondKeeper]  Trigger hit! Position #${i} (${pos.isLong ? "LONG" : "SHORT"} ${asset}) @ $${currentPrice.toFixed(2)}`);
+                    const tx = await perps.executeTriggerOrder(i);
+                    await tx.wait();
+                    console.log(`[CondKeeper]  Position #${i} closed via trigger | tx: ${tx.hash}`);
+                    continue; // Skip shield logic if closed
+                }
+            }
+
+            // --- 2. Check Shield ---
+            if (shield) {
+                const m = await shield.mandates(i);
+                if (m.armed) {
+                    const { healthBps, isProfit, pnlWei, fundingFeeWei } = computeHealth({
+                        isLong: pos.isLong,
+                        collateralAmount: pos.collateralAmount,
+                        entryPrice: pos.entryPrice,
+                        positionSize: pos.positionSize,
+                        openedAt: pos.openedAt,
+                    }, priceWei, nowSeconds);
+
+                    if (healthBps < Number(m.thresholdBps)) {
+                        const last = recentAlerts.get(i) || 0;
+                        if (Date.now() - last >= ALERT_COOLDOWN_MS) {
+                            recentAlerts.set(i, Date.now());
+                            console.log(
+                                `[Shield]  Position #${i} (${pos.isLong ? "LONG" : "SHORT"} ${asset} ${pos.leverage}x) ` +
+                                `health=${(healthBps/100).toFixed(1)}% < ${(Number(m.thresholdBps)/100).toFixed(1)}%`
+                            );
+                            
+                            logLiquidationAlert({
+                                positionId: i,
+                                owner: pos.owner,
+                                asset: pos.asset,
+                                isLong: pos.isLong,
+                                leverage: Number(pos.leverage),
+                                collateral: ethers.formatUnits(pos.collateralAmount, 18),
+                                entryPrice: ethers.formatUnits(pos.entryPrice, 18),
+                                currentPrice: currentPrice,
+                                healthBps,
+                                healthPct: healthBps / 100,
+                                thresholdBps: Number(m.thresholdBps),
+                                recommendedTopUp: ethers.formatUnits(m.recommendedTopUp, 18),
+                                maxTopUpPerEvent: ethers.formatUnits(m.maxTopUpPerEvent, 18),
+                                pnl: ethers.formatUnits(pnlWei, 18),
+                                isProfit,
+                                fundingFee: ethers.formatUnits(fundingFeeWei, 18),
+                            });
+
+                            try {
+                                const tx = await shield.recordAlert(i, healthBps);
+                                await tx.wait();
+                                console.log(`[Shield]  Alert recorded on-chain (tx: ${tx.hash.slice(0, 10)}...)`);
+                            } catch (e) {
+                                console.warn(`[Shield] On-chain recordAlert failed for #${i}:`, e.shortMessage || e.message);
+                            }
+                        }
+                    }
+                }
+            }
+        } catch (e) {
+            if (!e.message?.includes("Triggers not met") && !e.message?.includes("Position not open") && !e.message?.includes("rate limit")) {
+                console.warn(`[CondKeeper] Position #${i} check failed:`, e.shortMessage || e.message);
+            }
+        }
+    }
+
+    // --- 3. Scan COM independently per asset ---
+    if (com) {
+        for (const asset of ASSETS) {
+            try {
+                const executable = await com.getExecutableOrders(asset, 20);
+                if (executable.length > 0) {
+                    console.log(`[CondKeeper]  ${executable.length} conditional order(s) ready for ${asset}`);
+                    for (const orderId of executable) {
+                        try {
+                            const tx = await com.executeOrder(orderId);
+                            await tx.wait();
+                            console.log(`[CondKeeper]  Conditional order #${orderId} executed | tx: ${tx.hash}`);
+                        } catch (e) {
+                            console.warn(`[CondKeeper] Order #${orderId} execution failed:`, e.shortMessage || e.message);
+                        }
+                    }
+                }
+            } catch (e) {
+                // Ignore missing COM
+            }
+        }
     }
 }
+
 
 async function main() {
     console.log("╔═══════════════════════════════════════════════════╗");
