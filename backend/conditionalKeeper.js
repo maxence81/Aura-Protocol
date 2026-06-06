@@ -116,6 +116,20 @@ async function cycle() {
 
     if (!perps) return;
 
+    // --- Update Oracle for all fetched prices first ---
+    if (oracle) {
+        for (const [asset, currentPrice] of Object.entries(prices)) {
+            try {
+                const priceWei = ethers.parseUnits(currentPrice.toFixed(2), 18);
+                const tx = await oracle.setPrice(asset, priceWei);
+                await tx.wait();
+                // console.log(`[CondKeeper] Oracle updated: ${asset} = $${currentPrice.toFixed(2)}`);
+            } catch (e) {
+                console.warn(`[CondKeeper] Failed to update oracle for ${asset}:`, e.shortMessage || e.message);
+            }
+        }
+    }
+
     let nextId;
     try {
         nextId = Number(await perps.nextPositionId());
