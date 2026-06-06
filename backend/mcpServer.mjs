@@ -31,12 +31,19 @@ const STYLUS_LOB_ADDRESS = process.env.STYLUS_LOB_ADDRESS;
 const AURA_PERPS_ADDRESS = process.env.AURA_PERPS_ADDRESS;
 const AUSD_ADDRESS = process.env.AUSD_ADDRESS;
 const MOCK_ORACLE_ADDRESS = process.env.MOCK_ORACLE_ADDRESS;
-
 // ── Providers & Agent Wallet ──
 const sepoliaProvider = new ethers.JsonRpcProvider(ARB_SEPOLIA_RPC);
 const robinhoodProvider = new ethers.JsonRpcProvider(ROBINHOOD_RPC);
-const agentWallet = new ethers.Wallet(PRIVATE_KEY, robinhoodProvider);
-const agentWalletSepolia = new ethers.Wallet(PRIVATE_KEY, sepoliaProvider);
+
+const _w1 = new ethers.Wallet(PRIVATE_KEY, robinhoodProvider);
+const agentWallet = new ethers.NonceManager(_w1);
+agentWallet.address = _w1.address;
+
+const _w2 = new ethers.Wallet(PRIVATE_KEY, sepoliaProvider);
+const agentWalletSepolia = new ethers.NonceManager(_w2);
+agentWalletSepolia.address = _w2.address;
+
+let txQueue = Promise.resolve();
 
 // ── ABIs ──
 const STYLUS_LOB_ABI = [
@@ -685,30 +692,41 @@ if (args.includes("--http")) {
     });
 
     s.registerTool("place_market_order", { description: "Open perp position at market price on AuraPerps", inputSchema: z.object({ asset: z.string(), is_long: z.boolean(), collateral: z.number(), leverage: z.number().min(1).max(50) }) }, async ({ asset, is_long, collateral, leverage }) => {
-      const colWei = ethers.parseUnits(collateral.toString(), 18);
-      const price = await fetchPythPrice(asset);
-      if (price) { const oracle = new ethers.Contract(MOCK_ORACLE_ADDRESS, ORACLE_ABI, agentWallet); await (await oracle.setPrice(asset.toUpperCase(), ethers.parseUnits(price.toFixed(2), 18))).wait(); }
+      return new Promise((resolve, reject) => {
+        txQueue = txQueue.then(async () => {
+          try {
+            // Force reset nonce to sync with blockchain (in case conditionalKeeper used nonces)
+            agentWallet.reset();
+            const colWei = ethers.parseUnits(collateral.toString(), 18);
+            const price = await fetchPythPrice(asset);
+            if (price) { const oracle = new ethers.Contract(MOCK_ORACLE_ADDRESS, ORACLE_ABI, agentWallet); await (await oracle.setPrice(asset.toUpperCase(), ethers.parseUnits(price.toFixed(2), 18))).wait(); }
 
-      if (sessionAccount) {
-        // Per-user: execute via their AuraAccount using executeBatchByAgent
-        const approveData = ausdIface.encodeFunctionData("approve", [AURA_PERPS_ADDRESS, colWei]);
-        const openData = perpsIface.encodeFunctionData("openPosition", [asset.toUpperCase(), is_long, colWei, BigInt(leverage)]);
-        const account = new ethers.Contract(sessionAccount, AURA_ACCOUNT_ABI, agentWallet);
-        const tx = await account.executeBatchByAgent([AUSD_ADDRESS, AURA_PERPS_ADDRESS], [0n, 0n], [approveData, openData]);
-        const receipt = await tx.wait();
-        await recordAudit(sessionAccount, `MARKET_${is_long ? "LONG" : "SHORT"} ${asset.toUpperCase()} ${leverage}x $${collateral}`, { asset, is_long, collateral, leverage, price, account: sessionAccount });
-        return { content: [{ type: "text", text: JSON.stringify({ status: "opened", account: sessionAccount, asset: asset.toUpperCase(), side: is_long ? "LONG" : "SHORT", collateral, leverage, entryPrice: price, txHash: receipt.hash }, null, 2) }] };
-      }
+            if (sessionAccount) {
+              const approveData = ausdIface.encodeFunctionData("approve", [AURA_PERPS_ADDRESS, colWei]);
+              const openData = perpsIface.encodeFunctionData("openPosition", [asset.toUpperCase(), is_long, colWei, BigInt(leverage)]);
+              const account = new ethers.Contract(sessionAccount, AURA_ACCOUNT_ABI, agentWallet);
+              const tx = await account.executeBatchByAgent([AUSD_ADDRESS, AURA_PERPS_ADDRESS], [0n, 0n], [approveData, openData]);
+              const receipt = await tx.wait();
+              await recordAudit(sessionAccount, `MARKET_${is_long ? "LONG" : "SHORT"} ${asset.toUpperCase()} ${leverage}x $${collateral}`, { asset, is_long, collateral, leverage, price, account: sessionAccount });
+              resolve({ content: [{ type: "text", text: JSON.stringify({ status: "opened", account: sessionAccount, asset: asset.toUpperCase(), side: is_long ? "LONG" : "SHORT", collateral, leverage, entryPrice: price, txHash: receipt.hash }, null, 2) }] });
+              return;
+            }
 
-      // Default: agent wallet directly
-      const ausd = new ethers.Contract(AUSD_ADDRESS, AUSD_ABI, agentWallet);
-      const allowance = await ausd.allowance(agentWallet.address, AURA_PERPS_ADDRESS);
-      if (allowance < colWei) await (await ausd.approve(AURA_PERPS_ADDRESS, ethers.MaxUint256)).wait();
-      const perps = new ethers.Contract(AURA_PERPS_ADDRESS, PERPS_ABI, agentWallet);
-      const tx = await perps.openPosition(asset.toUpperCase(), is_long, colWei, BigInt(leverage));
-      const receipt = await tx.wait();
-      await recordAudit(agentWallet.address, `MARKET_${is_long ? "LONG" : "SHORT"} ${asset.toUpperCase()} ${leverage}x $${collateral}`, { asset, is_long, collateral, leverage, price });
-      return { content: [{ type: "text", text: JSON.stringify({ status: "opened", asset: asset.toUpperCase(), side: is_long ? "LONG" : "SHORT", collateral, leverage, entryPrice: price, txHash: receipt.hash }, null, 2) }] };
+            const ausd = new ethers.Contract(AUSD_ADDRESS, AUSD_ABI, agentWallet);
+            const allowance = await ausd.allowance(agentWallet.address, AURA_PERPS_ADDRESS);
+            if (allowance < colWei) await (await ausd.approve(AURA_PERPS_ADDRESS, ethers.MaxUint256)).wait();
+            const perps = new ethers.Contract(AURA_PERPS_ADDRESS, PERPS_ABI, agentWallet);
+            const tx = await perps.openPosition(asset.toUpperCase(), is_long, colWei, BigInt(leverage));
+            const receipt = await tx.wait();
+            await recordAudit(agentWallet.address, `MARKET_${is_long ? "LONG" : "SHORT"} ${asset.toUpperCase()} ${leverage}x $${collateral}`, { asset, is_long, collateral, leverage, price });
+            resolve({ content: [{ type: "text", text: JSON.stringify({ status: "opened", asset: asset.toUpperCase(), side: is_long ? "LONG" : "SHORT", collateral, leverage, entryPrice: price, txHash: receipt.hash }, null, 2) }] });
+          } catch (e) {
+            reject(e);
+          }
+        }).catch(e => {
+            reject(e);
+        });
+      });
     });
 
     s.registerTool("get_positions", { description: "Get your open positions from AuraPerps (positions owned by your AuraAccount or the agent wallet)", inputSchema: z.object({}) }, async () => {
