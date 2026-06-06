@@ -289,7 +289,7 @@ contract AuraPerps is Ownable {
 
         uint256 currentPrice = oracle.getPrice(pos.asset);
         (uint256 pnl, bool isProfit) = _calculatePnL(pos.isLong, pos.positionSize, pos.entryPrice, currentPrice);
-        uint256 fundingFee = _calculateFundingFee(pos.asset, pos.positionSize, block.timestamp - pos.openedAt);
+        uint256 fundingFee = _calculateFundingFee(pos.asset, pos.isLong, pos.positionSize, block.timestamp - pos.openedAt);
 
         require(!isProfit && (pnl + fundingFee) >= pos.collateralAmount, "AuraPerps: Position is safe");
 
@@ -330,7 +330,7 @@ contract AuraPerps is Ownable {
         (uint256 fullPnl, bool isProfit) = _calculatePnL(pos.isLong, pos.positionSize, pos.entryPrice, currentPrice);
         uint256 pnl = (fullPnl * proportion) / 1e18;
         
-        uint256 fullFundingFee = _calculateFundingFee(pos.asset, pos.positionSize, block.timestamp - pos.openedAt);
+        uint256 fullFundingFee = _calculateFundingFee(pos.asset, pos.isLong, pos.positionSize, block.timestamp - pos.openedAt);
         uint256 fundingFee = (fullFundingFee * proportion) / 1e18;
 
         uint256 collateralToClose = (pos.collateralAmount * proportion) / 1e18;
@@ -412,11 +412,12 @@ contract AuraPerps is Ownable {
         pnl = (positionSize * priceDiff) / entryPrice;
     }
 
-    function _calculateFundingFee(string memory asset, uint256 positionSize, uint256 timeElapsed) internal view returns (uint256) {
+    function _calculateFundingFee(string memory asset, bool isLong, uint256 positionSize, uint256 timeElapsed) internal view returns (uint256) {
         if (address(stylusMath) != address(0)) {
             return stylusMath.calculateFundingFee(positionSize, timeElapsed, totalLongOI[asset], totalShortOI[asset]);
         }
-        return (positionSize * timeElapsed * FUNDING_RATE_PER_SECOND) / 1e18;
+        uint256 dynamicRate = getCurrentFundingRate(asset, isLong);
+        return (positionSize * timeElapsed * dynamicRate) / 1e18;
     }
 
     function calculatePnL(uint256 positionId, uint256 currentPrice) public view returns (uint256 pnl, bool isProfit) {
@@ -424,16 +425,26 @@ contract AuraPerps is Ownable {
         return _calculatePnL(pos.isLong, pos.positionSize, pos.entryPrice, currentPrice);
     }
 
-    function getCurrentFundingRate(string calldata asset) public view returns (uint256) {
+    function getCurrentFundingRate(string memory asset, bool isLong) public view returns (uint256) {
         uint256 longOI = totalLongOI[asset];
         uint256 shortOI = totalShortOI[asset];
         uint256 totalOI = longOI + shortOI;
         
         if (totalOI == 0) return FUNDING_RATE_PER_SECOND;
         
-        uint256 diff = longOI > shortOI ? longOI - shortOI : shortOI - longOI;
-        uint256 skewFactor = (diff * 100) / totalOI;
+        uint256 mySideOI = isLong ? longOI : shortOI;
+        uint256 otherSideOI = isLong ? shortOI : longOI;
         
-        return FUNDING_RATE_PER_SECOND + (FUNDING_RATE_PER_SECOND * skewFactor) / 100;
+        if (mySideOI <= otherSideOI) {
+            // Minority side or balanced: pays base rate (or even less, but let's stick to base for safety)
+            return FUNDING_RATE_PER_SECOND / 2; // Discounted rate for balancing the protocol
+        } else {
+            // Majority side: pays premium based on skew
+            uint256 diff = mySideOI - otherSideOI;
+            uint256 skewFactor = (diff * 1e18) / totalOI; // 1e18 = 100%
+            
+            // Base_Rate + (Base_Rate * SkewFactor)
+            return FUNDING_RATE_PER_SECOND + (FUNDING_RATE_PER_SECOND * skewFactor) / 1e18;
+        }
     }
 }
