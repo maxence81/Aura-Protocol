@@ -121,9 +121,15 @@ async function cycle() {
         for (const [asset, currentPrice] of Object.entries(prices)) {
             try {
                 const priceWei = ethers.parseUnits(currentPrice.toFixed(2), 18);
-                const tx = await oracle.setPrice(asset, priceWei);
-                await tx.wait();
-                // console.log(`[CondKeeper] Oracle updated: ${asset} = $${currentPrice.toFixed(2)}`);
+                const onChainPrice = await oracle.getPrice(asset).catch(() => 0n);
+                
+                // Only update if difference is > 0.02% to prevent RPC spam
+                let diff = priceWei > onChainPrice ? priceWei - onChainPrice : onChainPrice - priceWei;
+                if (onChainPrice === 0n || (diff * 10000n / priceWei) > 2n) {
+                    const tx = await oracle.setPrice(asset, priceWei);
+                    await tx.wait();
+                    // console.log(`[CondKeeper] Oracle updated: ${asset} = $${currentPrice.toFixed(2)}`);
+                }
             } catch (e) {
                 console.warn(`[CondKeeper] Failed to update oracle for ${asset}:`, e.shortMessage || e.message);
             }
@@ -275,7 +281,7 @@ async function main() {
     if (!AURA_PERPS_ADDRESS) { console.error("Missing AURA_PERPS_ADDRESS."); process.exit(1); }
 
     provider = new ethers.JsonRpcProvider(ROBINHOOD_RPC);
-    wallet = new ethers.Wallet(PRIVATE_KEY, provider);
+    wallet = new ethers.NonceManager(new ethers.Wallet(PRIVATE_KEY, provider));
     perps = new ethers.Contract(AURA_PERPS_ADDRESS, PERPS_ABI, wallet);
     oracle = new ethers.Contract(ORACLE_ADDRESS, ORACLE_ABI, wallet);
 
