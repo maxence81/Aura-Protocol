@@ -299,8 +299,9 @@ async function main() {
         console.log("Shield:        Not configured (liquidation monitoring disabled)");
     }
 
-    const bal = await provider.getBalance(wallet.address);
-    console.log(`Keeper EOA:    ${wallet.address}`);
+    const keeperAddress = await wallet.getAddress();
+    const bal = await provider.getBalance(keeperAddress);
+    console.log(`Keeper EOA:    ${keeperAddress}`);
     console.log(`AuraPerps:     ${AURA_PERPS_ADDRESS}`);
     console.log(`Balance:       ${ethers.formatEther(bal)} ETH`);
     console.log(`Assets:        ${ASSETS.join(", ")}`);
