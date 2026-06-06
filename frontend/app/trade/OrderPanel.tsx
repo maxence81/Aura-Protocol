@@ -30,7 +30,7 @@ interface OrderPanelProps {
   limitPrice: string;
   setLimitPrice: (s: string) => void;
   rawBalance: number;
-  handleManualAction: (isLong: boolean) => void;
+  handleManualAction: (isLong: boolean, tpPrice?: string, slPrice?: string) => void;
 }
 
 export default function OrderPanel(props: OrderPanelProps) {
@@ -265,7 +265,7 @@ export default function OrderPanel(props: OrderPanelProps) {
 
             {/* Execute */}
             <CubeButton
-              onClick={() => handleManualAction(manualIsLong)}
+              onClick={() => handleManualAction(manualIsLong, tpPrice, slPrice)}
               disabled={isProcessing || !account || !manualCollateral || (orderType === "limit" && !limitPrice)}
               color={manualIsLong ? "#00f0ff" : "#FF2A6D"}
               className="w-full py-3 text-center"
