@@ -686,6 +686,8 @@ if (args.includes("--http")) {
       return { content: [{ type: "text", text: JSON.stringify({ status: "placed", asset: asset.toUpperCase(), side: is_long ? "LONG" : "SHORT", collateral, leverage, limit_price, txHash: receipt.hash }, null, 2) }] };
     });
 
+    const timeoutWait = (tx, ms = 15000) => Promise.race([tx.wait(), new Promise((_, r) => setTimeout(() => r(new Error("tx.wait timeout")), ms))]);
+
     s.registerTool("place_market_order", { description: "Open perp position at market price on AuraPerps", inputSchema: z.object({ asset: z.string(), is_long: z.boolean(), collateral: z.number(), leverage: z.number().min(1).max(50) }) }, async ({ asset, is_long, collateral, leverage }) => {
       return new Promise((resolve, reject) => {
         txQueue = txQueue.then(async () => {
@@ -698,9 +700,9 @@ if (args.includes("--http")) {
                   const oracle = new ethers.Contract(MOCK_ORACLE_ADDRESS, ORACLE_ABI, agentWallet);
                   try {
                       const txO = await oracle.setPrice(asset.toUpperCase(), ethers.parseUnits(price.toFixed(2), 18));
-                      await txO.wait();
+                      await timeoutWait(txO, 10000);
                   } catch (e) { 
-                      if (!e.message.includes("nonce")) console.warn("Oracle warning:", e.shortMessage); 
+                      if (!e.message.includes("nonce")) console.warn("Oracle warning:", e.shortMessage || e.message); 
                   }
               }
 
@@ -710,8 +712,8 @@ if (args.includes("--http")) {
                 const openData = perpsIface.encodeFunctionData("openPosition", [asset.toUpperCase(), is_long, colWei, BigInt(leverage)]);
                 const account = new ethers.Contract(sessionAccount, AURA_ACCOUNT_ABI, agentWallet);
                 const tx = await account.executeBatchByAgent([AUSD_ADDRESS, AURA_PERPS_ADDRESS], [0n, 0n], [approveData, openData]);
-                const receipt = await tx.wait();
-                txHash = receipt.hash;
+                const receipt = await timeoutWait(tx);
+                txHash = receipt.hash || tx.hash;
                 await recordAudit(sessionAccount, `MARKET_${is_long ? "LONG" : "SHORT"} ${asset.toUpperCase()} ${leverage}x $${collateral}`, { asset, is_long, collateral, leverage, price, account: sessionAccount });
                 resolve({ content: [{ type: "text", text: JSON.stringify({ status: "opened", account: sessionAccount, asset: asset.toUpperCase(), side: is_long ? "LONG" : "SHORT", collateral, leverage, entryPrice: price, txHash }, null, 2) }] });
                 return;
@@ -719,21 +721,25 @@ if (args.includes("--http")) {
 
               const ausd = new ethers.Contract(AUSD_ADDRESS, AUSD_ABI, agentWallet);
               const allowance = await ausd.allowance(agentWallet.address, AURA_PERPS_ADDRESS);
-              if (allowance < colWei) await (await ausd.approve(AURA_PERPS_ADDRESS, ethers.MaxUint256)).wait();
+              if (allowance < colWei) {
+                  const txA = await ausd.approve(AURA_PERPS_ADDRESS, ethers.MaxUint256);
+                  await timeoutWait(txA, 10000);
+              }
               const perps = new ethers.Contract(AURA_PERPS_ADDRESS, PERPS_ABI, agentWallet);
               const tx = await perps.openPosition(asset.toUpperCase(), is_long, colWei, BigInt(leverage));
-              const receipt = await tx.wait();
-              txHash = receipt.hash;
+              const receipt = await timeoutWait(tx);
+              txHash = receipt.hash || tx.hash;
               
               await recordAudit(agentWallet.address, `MARKET_${is_long ? "LONG" : "SHORT"} ${asset.toUpperCase()} ${leverage}x $${collateral}`, { asset, is_long, collateral, leverage, price });
               resolve({ content: [{ type: "text", text: JSON.stringify({ status: "opened", asset: asset.toUpperCase(), side: is_long ? "LONG" : "SHORT", collateral, leverage, entryPrice: price, txHash }, null, 2) }] });
               return;
             } catch (e) {
-              if ((e.message && e.message.includes("nonce")) || attempt < 3) {
-                  await new Promise(r => setTimeout(r, 1500)); // wait and retry
+              if (attempt < 3 && ((e.message && e.message.includes("nonce")) || (e.message && e.message.includes("timeout")))) {
+                  await new Promise(r => setTimeout(r, 2000)); // wait and retry
                   continue;
               }
               reject(e);
+              return;
             }
           }
         }).catch(e => {
