@@ -35,13 +35,8 @@ const MOCK_ORACLE_ADDRESS = process.env.MOCK_ORACLE_ADDRESS;
 const sepoliaProvider = new ethers.JsonRpcProvider(ARB_SEPOLIA_RPC);
 const robinhoodProvider = new ethers.JsonRpcProvider(ROBINHOOD_RPC);
 
-const _w1 = new ethers.Wallet(PRIVATE_KEY, robinhoodProvider);
-const agentWallet = new ethers.NonceManager(_w1);
-agentWallet.address = _w1.address;
-
-const _w2 = new ethers.Wallet(PRIVATE_KEY, sepoliaProvider);
-const agentWalletSepolia = new ethers.NonceManager(_w2);
-agentWalletSepolia.address = _w2.address;
+const agentWallet = new ethers.Wallet(PRIVATE_KEY, robinhoodProvider);
+const agentWalletSepolia = new ethers.Wallet(PRIVATE_KEY, sepoliaProvider);
 
 let txQueue = Promise.resolve();
 
@@ -695,8 +690,6 @@ if (args.includes("--http")) {
       return new Promise((resolve, reject) => {
         txQueue = txQueue.then(async () => {
           try {
-            // Force reset nonce to sync with blockchain (in case conditionalKeeper used nonces)
-            agentWallet.reset();
             const colWei = ethers.parseUnits(collateral.toString(), 18);
             const price = await fetchPythPrice(asset);
             if (price) { const oracle = new ethers.Contract(MOCK_ORACLE_ADDRESS, ORACLE_ABI, agentWallet); await (await oracle.setPrice(asset.toUpperCase(), ethers.parseUnits(price.toFixed(2), 18))).wait(); }

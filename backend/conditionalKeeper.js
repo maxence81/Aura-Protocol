@@ -284,7 +284,7 @@ async function main() {
     if (!AURA_PERPS_ADDRESS) { console.error("Missing AURA_PERPS_ADDRESS."); process.exit(1); }
 
     provider = new ethers.JsonRpcProvider(ROBINHOOD_RPC);
-    wallet = new ethers.NonceManager(new ethers.Wallet(PRIVATE_KEY, provider));
+    wallet = new ethers.Wallet(PRIVATE_KEY, provider);
     perps = new ethers.Contract(AURA_PERPS_ADDRESS, PERPS_ABI, wallet);
     oracle = new ethers.Contract(ORACLE_ADDRESS, ORACLE_ABI, wallet);
 
@@ -302,7 +302,7 @@ async function main() {
         console.log("Shield:        Not configured (liquidation monitoring disabled)");
     }
 
-    const keeperAddress = await wallet.getAddress();
+    const keeperAddress = wallet.address;
     const bal = await provider.getBalance(keeperAddress);
     console.log(`Keeper EOA:    ${keeperAddress}`);
     console.log(`AuraPerps:     ${AURA_PERPS_ADDRESS}`);
