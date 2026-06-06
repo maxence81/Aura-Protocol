@@ -94,9 +94,9 @@ async function runLiquidator() {
                 }
                 // -------------------------------------------------------
 
-                // Fetch all open positions across the entire protocol
+                // Fetch all open positions across the entire protocol with details
                 const openRes = await db.query(
-                    "SELECT position_id FROM positions_opened WHERE position_id NOT IN (SELECT position_id FROM positions_closed)"
+                    "SELECT position_id, asset, is_long, collateral, leverage, entry_price FROM positions_opened WHERE position_id NOT IN (SELECT position_id FROM positions_closed)"
                 );
 
                 if (openRes.rows.length > 0) {
@@ -104,12 +104,29 @@ async function runLiquidator() {
 
                     for (const row of openRes.rows) {
                         const posId = row.position_id;
+                        
+                        const priceWei = prices[row.asset];
+                        if (!priceWei) continue;
+
+                        // --- PRE-FILTER (RPC OPTIMIZATION) ---
+                        // To save Alchemy Compute Units (CU), we only query the blockchain
+                        // if the position is approximately within 2% of bankruptcy.
+                        const entryNum = Number(row.entry_price) / 1e18;
+                        const pythNum = Number(ethers.formatUnits(priceWei, 18));
+                        const levNum = Number(row.leverage);
+                        const liqPriceApprox = row.is_long ? entryNum * (1 - 1 / levNum) : entryNum * (1 + 1 / levNum);
+                        
+                        // Buffer of 2% to ensure we don't miss borderline liquidations due to funding fees
+                        const isBankruptApprox = row.is_long ? (pythNum <= liqPriceApprox * 1.02) : (pythNum >= liqPriceApprox * 0.98);
+
+                        if (!isBankruptApprox) {
+                            continue; // Position is safe, skip expensive eth_call
+                        }
+                        // -------------------------------------
+
                         try {
                             const pos = await perps.positions(posId);
                             if (!pos.isOpen) continue;
-
-                            const priceWei = prices[pos.asset];
-                            if (!priceWei) continue;
 
                             const { healthBps } = computeHealth({
                                 isLong: pos.isLong,
