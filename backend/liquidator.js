@@ -64,6 +64,11 @@ async function runLiquidator() {
         ssl: { rejectUnauthorized: false }
     });
 
+    db.on('error', (err) => {
+        console.error('[Liquidator] Database connection error (ECONNRESET etc):', err.message);
+        // The process might need to be restarted if the connection is dead, but we prevent uncaught exception
+    });
+
     try {
         await db.connect();
     } catch (err) {
@@ -79,13 +84,12 @@ async function runLiquidator() {
                 // --- HEARTBEAT ORACLE UPDATE FOR UI / MANUAL TRADERS ---
                 // We update the Mock Oracle for all assets so the UI gets fresh prices
                 // when users manually click Long/Short.
-                let nonce = await wallet.getNonce();
                 for (const [asset, priceWei] of Object.entries(prices)) {
                     try {
-                        const tx = await oracle.setPrice(asset, priceWei, { nonce: nonce++ });
-                        // No wait here to make it fast (fire and forget)
+                        const tx = await oracle.setPrice(asset, priceWei);
+                        await tx.wait();
                     } catch (e) {
-                        // Ignore rate limits or nonce errors silently
+                        // Ignore rate limits silently
                     }
                 }
                 // -------------------------------------------------------
