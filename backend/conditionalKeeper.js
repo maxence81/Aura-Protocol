@@ -25,7 +25,7 @@ const AURA_PERPS_ADDRESS = process.env.AURA_PERPS_ADDRESS;
 const COM_ADDRESS = process.env.CONDITIONAL_ORDER_MANAGER_ADDRESS;
 const SHIELD_ADDRESS = process.env.LIQUIDATION_SHIELD_ADDRESS;
 const ORACLE_ADDRESS = process.env.MOCK_ORACLE_ADDRESS || "0x097AeB196366317cf97986A04f32Df312c96ABa1";
-const INTERVAL_MS = parseInt(process.env.COND_KEEPER_INTERVAL_MS || "5000");
+const INTERVAL_MS = parseInt(process.env.COND_KEEPER_INTERVAL_MS || "10000");
 const ASSETS = (process.env.KEEPER_ASSETS || "BTC,ETH").split(",").map(s => s.trim().toUpperCase());
 
 // Liquidation alerts log (consumed by /api/liquidation-alerts SSE endpoint)
@@ -111,13 +111,7 @@ async function scanPerpsTriggersForAsset(asset, currentPrice) {
     const nextId = Number(await perps.nextPositionId());
     const priceWei = ethers.parseUnits(currentPrice.toFixed(2), 18);
 
-    // Update oracle with fresh Pyth price
-    try {
-        await (await oracle.setPrice(asset, priceWei)).wait();
-    } catch (e) {
-        console.warn(`[CondKeeper] Oracle update failed for ${asset}:`, e.shortMessage || e.message);
-        return;
-    }
+    // Oracle is now updated globally by liquidator.js heartbeat, no need to do it here
 
     // Scan last 50 positions (bounded for gas/time)
     const start = Math.max(0, nextId - 50);

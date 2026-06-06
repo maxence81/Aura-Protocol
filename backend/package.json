@@ -7,6 +7,7 @@
     "dev": "node index.js",
     "start": "node index.js",
     "liquidator": "node liquidator.js",
+    "conditional": "node conditionalKeeper.js",
     "mcp": "node mcpServer.mjs --http 3002",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
