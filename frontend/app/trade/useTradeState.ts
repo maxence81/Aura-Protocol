@@ -472,7 +472,7 @@ export function useTradeState() {
     setIsProcessing(false);
   };
 
-  const handleManualAction = async (isLong: boolean) => {
+  const handleManualAction = async (isLong: boolean, tpStr?: string, slStr?: string) => {
     if (!window.ethereum || !account?.address) return;
     setIsProcessing(true);
     const leverage = Number(manualLeverage);
