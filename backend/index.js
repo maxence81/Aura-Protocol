@@ -310,19 +310,17 @@ app.post("/api/update-oracle", async (req, res) => {
 
     const priceWei = ethers.parseUnits(price.toString(), 18);
     console.log(`  [Oracle Service] Sending TX to update ${asset}...`);
-    
-    // Let ethers handle the nonce automatically, but await strictly to avoid overlaps
-    const tx = await oracle.setPrice(asset, priceWei);
-    console.log(` [Oracle Service] TX1 Sent: ${tx.hash}. Waiting...`);
-    await tx.wait(); 
-    
-    // Also update the variant (e.g. if BTC, update BTC-PERP too)
+    const baseNonce = await signer.getNonce("latest");
     const variant = asset.includes("-PERP") ? asset.split("-")[0] : `${asset}-PERP`;
-    console.log(`  [Oracle Service] Sending TX to update variant ${variant}...`);
     
-    const tx2 = await oracle.setPrice(variant, priceWei);
-    console.log(` [Oracle Service] TX2 Sent: ${tx2.hash}. Waiting...`);
-    await tx2.wait();
+    // Fire both TXs concurrently
+    const tx1Promise = oracle.setPrice(asset, priceWei, { nonce: baseNonce });
+    const tx2Promise = oracle.setPrice(variant, priceWei, { nonce: baseNonce + 1 });
+
+    const [tx1, tx2] = await Promise.all([tx1Promise, tx2Promise]);
+    console.log(` [Oracle Service] TXs Sent: ${tx1.hash} & ${tx2.hash}. Waiting...`);
+    
+    await Promise.all([tx1.wait(), tx2.wait()]);
     
     console.log(` [Oracle Service] Oracle Updated successfully (Both ${asset} & ${variant})`);
 
