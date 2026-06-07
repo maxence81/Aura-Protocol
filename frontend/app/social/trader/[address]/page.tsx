@@ -1612,11 +1612,11 @@ function TraderProfileContent() {
                   <div className="relative">
                     <input
                       type="range"
-                      min={1}
+                      min={10}
                       max={100}
                       value={allocationPct}
                       onChange={(e) =>
-                        setAllocationPct(parseInt(e.target.value))
+                        setAllocationPct(Math.max(10, parseInt(e.target.value)))
                       }
                       className="w-full h-2 rounded-full appearance-none cursor-pointer"
                       style={{
