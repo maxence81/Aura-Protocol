@@ -19,7 +19,7 @@ const path = require("path");
 const { computeHealth, recommendTopUp } = require("./healthFactor");
 
 // ── Config ──
-const PRIVATE_KEY = process.env.PRIVATE_KEY;
+const PRIVATE_KEY = process.env.KEEPER_PRIVATE_KEY || process.env.PRIVATE_KEY;
 const ROBINHOOD_RPC = process.env.RPC_URL || "https://rpc.testnet.chain.robinhood.com";
 const AURA_PERPS_ADDRESS = process.env.AURA_PERPS_ADDRESS;
 const COM_ADDRESS = process.env.CONDITIONAL_ORDER_MANAGER_ADDRESS;
@@ -116,22 +116,21 @@ async function cycle() {
 
     if (!perps) return;
 
-    // --- Update Oracle for all fetched prices first ---
+    // --- Update Oracle prices (uses dedicated KEEPER_PRIVATE_KEY to avoid nonce collisions with MCP) ---
     if (oracle) {
         for (const [asset, currentPrice] of Object.entries(prices)) {
             try {
                 const priceWei = ethers.parseUnits(currentPrice.toFixed(2), 18);
                 const onChainPrice = await oracle.getPrice(asset).catch(() => 0n);
                 
-                // Only update if difference is > 0.02% to prevent RPC spam
+                // Only update if difference is > 0.05% to reduce unnecessary txs
                 let diff = priceWei > onChainPrice ? priceWei - onChainPrice : onChainPrice - priceWei;
-                if (onChainPrice === 0n || (diff * 10000n / priceWei) > 2n) {
+                if (onChainPrice === 0n || (diff * 10000n / priceWei) > 5n) {
                     const tx = await oracle.setPrice(asset, priceWei);
                     await tx.wait();
-                    // console.log(`[CondKeeper] Oracle updated: ${asset} = $${currentPrice.toFixed(2)}`);
                 }
             } catch (e) {
-                console.warn(`[CondKeeper] Failed to update oracle for ${asset}:`, e.shortMessage || e.message);
+                // Silently skip failed updates
             }
         }
     }
