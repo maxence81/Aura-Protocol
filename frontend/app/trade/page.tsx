@@ -139,8 +139,35 @@ export default function TradeDashboard() {
               {currentPrice.toLocaleString(undefined, {minimumFractionDigits:2, maximumFractionDigits:2})}
             </div>
 
-            <div><p className="text-[8px] text-white/30 uppercase tracking-widest">24h Change</p><p className="text-[10px] text-[#00f0ff] font-bold">+1.45%</p></div>
-            <div><p className="text-[8px] text-white/30 uppercase tracking-widest">24h Volume</p><p className="text-[10px] text-white/60">{selectedMarket === "BTC-PERP" ? "1.29 M" : "850 K"} USDC</p></div>
+            {(() => {
+              const baseAsset = selectedMarket.split('-')[0];
+              const change24h = prices[`${baseAsset}_24h_change`] || 0;
+              const vol24h = prices[`${baseAsset}_24h_vol`] || 0;
+              const isPositive = change24h >= 0;
+              const formatVol = (v: number) => {
+                if (v >= 1e9) return (v / 1e9).toFixed(2) + " B";
+                if (v >= 1e6) return (v / 1e6).toFixed(2) + " M";
+                if (v >= 1e3) return (v / 1e3).toFixed(2) + " K";
+                return v.toFixed(2);
+              };
+
+              return (
+                <>
+                  <div>
+                    <p className="text-[8px] text-white/30 uppercase tracking-widest">24h Change</p>
+                    <p className={`text-[10px] font-bold ${isPositive ? 'text-[#00f0ff]' : 'text-[#ff0055]'}`}>
+                      {isPositive ? '+' : ''}{change24h.toFixed(2)}%
+                    </p>
+                  </div>
+                  <div>
+                    <p className="text-[8px] text-white/30 uppercase tracking-widest">24h Volume</p>
+                    <p className="text-[10px] text-white/60">
+                      {formatVol(vol24h)} USDC
+                    </p>
+                  </div>
+                </>
+              );
+            })()}
             <div><p className="text-[8px] text-white/30 uppercase tracking-widest">Funding Rate</p><p className="text-[10px] text-[#00f0ff]/70 font-bold">{state.fundingRate}</p></div>
           </div>
         </div>
