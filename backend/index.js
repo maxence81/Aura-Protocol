@@ -46,6 +46,11 @@ if (process.env.PRIVATE_KEY) {
     console.log(" New Secure Agent Key generated and saved locally.");
 }
 
+// Dedicated wallet for Oracle updates — uses separate nonce stream to avoid collisions
+const oracleWallet = process.env.KEEPER_PRIVATE_KEY
+    ? new ethers.Wallet(process.env.KEEPER_PRIVATE_KEY)
+    : agentWallet;
+
 const app = express();
 app.use(cors({
     origin: '*',
@@ -296,8 +301,8 @@ app.post("/api/update-oracle", async (req, res) => {
 
     console.log(`\n [Oracle Service] Update request for ${asset} at $${price}`);
     
-    const provider = new ethers.JsonRpcProvider(process.env.RPC_URL || "https://rpc.testnet.chain.robinhood.com");
-    const signer = agentWallet.connect(provider);
+    const provider = new ethers.JsonRpcProvider("https://rpc.testnet.chain.robinhood.com");
+    const signer = oracleWallet.connect(provider);
     
     const MOCK_ORACLE_ADDR = process.env.MOCK_ORACLE_ADDRESS || "0x0df0FcA88c9DefC9672301892fe2c4f0f9fF5391";
     const oracleAbi = ["function setPrice(string calldata asset, uint256 price) external"];
