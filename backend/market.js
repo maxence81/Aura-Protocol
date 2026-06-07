@@ -139,7 +139,7 @@ async function getAllPrices() {
 
     try {
         const cryptoIds = Object.entries(COINGECKO_IDS)
-            .filter(([k, id]) => id !== null && !prices[k]) // Only fetch if not already provided by Pyth
+            .filter(([k, id]) => id !== null) // Always fetch stats, even if Pyth provided price
             .map(([_, id]) => id);
         
         if (cryptoIds.length > 0) {
@@ -153,8 +153,10 @@ async function getAllPrices() {
             
             // Map CoinGecko response back to our symbols
             for (const [symbol, geckoId] of Object.entries(COINGECKO_IDS)) {
-                if (geckoId && data[geckoId] && !prices[symbol]) {
-                    prices[symbol] = data[geckoId].usd;
+                if (geckoId && data[geckoId]) {
+                    if (!prices[symbol]) {
+                        prices[symbol] = data[geckoId].usd; // Pyth takes precedence for raw price
+                    }
                     prices[`${symbol}_24h_change`] = data[geckoId].usd_24h_change || 0;
                     prices[`${symbol}_24h_vol`] = data[geckoId].usd_24h_vol || 0;
                     prices[`${symbol}_market_cap`] = data[geckoId].usd_market_cap || 0;
