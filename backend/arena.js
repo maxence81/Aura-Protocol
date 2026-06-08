@@ -52,6 +52,12 @@ const AUSD_ABI = [
     "function allowance(address owner, address spender) view returns (uint256)"
 ];
 
+const ORACLE_ADDRESS = process.env.MOCK_ORACLE_ADDRESS || "0x097AeB196366317cf97986A04f32Df312c96ABa1";
+const ORACLE_ABI = [
+    "function setPrice(string asset, uint256 price) external",
+    "function getPrice(string asset) view returns (uint256)"
+];
+
 let agentsData = [];
 
 function initWallets() {
@@ -168,13 +174,14 @@ async function getArenaContext() {
             text += `  * No significant news currently.\n`;
         }
         
-        return { text, availableAssets, fearScore: sentiment.value };
+        return { text, availableAssets, fearScore: sentiment.value, prices: ctx.prices };
     } catch (error) {
         console.error("[Arena] Erreur lors de la recuperation des donnees Pyth :", error.message);
         return { 
             text: "CURRENT MARKET STATE:\n- BTC/USD: $65000\n- ETH/USD: $3500\n- Sentiment: NEUTRAL",
             availableAssets: ["BTC", "ETH"],
-            fearScore: 50
+            fearScore: 50,
+            prices: { "BTC": 65000, "ETH": 3500 }
         };
     }
 }
@@ -353,6 +360,21 @@ RULES:
                     const approveTx = await ausd.approve(PERPS_ADDRESS, ethers.MaxUint256);
                     await approveTx.wait();
                     console.log(`[Arena] Approve aUSD reussi.`);
+                }
+                // -------------------------------------
+
+                // --- GESTION DE L'ORACLE (PYTH -> MOCK) ---
+                const rawPrice = marketContextData.prices ? marketContextData.prices[decision.asset] : null;
+                if (rawPrice) {
+                    const priceWei = ethers.parseUnits(rawPrice.toFixed(2), 18);
+                    const oracle = new ethers.Contract(ORACLE_ADDRESS, ORACLE_ABI, wallet);
+                    try {
+                        console.log(`[Arena] Mise a jour de l'Oracle pour ${decision.asset} au prix de $${rawPrice.toFixed(2)}...`);
+                        const txOracle = await oracle.setPrice(decision.asset, priceWei);
+                        await txOracle.wait();
+                    } catch (e) {
+                        console.warn(`[Arena] Avertissement: Impossible de maj l'oracle pour ${decision.asset}:`, e.shortMessage || e.message);
+                    }
                 }
                 // -------------------------------------
 
