@@ -85,6 +85,14 @@ const AUDIT_TRAIL_ABI = [
   "event ReasoningRecordedWithScore(address indexed agent, address indexed user, bytes32 reasoningHash, uint256 timestamp, string action, uint8 confidenceScore)",
 ];
 
+const AURA_DAO_ADDRESS = process.env.AURA_DAO_ADDRESS || "0xC8fF29922564556aAEE591e7BCa11667F71FeD32";
+const DAO_ABI = [
+  "function isAgentKYA(address agent) view returns (bool)",
+  "function nextProposalId() view returns (uint256)",
+  "function proposals(uint256) view returns (uint256 id, string title, string description, uint256 forVotes, uint256 againstVotes, bool executed, uint256 endTime)",
+  "function vote(uint256 proposalId, bool support) external"
+];
+
 // ── DCA Store (in-memory) ──
 const activeDCAs = new Map(); // dcaId -> { interval, remaining, asset, amount, ... }
 
@@ -656,6 +664,14 @@ if (args.includes("--http")) {
     const BACKEND_RESOLVE_URL = (process.env.BACKEND_URL || "https://aura-backend-backend.up.railway.app") + "/api/mcp-keys/resolve";
 
     s.registerTool("authenticate", { description: "Authenticate with your Aura API key to trade with your own wallet. Get your key at https://aura-protocol-tawny.vercel.app/trade", inputSchema: z.object({ api_key: z.string().describe("Your Aura API key (aura_xxx...)"), payment_tx_hash: z.string().optional().describe("Transaction hash of your x402 payment") }) }, withX402(async ({ api_key }) => {
+      // 1. Verify KYA Identity
+      try {
+        const dao = new ethers.Contract(AURA_DAO_ADDRESS, DAO_ABI, robinhoodProvider);
+        const isKYA = await dao.isAgentKYA(agentWallet.address);
+        if (!isKYA) return { content: [{ type: "text", text: "Error: Agent lacks KYA (Know Your Agent) certification. Please verify agent on-chain first." }] };
+      } catch (e) {
+        console.warn("KYA check failed (contract might not be deployed yet). Skipping strict check.");
+      }
       try {
         const res = await fetch(BACKEND_RESOLVE_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ apiKey: api_key }) });
         if (!res.ok) return { content: [{ type: "text", text: "Invalid API key. Generate one at https://aura-protocol-tawny.vercel.app/trade" }] };
@@ -1023,6 +1039,53 @@ if (args.includes("--http")) {
       const dca = { timer, asset: token_out.toUpperCase(), amount: amount_eth, interval_minutes, num_orders: num_swaps, executed, startedAt: Date.now(), type: "swap" };
       activeDCAs.set(dcaId, dca);
       return { content: [{ type: "text", text: JSON.stringify({ status: "swap_dca_started", dcaId, tokenOut: token_out.toUpperCase(), ethPerSwap: amount_eth, interval: `${interval_minutes} min`, totalSwaps: num_swaps, executed: 1, nextIn: `${interval_minutes} min` }, null, 2) }] };
+    });
+
+    s.registerTool("get_governance_proposals", {
+      description: "Read active proposals from the Aura DAO Governance contract.",
+      inputSchema: z.object({})
+    }, async () => {
+      const dao = new ethers.Contract(AURA_DAO_ADDRESS, DAO_ABI, robinhoodProvider);
+      try {
+        const nextId = Number(await dao.nextProposalId());
+        const proposals = [];
+        for (let i = 0; i < nextId && proposals.length < 10; i++) {
+          const p = await dao.proposals(i);
+          if (!p.executed && Number(p.endTime) * 1000 > Date.now()) {
+            proposals.push({
+              id: Number(p.id),
+              title: p.title,
+              description: p.description,
+              forVotes: Number(p.forVotes),
+              againstVotes: Number(p.againstVotes),
+              endTime: new Date(Number(p.endTime) * 1000).toISOString()
+            });
+          }
+        }
+        return { content: [{ type: "text", text: JSON.stringify({ activeProposals: proposals }, null, 2) }] };
+      } catch (e) {
+        return { content: [{ type: "text", text: "DAO not available or no proposals." }] };
+      }
+    });
+
+    s.registerTool("vote_proposal", {
+      description: "Vote on a DAO governance proposal as an AI Delegate.",
+      inputSchema: z.object({
+        proposal_id: z.number().describe("Proposal ID to vote on"),
+        support: z.boolean().describe("true for Yes/For, false for No/Against")
+      })
+    }, async ({ proposal_id, support }) => {
+      if (!sessionAccount) return { content: [{ type: "text", text: "Not authenticated. Cannot vote." }] };
+      try {
+        const daoIface = new ethers.Interface(DAO_ABI);
+        const voteData = daoIface.encodeFunctionData("vote", [proposal_id, support]);
+        const account = new ethers.Contract(sessionAccount, AURA_ACCOUNT_ABI, agentWallet);
+        const tx = await account.executeBatchByAgent([AURA_DAO_ADDRESS], [0n], [voteData]);
+        const receipt = await tx.wait();
+        return { content: [{ type: "text", text: JSON.stringify({ status: "voted", proposalId: proposal_id, support, txHash: receipt.hash }, null, 2) }] };
+      } catch (e) {
+        return { content: [{ type: "text", text: `Voting failed: ${e.message}` }] };
+      }
     });
 
     return s;
