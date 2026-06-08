@@ -19,6 +19,7 @@ import { z } from "zod";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
+import { withX402 } from "./x402Middleware.js";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 config({ path: join(__dirname, ".env"), override: true });
@@ -654,7 +655,7 @@ if (args.includes("--http")) {
 
     const BACKEND_RESOLVE_URL = (process.env.BACKEND_URL || "https://aura-backend-backend.up.railway.app") + "/api/mcp-keys/resolve";
 
-    s.registerTool("authenticate", { description: "Authenticate with your Aura API key to trade with your own wallet. Get your key at https://aura-protocol-tawny.vercel.app/trade", inputSchema: z.object({ api_key: z.string().describe("Your Aura API key (aura_xxx...)") }) }, async ({ api_key }) => {
+    s.registerTool("authenticate", { description: "Authenticate with your Aura API key to trade with your own wallet. Get your key at https://aura-protocol-tawny.vercel.app/trade", inputSchema: z.object({ api_key: z.string().describe("Your Aura API key (aura_xxx...)"), payment_tx_hash: z.string().optional().describe("Transaction hash of your x402 payment") }) }, withX402(async ({ api_key }) => {
       try {
         const res = await fetch(BACKEND_RESOLVE_URL, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ apiKey: api_key }) });
         if (!res.ok) return { content: [{ type: "text", text: "Invalid API key. Generate one at https://aura-protocol-tawny.vercel.app/trade" }] };
@@ -663,7 +664,7 @@ if (args.includes("--http")) {
         authenticatedAccounts.set(api_key, data.auraAccount); // persist globally
         return { content: [{ type: "text", text: `Authenticated! Trading on AuraAccount ${sessionAccount}. All trades will execute via your account.` }] };
       } catch (e) { return { content: [{ type: "text", text: `Auth failed: ${e.message}` }] }; }
-    });
+    }));
 
     s.registerTool("get_price", { description: "Get real-time price for BTC, ETH, TSLA, AMZN, NFLX, AMD, PLTR from Pyth", inputSchema: z.object({ asset: z.string() }) }, async ({ asset }) => {
       const price = await fetchPythPrice(asset);
