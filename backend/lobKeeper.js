@@ -230,13 +230,17 @@ async function cycle() {
     for (const symbol of ASSETS) {
         const mid = mids[symbol];
         if (!mid) continue;
-        await tickAsset(symbol, mid);
+        try {
+            await tickAsset(symbol, mid);
+        } catch(e) { console.error(`Tick ${symbol} failed:`, e); }
     }
 
     try {
         const stats = await lob.get_stats();
         console.log(`[Keeper]  LOB stats: nextId=${stats[0]} placed=${stats[1]} filled=${stats[2]}`);
     } catch {}
+    
+    setTimeout(cycle, INTERVAL_MS);
 }
 
 async function main() {
@@ -286,7 +290,6 @@ async function main() {
     console.log(`Cycle every:   ${INTERVAL_MS / 1000}s\n`);
 
     await cycle();
-    setInterval(cycle, INTERVAL_MS);
 }
 
 main().catch((e) => {

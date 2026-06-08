@@ -842,6 +842,32 @@ app.post("/api/mcp-keys/resolve", async (req, res) => {
 });
 
 const PORT = process.env.PORT || 3001;
+// Relay Limit Orders to Stylus LOB
+app.post("/api/place-limit-order", async (req, res) => {
+  try {
+    const { owner, assetHash, isLong, collateral, leverage, limitPrice } = req.body;
+    const stylusAddr = process.env.STYLUS_LOB_ADDRESS;
+    if (!stylusAddr) return res.status(500).json({ error: "Missing STYLUS_LOB_ADDRESS" });
+
+    const STYLUS_ABI = [
+      "function store_order(address owner, uint256 asset_hash, bool is_long, uint256 collateral, uint256 leverage, uint256 limit_price) returns (uint256)"
+    ];
+    
+    const sepoliaRpc = process.env.ARB_SEPOLIA_RPC || "https://sepolia-rollup.arbitrum.io/rpc";
+    const sepoliaProvider = new ethers.JsonRpcProvider(sepoliaRpc);
+    const wallet = new ethers.Wallet(process.env.PRIVATE_KEY, sepoliaProvider);
+    const stylus = new ethers.Contract(stylusAddr, STYLUS_ABI, wallet);
+
+    console.log("[Backend] Relaying limit order for", owner);
+    const tx = await stylus.store_order(owner, BigInt(assetHash), isLong, BigInt(collateral), BigInt(leverage), BigInt(limitPrice));
+    
+    res.json({ success: true, txHash: tx.hash });
+  } catch (error) {
+    console.error("Place limit order error:", error);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 app.listen(PORT, '0.0.0.0', () => {
   console.log(`Aura Backend (Non-Custodial) running on port ${PORT}`);
   console.log(`Intelligence Vault: ${INTELLIGENCE_VAULT_ADDRESS}`);
