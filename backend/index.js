@@ -696,7 +696,12 @@ app.get("/api/my-orders/:address", async (req, res) => {
     // Scan last 200 orders max (performance bound for demo)
     const start = Math.max(0, nextId - 200);
     for (let i = start; i < nextId; i++) {
-      const o = await stylus.get_order(BigInt(i));
+      let o;
+      try {
+        o = await stylus.get_order(BigInt(i));
+      } catch (e) {
+        continue;
+      }
       if (o[0].toLowerCase() !== userAddr) continue;
       if (BigInt(o[7]) !== STATUS_ACTIVE) continue;
 
