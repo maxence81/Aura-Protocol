@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "node index.js",
     "start": "node index.js",
+    "lobKeeper": "node lobKeeper.js",
     "liquidator": "node liquidator.js",
     "conditional": "node conditionalKeeper.js",
     "mcp": "node mcpServer.mjs --http 3002", "sync": "node sync_db.js",
