@@ -1,6 +1,5 @@
 require("dotenv").config({ path: "./.env" });
 const { ethers } = require("ethers");
-const env = require("hardhat");
 const { Client } = require("pg");
 
 const RPC_URL = process.env.RPC_URL || "https://rpc.testnet.chain.robinhood.com";
@@ -78,9 +77,10 @@ async function syncLoop() {
         console.error("❌ Erreur critique dans la boucle de sync:", err);
     } finally {
         await db.end();
+        console.log("Attente de 15 secondes avant le prochain scan...");
+        setTimeout(syncLoop, 15000); // Utiliser setTimeout au lieu de setInterval pour éviter l'engorgement
     }
 }
 
-// Lancer la boucle toutes les 15 secondes
+// Lancer la première itération
 syncLoop();
-setInterval(syncLoop, 15000);
