@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
-import { ArrowLeft, Wallet, Send, Download, Droplets, Copy, Check } from "lucide-react";
+import { ArrowLeft, Wallet, Send, Download, Droplets, Copy, Check, Shield } from "lucide-react";
 import { useActiveAccount, ConnectButton } from "thirdweb/react";
 import { createWallet } from "thirdweb/wallets";
 import { defineChain } from "thirdweb";
@@ -14,6 +14,12 @@ const publicClient = createPublicClient({ transport: http("https://rpc.testnet.c
 const robinhoodChain = defineChain({ id: 46630, name: "Robinhood Chain Testnet", rpc: "https://rpc.testnet.chain.robinhood.com", nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 }, blockExplorers: [{ name: "Explorer", url: "https://explorer.testnet.chain.robinhood.com" }] });
 const wallets = [createWallet("io.metamask"), createWallet("com.coinbase.wallet"), createWallet("me.rainbow")];
 const FACTORY = "0x95Aa20d53EB26f292a71D8B38515BBeC8905b550";
+
+const AURA_DAO_ADDRESS = "0xC8fF29922564556aAEE591e7BCa11667F71FeD32";
+const DAO_ABI = [
+  { inputs: [{ name: "agent", type: "address" }], name: "isAgentKYA", outputs: [{ name: "", type: "bool" }], stateMutability: "view", type: "function" },
+  { inputs: [{ name: "agent", type: "address" }], name: "certifyAgent", outputs: [], stateMutability: "nonpayable", type: "function" }
+];
 
 export default function AccountPage() {
   const account = useActiveAccount();
@@ -30,6 +36,8 @@ export default function AccountPage() {
   const [withdrawToken, setWithdrawToken] = useState("AUSD");
   const [withdrawAmount, setWithdrawAmount] = useState("");
   const [tokenBalance, setTokenBalance] = useState("0");
+  const [aiAgent, setAiAgent] = useState("");
+  const [isKYA, setIsKYA] = useState(false);
 
   const refresh = useCallback(async () => {
     if (!account?.address) return;
@@ -43,10 +51,24 @@ export default function AccountPage() {
         publicClient.getBalance({ address: account.address as `0x${string}` }),
         acct && acct !== "0x0000000000000000000000000000000000000000" ? publicClient.getBalance({ address: acct as `0x${string}` }) : 0n,
       ]);
+      
+      let aiAgentAddr = "";
+      let kyaStatus = false;
+      if (acct && acct !== "0x0000000000000000000000000000000000000000") {
+        try {
+          aiAgentAddr = await publicClient.readContract({ address: acct as `0x${string}`, abi: [{ inputs: [], name: "aiAgent", outputs: [{ type: "address" }], stateMutability: "view", type: "function" }], functionName: "aiAgent" }) as string;
+          if (aiAgentAddr && aiAgentAddr !== "0x0000000000000000000000000000000000000000") {
+            kyaStatus = await publicClient.readContract({ address: AURA_DAO_ADDRESS as `0x${string}`, abi: DAO_ABI, functionName: "isAgentKYA", args: [aiAgentAddr as `0x${string}`] }) as boolean;
+          }
+        } catch(e) {}
+      }
+
       setEoaBalance(Number(formatUnits(eoaBal as bigint, 18)).toFixed(2));
       setAccountBalance(Number(formatUnits(acctBal as bigint, 18)).toFixed(2));
       setEoaEth(Number(formatUnits(eoaE as bigint, 18)).toFixed(4));
       setAccountEth(Number(formatUnits(acctE as bigint, 18)).toFixed(4));
+      setAiAgent(aiAgentAddr);
+      setIsKYA(kyaStatus);
     } catch {}
   }, [account?.address]);
 
@@ -96,6 +118,21 @@ export default function AccountPage() {
   };
 
   const copyAddress = () => { navigator.clipboard.writeText(auraAccount); setCopied(true); setTimeout(() => setCopied(false), 2000); };
+
+  const handleCertify = async () => {
+    if (!aiAgent || aiAgent === "0x0000000000000000000000000000000000000000") {
+      setStatus("No AI Agent authorized yet. Go to Trade to authorize first.");
+      return;
+    }
+    setLoading(true); setStatus("");
+    try {
+      const wc = getWc();
+      const tx = await wc.writeContract({ chain: null, address: AURA_DAO_ADDRESS as `0x${string}`, abi: DAO_ABI as any, functionName: "certifyAgent", args: [aiAgent as `0x${string}`] });
+      setStatus(`Agent certified! TX: ${tx.slice(0, 10)}...`);
+      setTimeout(refresh, 3000);
+    } catch (e: any) { setStatus(`Certification failed: ${e.message.slice(0, 60)}`); }
+    setLoading(false);
+  };
 
   const TOKEN_MAP: Record<string, string> = { AUSD: CONTRACT_ADDRESSES.AUSD, TSLA: "0xC9f9c86933092BbbfFF3CCb4b105A4A94bf3Bd4E", AMZN: "0x5884aD2f920c162CFBbACc88C9C51AA75eC09E02", NFLX: "0x3b8262A63d25f0477c4DDE23F83cfe22Cb768C93", AMD: "0x71178BAc73cBeb415514eB542a8995b82669778d", PLTR: "0x1FBE1a0e43594b3455993B5dE5Fd0A7A266298d0" };
 
@@ -184,6 +221,20 @@ export default function AccountPage() {
               <div className="flex items-center gap-2 mb-4">
                 <Wallet className="w-4 h-4 text-[#00f0ff]" />
                 <span className="text-[10px] font-bold uppercase tracking-widest text-[#00f0ff]">AuraAccount</span>
+                
+                {aiAgent && aiAgent !== "0x0000000000000000000000000000000000000000" && (
+                  <div className="ml-auto flex items-center gap-2">
+                    {isKYA ? (
+                      <span className="px-2 py-1 bg-green-500/10 border border-green-500/30 text-green-400 text-[8px] font-bold uppercase tracking-widest flex items-center gap-1">
+                        <Check className="w-3 h-3" /> Agent KYA Verified
+                      </span>
+                    ) : (
+                      <button onClick={handleCertify} disabled={loading} className="px-2 py-1 bg-yellow-500/10 border border-yellow-500/30 text-yellow-400 text-[8px] font-bold uppercase tracking-widest hover:bg-yellow-500/20 transition flex items-center gap-1 disabled:opacity-50">
+                        <Shield className="w-3 h-3" /> Certify Agent
+                      </button>
+                    )}
+                  </div>
+                )}
               </div>
               <div className="flex items-center gap-2 mb-4">
                 <code className="text-[11px] text-white/70 font-mono">{auraAccount}</code>
