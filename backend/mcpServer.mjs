@@ -698,9 +698,10 @@ if (args.includes("--http")) {
 
     s.registerTool("place_limit_order", { description: "Place limit order on Stylus LOB", inputSchema: z.object({ asset: z.string(), is_long: z.boolean(), collateral: z.number(), leverage: z.number().min(1).max(50), limit_price: z.number() }) }, async ({ asset, is_long, collateral, leverage, limit_price }) => {
       const lob = new ethers.Contract(STYLUS_LOB_ADDRESS, STYLUS_LOB_ABI, agentWalletSepolia);
-      const tx = await lob.store_order(agentWalletSepolia.address, assetHash(asset), is_long, ethers.parseUnits(collateral.toString(), 18), BigInt(leverage), ethers.parseUnits(limit_price.toString(), 18));
+      const owner = sessionAccount || agentWalletSepolia.address;
+      const tx = await lob.store_order(owner, assetHash(asset), is_long, ethers.parseUnits(collateral.toString(), 18), BigInt(leverage), ethers.parseUnits(limit_price.toString(), 18));
       const receipt = await tx.wait();
-      return { content: [{ type: "text", text: JSON.stringify({ status: "placed", asset: asset.toUpperCase(), side: is_long ? "LONG" : "SHORT", collateral, leverage, limit_price, txHash: receipt.hash }, null, 2) }] };
+      return { content: [{ type: "text", text: JSON.stringify({ status: "placed", owner, asset: asset.toUpperCase(), side: is_long ? "LONG" : "SHORT", collateral, leverage, limit_price, txHash: receipt.hash }, null, 2) }] };
     });
 
     const timeoutWait = (tx, ms = 15000) => Promise.race([tx.wait(), new Promise((_, r) => setTimeout(() => r(new Error("tx.wait timeout")), ms))]);
@@ -959,7 +960,8 @@ if (args.includes("--http")) {
 
     s.registerTool("cancel_limit_order", { description: "Cancel a limit order on Stylus LOB", inputSchema: z.object({ order_id: z.number() }) }, async ({ order_id }) => {
       const lob = new ethers.Contract(STYLUS_LOB_ADDRESS, STYLUS_LOB_ABI, agentWalletSepolia);
-      const tx = await lob.cancel_order(BigInt(order_id), agentWalletSepolia.address);
+      const owner = sessionAccount || agentWalletSepolia.address;
+      const tx = await lob.cancel_order(BigInt(order_id), owner);
       const receipt = await tx.wait();
       return { content: [{ type: "text", text: JSON.stringify({ status: "cancelled", orderId: order_id, txHash: receipt.hash }, null, 2) }] };
     });

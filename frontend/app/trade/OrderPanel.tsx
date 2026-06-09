@@ -7,9 +7,11 @@ interface OrderPanelProps {
   tradingMode: "ai" | "manual";
   setTradingMode: (m: "ai" | "manual") => void;
   balance: string;
+  arbBalance: string;
   isMinting: boolean;
   account: any;
   handleMintFaucet: () => void;
+  handleMintArbitrumFaucet: () => void;
   // AI mode
   prompt: string;
   setPrompt: (s: string) => void;
@@ -35,7 +37,7 @@ interface OrderPanelProps {
 
 export default function OrderPanel(props: OrderPanelProps) {
   const {
-    tradingMode, setTradingMode, balance, isMinting, account, handleMintFaucet,
+    tradingMode, setTradingMode, balance, arbBalance, isMinting, account, handleMintFaucet, handleMintArbitrumFaucet,
     prompt, setPrompt, isProcessing, handleAction, agentLogs,
     selectedMarket, prices, manualIsLong, setManualIsLong,
     manualCollateral, setManualCollateral, manualLeverage, setManualLeverage,
@@ -65,17 +67,30 @@ export default function OrderPanel(props: OrderPanelProps) {
 
       <div className="p-4 flex-1 flex flex-col gap-4">
         {/* Balance */}
-        <div className="border border-[#00f0ff]/40 p-3 bg-[#0a0a0a] relative">
+        <div className="border border-[#00f0ff]/40 p-3 bg-[#0a0a0a] relative space-y-2">
           <div className="absolute top-0 right-0 w-3 h-3 border-b border-l border-[#00f0ff]/30" />
           <div className="absolute bottom-0 left-0 w-3 h-3 border-t border-r border-[#00f0ff]/30" />
+          
           <div className="flex justify-between items-center">
-            <span className="text-[9px] text-[#00f0ff]/50 font-mono uppercase tracking-widest">// SYS.BALANCE</span>
+            <span className="text-[9px] text-[#00f0ff]/50 font-mono uppercase tracking-widest">// SYS.BAL [ROBINHOOD]</span>
             <span className="font-mono font-bold text-[#00f0ff] text-lg">{balance} <span className="text-[9px] text-[#00f0ff]/40">aUSD</span></span>
           </div>
-          <button onClick={handleMintFaucet} disabled={isMinting || !account} className="w-full mt-2 bg-transparent hover:bg-[#00f0ff]/10 text-[#00f0ff] text-[9px] py-2 border border-[#00f0ff]/40 flex items-center justify-center gap-2 disabled:opacity-30 transition-all font-mono uppercase tracking-widest">
-            {isMinting ? <Activity className="w-3 h-3 animate-spin" /> : <Zap className="w-3 h-3" />}
-            [ RECHARGE_FAUCET ]
-          </button>
+          
+          <div className="flex justify-between items-center">
+            <span className="text-[9px] text-[#00f0ff]/50 font-mono uppercase tracking-widest">// SYS.BAL [ARBITRUM]</span>
+            <span className="font-mono font-bold text-[#00f0ff] text-lg">{arbBalance} <span className="text-[9px] text-[#00f0ff]/40">aUSD</span></span>
+          </div>
+
+          <div className="flex gap-2 mt-2">
+            <button onClick={handleMintFaucet} disabled={isMinting || !account} className="flex-1 bg-transparent hover:bg-[#00f0ff]/10 text-[#00f0ff] text-[8px] py-2 border border-[#00f0ff]/40 flex items-center justify-center gap-1 disabled:opacity-30 transition-all font-mono uppercase tracking-widest">
+              {isMinting ? <Activity className="w-3 h-3 animate-spin" /> : <Zap className="w-3 h-3" />}
+              FAUCET (ROBINHOOD)
+            </button>
+            <button onClick={handleMintArbitrumFaucet} disabled={isMinting || !account} className="flex-1 bg-transparent hover:bg-[#00f0ff]/10 text-[#00f0ff] text-[8px] py-2 border border-[#00f0ff]/40 flex items-center justify-center gap-1 disabled:opacity-30 transition-all font-mono uppercase tracking-widest">
+              {isMinting ? <Activity className="w-3 h-3 animate-spin" /> : <Zap className="w-3 h-3" />}
+              FAUCET (ARBITRUM)
+            </button>
+          </div>
         </div>
 
         {tradingMode === "ai" ? (

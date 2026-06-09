@@ -75,6 +75,7 @@ const STYLUS_LOB_ABI = [
 // ── AuraPerps ABI (Robinhood Chain) ──
 const PERPS_ABI = [
     "function openPosition(string asset, bool isLong, uint256 collateralAmount, uint256 leverage) returns (uint256)",
+    "function openPositionFor(address user, string asset, bool isLong, uint256 collateralAmount, uint256 leverage) returns (uint256)"
 ];
 const AUSD_ABI = [
     "function approve(address spender, uint256 amount) returns (bool)",
@@ -91,7 +92,10 @@ const PYTH_IDS = {
     ETH: "ff61491a931112ddf1bd8147cd1b641375f79f5825126d665480874634fd0ace",
 };
 
-let sepoliaProvider, robinhoodProvider, sepoliaWallet, robinhoodWallet, lob, perps, ausd, oracle;
+const ESCROW_ADDRESS = process.env.ESCROW_ADDRESS;
+const ESCROW_ABI = ["function execute_and_bridge(uint256 order_id) external"];
+
+let sepoliaProvider, robinhoodProvider, sepoliaWallet, robinhoodWallet, lob, perps, ausd, oracle, escrow;
 
 // Asset symbol → hash (same convention as everywhere else)
 function assetHash(symbol) {
@@ -170,12 +174,12 @@ async function settleFilledOrders(symbol, midPrice) {
                 console.log(`[Keeper]  aUSD approved for AuraPerps (unlimited)`);
             }
 
-            // Open position (keeper is msg.sender, position owned by keeper for now)
-            // In production this would use openPositionFor via the router with escrow
-            const tx = await perps.openPosition(symbol, isLong, collatNum, leverage);
+            // Open position FOR THE ACTUAL USER (requires Keeper to be authorized as Router on AuraPerps)
+            // If the keeper is not authorized, this will revert.
+            const tx = await perps.openPositionFor(owner, symbol, isLong, collatNum, leverage);
             const receipt = await tx.wait();
             console.log(
-                `[Keeper]  Position opened on Robinhood Chain for order #${orderId} | ${isLong ? "LONG" : "SHORT"} ${symbol} ${leverage}x | tx ${receipt.hash}`
+                `[Keeper]  Position opened on Robinhood Chain for owner ${owner} | order #${orderId} | ${isLong ? "LONG" : "SHORT"} ${symbol} ${leverage}x | tx ${receipt.hash}`
             );
 
             logSettlementEvent({
@@ -189,9 +193,14 @@ async function settleFilledOrders(symbol, midPrice) {
                 destChain: "Robinhood Chain",
             });
 
-            // Mark as executed on Stylus LOB
-            await (await lob.mark_executed(orderId)).wait();
-            console.log(`[Keeper]  Order #${orderId} marked EXECUTED on Stylus LOB`);
+            // Mark as executed on Stylus LOB via Escrow (Triggers Cross-Chain)
+            if (escrow) {
+                await (await escrow.execute_and_bridge(orderId)).wait();
+                console.log(`[Keeper]  Order #${orderId} executed via Escrow & Cross-Chain Settlement Triggered`);
+            } else {
+                await (await lob.mark_executed(orderId)).wait();
+                console.log(`[Keeper]  Order #${orderId} marked EXECUTED on Stylus LOB (Fallback)`);
+            }
         } catch (e) {
             console.error(`[Keeper] Settlement failed for order #${orderId}:`, e.shortMessage || e.message);
         }
@@ -207,14 +216,17 @@ async function tickAsset(symbol, midPrice) {
 
     const priceWei = ethers.parseUnits(midPrice.toFixed(2), 18);
     try {
-        const tx = await lob.match_orders(hash, priceWei);
-        const receipt = await tx.wait();
-        console.log(
-            `[Keeper]  match_orders(${symbol}, $${midPrice.toFixed(2)}) | book: bids=${bids}/asks=${asks} | tx ${receipt.hash} | gas ${receipt.gasUsed}`
-        );
-
-        // Cross-chain settlement: open positions on Robinhood for filled orders
-        await settleFilledOrders(symbol, midPrice);
+        // Prevent burning gas by simulating first
+        const matchedOrders = await lob.match_orders.staticCall(hash, priceWei);
+        if (matchedOrders > 0n) {
+            const tx = await lob.match_orders(hash, priceWei);
+            const receipt = await tx.wait();
+            console.log(
+                `[Keeper]  match_orders(${symbol}, $${midPrice.toFixed(2)}) | matched: ${matchedOrders} | tx ${receipt.hash} | gas ${receipt.gasUsed}`
+            );
+            // Cross-chain settlement: open positions on Robinhood for filled orders
+            await settleFilledOrders(symbol, midPrice);
+        }
     } catch (e) {
         console.error(`[Keeper] match_orders(${symbol}) failed:`, e.shortMessage || e.message);
     }
@@ -274,6 +286,10 @@ async function main() {
             process.env.MOCK_ORACLE_ADDRESS || "0x097AeB196366317cf97986A04f32Df312c96ABa1",
             ORACLE_ABI, robinhoodWallet
         );
+        if (ESCROW_ADDRESS) {
+            escrow = new ethers.Contract(ESCROW_ADDRESS, ESCROW_ABI, sepoliaWallet);
+            console.log(`[Keeper]  Escrow active at ${ESCROW_ADDRESS}`);
+        }
     }
 
     initHashMap();

@@ -224,9 +224,11 @@ export default function TradeDashboard() {
           tradingMode={state.tradingMode}
           setTradingMode={state.setTradingMode}
           balance={state.balance}
+          arbBalance={state.arbBalance}
           isMinting={state.isMinting}
           account={state.account}
           handleMintFaucet={state.handleMintFaucet}
+          handleMintArbitrumFaucet={state.handleMintArbitrumFaucet}
           prompt={state.prompt}
           setPrompt={state.setPrompt}
           isProcessing={state.isProcessing}

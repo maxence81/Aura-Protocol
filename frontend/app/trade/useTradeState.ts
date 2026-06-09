@@ -45,6 +45,7 @@ export function useTradeState() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [isMinting, setIsMinting] = useState(false);
   const [balance, setBalance] = useState("0.00");
+  const [arbBalance, setArbBalance] = useState("0.00");
   const [rawBalance, setRawBalance] = useState<number>(0);
   const [agentLogs, setAgentLogs] = useState<{id:number;timestamp:string;message:string;type:"info"|"alert"|"action"}[]>([]);
   const [activePositions, setActivePositions] = useState<OnChainPosition[]>([]);
@@ -115,10 +116,17 @@ export function useTradeState() {
             abi: AUSD_ABI as any, functionName: "balanceOf",
             args: [account.address as `0x${string}`],
           });
+          const arbBal = await createPublicClient({ chain: { id: 421614, name: "Arbitrum Sepolia", nativeCurrency: { name: "ETH", symbol: "ETH", decimals: 18 }, rpcUrls: { default: { http: ["https://sepolia-rollup.arbitrum.io/rpc"] } } } as any, transport: http() }).readContract({
+            address: CONTRACT_ADDRESSES.ARB_SEPOLIA_AUSD as `0x${string}`,
+            abi: AUSD_ABI as any, functionName: "balanceOf",
+            args: [account.address as `0x${string}`],
+          });
           if (active) {
             const balNum = Number(formatUnits(bal as bigint, 18));
             setRawBalance(balNum);
             setBalance(balNum.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
+            const arbBalNum = Number(formatUnits(arbBal as bigint, 18));
+            setArbBalance(arbBalNum.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 }));
           }
         } catch (e) { console.error("Balance fetch error:", e); }
 
@@ -412,6 +420,19 @@ export function useTradeState() {
     setIsMinting(false);
   };
 
+  const handleMintArbitrumFaucet = async () => {
+    if (!window.ethereum || !account?.address) return;
+    setIsMinting(true);
+    addLog("Requesting Arbitrum Sepolia faucet mint...", "info");
+    if (!(await ensureArbitrumSepolia())) { setIsMinting(false); return; }
+    try {
+      const wc = createWalletClient({ chain: { id: 421614, name: "Arbitrum Sepolia", nativeCurrency: { name: "ETH", symbol: "ETH", decimals: 18 }, rpcUrls: { default: { http: ["https://sepolia-rollup.arbitrum.io/rpc"] } } } as any, account: account.address as `0x${string}`, transport: custom(window.ethereum as any) });
+      const tx = await wc.writeContract({ chain: null, address: CONTRACT_ADDRESSES.ARB_SEPOLIA_AUSD as `0x${string}`, abi: AUSD_ABI as any, functionName: "faucet", args: [] });
+      addLog(`Arbitrum Faucet OK: 1000 aUSD minted (TX: ${tx.slice(0,6)}...${tx.slice(-4)})`, "action");
+    } catch(e: any) { addLog(`Arbitrum Faucet failed: ${e.message.split("\n")[0].substring(0, 50)}...`, "alert"); }
+    setIsMinting(false);
+  };
+
   const handleAction = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!prompt.trim()) return;
@@ -528,21 +549,26 @@ export function useTradeState() {
         const limitPriceWei = BigInt(Math.floor(limitPriceNum * 1e18));
         const leverageBn = BigInt(Math.max(1, Math.min(50, leverage)));
 
-        addLog(`Sending store_order to Stylus LOB (Arb Sepolia)...`, "info");
-        const tx = await sepoliaWc.writeContract({
-          chain: null,
-          address: stylusAddr,
-          abi: STYLUS_LOB_ABI as any,
-          functionName: "store_order",
-          args: [
-            account.address as `0x${string}`,
-            assetHash,
+        addLog(`Relaying limit order via backend to Stylus LOB...`, "info");
+        const res = await fetch(`${API_URL}/api/place-limit-order`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            owner: account.address,
+            assetHash: assetHash.toString(),
             isLong,
-            amountWei,
-            leverageBn,
-            limitPriceWei,
-          ],
+            collateral: amountWei.toString(),
+            leverage: leverageBn.toString(),
+            limitPrice: limitPriceWei.toString()
+          })
         });
+        
+        const data = await res.json();
+        if (!res.ok || !data.success) {
+          throw new Error(data.error || "Failed to relay limit order");
+        }
+        
+        const tx = data.txHash;
         addLog(`Limit order tx sent (${tx.slice(0, 6)}...${tx.slice(-4)})`, "action");
         const receipt = await sepoliaPublic.waitForTransactionReceipt({ hash: tx });
         if (receipt.status === "success") {
@@ -624,6 +650,7 @@ export function useTradeState() {
     tradingMode, setTradingMode, manualCollateral, setManualCollateral,
     manualLeverage, setManualLeverage, manualIsLong, setManualIsLong,
     orderType, setOrderType, limitPrice, setLimitPrice,
+    handleMintArbitrumFaucet, arbBalance,
     tpSlConfig, setTpSlConfig, fundingRate, account,
     handleClosePosition, handlePartialClose, handleAddMargin, handleSetTriggers,
     handleCancelLimitOrder,
