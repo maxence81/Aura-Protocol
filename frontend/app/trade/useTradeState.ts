@@ -427,7 +427,7 @@ export function useTradeState() {
     if (!(await ensureArbitrumSepolia())) { setIsMinting(false); return; }
     try {
       const wc = createWalletClient({ chain: { id: 421614, name: "Arbitrum Sepolia", nativeCurrency: { name: "ETH", symbol: "ETH", decimals: 18 }, rpcUrls: { default: { http: ["https://sepolia-rollup.arbitrum.io/rpc"] } } } as any, account: account.address as `0x${string}`, transport: custom(window.ethereum as any) });
-      const tx = await wc.writeContract({ chain: null, address: CONTRACT_ADDRESSES.ARB_SEPOLIA_AUSD as `0x${string}`, abi: AUSD_ABI as any, functionName: "faucet", args: [] });
+      const tx = await wc.writeContract({ chain: null, address: CONTRACT_ADDRESSES.ARB_SEPOLIA_AUSD as `0x${string}`, abi: AUSD_ABI as any, functionName: "mint", args: [account.address as `0x${string}`, BigInt(1000) * BigInt(1e18)] });
       addLog(`Arbitrum Faucet OK: 1000 aUSD minted (TX: ${tx.slice(0,6)}...${tx.slice(-4)})`, "action");
     } catch(e: any) { addLog(`Arbitrum Faucet failed: ${e.message.split("\n")[0].substring(0, 50)}...`, "alert"); }
     setIsMinting(false);
