@@ -62,7 +62,7 @@ export default function OrderBook({ currentPrice, selectedMarket }: OrderBookPro
 
   useEffect(() => {
     fetchBook(currentPrice);
-    const iv = setInterval(() => fetchBook(currentPrice), 2000);
+    const iv = setInterval(() => fetchBook(currentPrice), 5000);
     return () => clearInterval(iv);
   }, [currentPrice, selectedMarket]);
 
