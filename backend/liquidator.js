@@ -5,7 +5,7 @@ const { computeHealth } = require("./healthFactor");
 
 const RPC_URL = process.env.RPC_URL || "https://rpc.testnet.chain.robinhood.com";
 const provider = new ethers.JsonRpcProvider(RPC_URL);
-const PRIVATE_KEY = process.env.PRIVATE_KEY; // The keeper's wallet
+const PRIVATE_KEY = process.env.LIQUIDATOR_PRIVATE_KEY || process.env.PRIVATE_KEY; // The keeper's wallet
 const wallet = new ethers.Wallet(PRIVATE_KEY, provider);
 
 const PERPS_ADDRESS = process.env.AURA_PERPS_ADDRESS || "0x8AECF449B27BB41E34C04D8C99F4348FF38bB9a2";
@@ -95,9 +95,31 @@ async function runLiquidator() {
                 // -------------------------------------------------------
 
                 // Fetch all open positions across the entire protocol with details
-                const openRes = await db.query(
-                    "SELECT position_id, asset, is_long, collateral, leverage, entry_price FROM positions_opened WHERE position_id NOT IN (SELECT position_id FROM positions_closed)"
-                );
+                // We use a CTE with ROW_NUMBER and block_timestamp to handle overlapping position_ids (e.g. from testnet resets)
+                const openRes = await db.query(`
+WITH RankedOpened AS (
+    SELECT position_id, asset, is_long, collateral, leverage, entry_price, CAST(block_timestamp AS BIGINT) as ts,
+           ROW_NUMBER() OVER(PARTITION BY position_id ORDER BY CAST(block_timestamp AS BIGINT) DESC) as rn
+    FROM positions_opened
+),
+RankedClosed AS (
+    SELECT position_id, CAST(block_timestamp AS BIGINT) as ts,
+           ROW_NUMBER() OVER(PARTITION BY position_id ORDER BY CAST(block_timestamp AS BIGINT) DESC) as rn
+    FROM positions_closed
+),
+RankedLiquidated AS (
+    SELECT position_id, CAST(block_timestamp AS BIGINT) as ts,
+           ROW_NUMBER() OVER(PARTITION BY position_id ORDER BY CAST(block_timestamp AS BIGINT) DESC) as rn
+    FROM positions_liquidated
+)
+SELECT o.position_id, o.asset, o.is_long, o.collateral, o.leverage, o.entry_price
+FROM RankedOpened o
+LEFT JOIN RankedClosed c ON o.position_id = c.position_id AND c.rn = 1
+LEFT JOIN RankedLiquidated l ON o.position_id = l.position_id AND l.rn = 1
+WHERE o.rn = 1
+  AND (c.ts IS NULL OR o.ts > c.ts)
+  AND (l.ts IS NULL OR o.ts > l.ts)
+                `);
 
                 if (openRes.rows.length > 0) {
                     const nowSeconds = BigInt(Math.floor(Date.now() / 1000));
