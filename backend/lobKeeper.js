@@ -329,7 +329,7 @@ async function main() {
     const sepoliaBal = await sepoliaProvider.getBalance(sepoliaWallet.address);
     const robinhoodBal = await robinhoodProvider.getBalance(robinhoodWallet.address);
 
-    console.log(`Keeper EOA:    ${sepoliaWallet.address}`);
+    console.log(`Keeper EOA:    ${keeperWalletSepolia.address}`);
     console.log(`Stylus LOB:    ${STYLUS_LOB_ADDRESS}`);
     console.log(`Arb Sepolia:   ${ethers.formatEther(sepoliaBal)} ETH`);
     console.log(`Robinhood:     ${ethers.formatEther(robinhoodBal)} ETH`);
