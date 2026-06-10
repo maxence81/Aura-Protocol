@@ -244,6 +244,8 @@ async function tickAsset(symbol, midPrice) {
     try {
         // Prevent burning gas by simulating first
         const matchedOrders = await lob.match_orders.staticCall(hash, priceWei);
+        console.log(`[Keeper] Evaluated ${symbol} at $${midPrice.toFixed(2)} - Should match: ${matchedOrders}`);
+        
         if (matchedOrders > 0n) {
             const tx = await lob.match_orders(hash, priceWei);
             const receipt = await tx.wait();
