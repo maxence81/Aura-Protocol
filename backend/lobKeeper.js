@@ -218,13 +218,10 @@ async function settleFilledOrders(symbol, midPrice) {
                 destChain: "Robinhood Chain",
             });
 
-            // Mark as executed on Stylus LOB via Escrow (Triggers Cross-Chain)
-            if (escrow) {
-                await (await escrow.execute_and_bridge(orderId)).wait();
-                console.log(`[Keeper]  Order #${orderId} executed via Escrow & Cross-Chain Settlement Triggered`);
-            } else {
+            // Mark as executed on Stylus LOB (Fallback)
+            if (!escrow) {
                 await (await lob.mark_executed(orderId)).wait();
-                console.log(`[Keeper]  Order #${orderId} marked EXECUTED on Stylus LOB (Fallback)`);
+                console.log(`[Keeper]  Order #${orderId} marked EXECUTED on Stylus LOB`);
             }
         } catch (e) {
             console.error(`[Keeper] Settlement failed for order #${orderId}:`, e.shortMessage || e.message);
