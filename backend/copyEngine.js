@@ -132,7 +132,7 @@ async function startCopyEngine() {
 
     // HTTP provider for read operations
     provider = new ethers.JsonRpcProvider(rpcUrl);
-    provider.pollingInterval = 10000; // Increase polling interval to avoid 429 Too Many Requests
+    provider.pollingInterval = 60000; // Increase polling interval to avoid 429 Too Many Requests
     keeperWallet = new ethers.Wallet(privateKey, provider);
 
     // Contracts

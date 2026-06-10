@@ -167,7 +167,7 @@ function encodeVaultActions(proposals, vaultState) {
             // Path: aUSD -> WETH -> TokenOut (or just aUSD -> WETH)
             const path = prop.token === "WETH" 
                 ? ethers.solidityPacked(["address", "uint24", "address"], [VAULT_CONFIG.AUSD_ADDRESS, 3000, VAULT_CONFIG.WETH])
-                : ethers.solidityPacked(["address", "uint24", "address"], [VAULT_CONFIG.AUSD_ADDRESS, 3000, VAULT_CONFIG.WETH, 3000, tokenOut]);
+                : ethers.solidityPacked(["address", "uint24", "address", "uint24", "address"], [VAULT_CONFIG.AUSD_ADDRESS, 3000, VAULT_CONFIG.WETH, 3000, tokenOut]);
             
             const swapInput = ethers.AbiCoder.defaultAbiCoder().encode(
                 ["address", "uint256", "uint256", "bytes", "bool"],
@@ -285,7 +285,7 @@ async function runVaultStrategyCycle() {
     console.log("║    AURA FUND MANAGER — Strategy Cycle  ║");
     console.log("╚══════════════════════════════════════════╝\n");
 
-    const provider = new ethers.JsonRpcProvider(process.env.RPC_URL || "https://rpc.testnet.chain.robinhood.com");
+    const provider = new ethers.JsonRpcProvider(); provider.pollingInterval = 60000;
     const wallet = new ethers.Wallet(require("fs").readFileSync("backend/.aura_agent_key", "utf8").trim(), provider);
     const vaultAddr = process.env.INTELLIGENCE_VAULT_ADDRESS;
 

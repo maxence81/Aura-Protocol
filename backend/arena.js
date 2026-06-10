@@ -36,7 +36,7 @@ const ARENA_CONFIG = [
 // INITIALISATION BLOCKCHAIN
 // ==========================================
 const RPC_URL = process.env.RPC_URL || "https://rpc.testnet.chain.robinhood.com";
-const provider = new ethers.JsonRpcProvider(RPC_URL);
+const provider = new ethers.JsonRpcProvider(); provider.pollingInterval = 60000;
 const PERPS_ADDRESS = process.env.AURA_PERPS_ADDRESS || "0x8AECF449B27BB41E34C04D8C99F4348FF38bB9a2";
 const AUSD_ADDRESS = process.env.AUSD_ADDRESS || "0x359961489f069F16E5dbA46d9b174bBF7b25147B";
 

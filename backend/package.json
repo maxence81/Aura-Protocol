@@ -9,7 +9,8 @@
     "lobKeeper": "node lobKeeper.js",
     "liquidator": "node liquidator.js",
     "conditional": "node conditionalKeeper.js",
-    "mcp": "node mcpServer.mjs --http 3002", "sync": "node sync_db.js",
+    "mcp": "node mcpServer.mjs --http 3002",
+    "sync": "node sync_db.js",
     "test": "echo \"Error: no test specified\" && exit 1"
   },
   "keywords": [],
@@ -33,5 +34,8 @@
     "pg": "^8.21.0",
     "viem": "^2.52.2",
     "zod": "^4.4.3"
+  },
+  "devDependencies": {
+    "solc": "^0.8.20"
   }
 }
