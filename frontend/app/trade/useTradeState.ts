@@ -561,14 +561,14 @@ export function useTradeState() {
         await sepoliaPublic.waitForTransactionReceipt({ hash: approveTx });
 
         addLog(`Placing limit order via Stylus Escrow on Arbitrum Sepolia...`, "info");
-        const { request: placeReq } = await sepoliaPublic.simulateContract({
+        const tx = await sepoliaWc.writeContract({
           address: CONTRACT_ADDRESSES.STYLUS_ESCROW as `0x${string}`,
           abi: AURA_CROSS_CHAIN_ESCROW_ABI,
           functionName: "place_limit_order",
           args: [assetHash, isLong, amountWei, leverageBn, limitPriceWei],
           account: account.address as `0x${string}`,
+          gas: 3000000n,
         });
-        const tx = await sepoliaWc.writeContract(placeReq);
         addLog(`Limit order tx sent (${tx.slice(0, 6)}...${tx.slice(-4)})`, "action");
         const receipt = await sepoliaPublic.waitForTransactionReceipt({ hash: tx });
         if (receipt.status === "success") {
