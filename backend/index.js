@@ -301,7 +301,7 @@ app.post("/api/update-oracle", async (req, res) => {
 
     console.log(`\n [Oracle Service] Update request for ${asset} at $${price}`);
     
-    const provider = new ethers.JsonRpcProvider(process.env.ROBINHOOD_ALCHEMY_RPC || process.env.RPC_URL || "https://rpc.testnet.chain.robinhood.com");
+    const provider = new ethers.JsonRpcProvider(process.env.RPC_URL || "https://rpc.testnet.chain.robinhood.com");
     const signer = oracleWallet.connect(provider);
     
     const MOCK_ORACLE_ADDR = process.env.MOCK_ORACLE_ADDRESS || "0x0df0FcA88c9DefC9672301892fe2c4f0f9fF5391";
@@ -437,7 +437,7 @@ app.get("/api/liquidation-alerts/stream", (req, res) => {
 
 const { runAuraFundManager, executeStrategiesOnChain, readVaultState, VAULT_CONFIG } = require("./vaultAgent");
 
-const vaultProvider = new ethers.JsonRpcProvider(process.env.ROBINHOOD_ALCHEMY_RPC || process.env.RPC_URL || "https://rpc.testnet.chain.robinhood.com");
+const vaultProvider = new ethers.JsonRpcProvider(process.env.RPC_URL || "https://rpc.testnet.chain.robinhood.com");
 const INTELLIGENCE_VAULT_ADDRESS = process.env.INTELLIGENCE_VAULT_ADDRESS || "0x0000000000000000000000000000000000000000";
 
 /**
@@ -590,7 +590,7 @@ app.get("/api/orderbook/:asset", async (req, res) => {
       "function getOrderDetails(uint256 orderId) view returns (address user, uint256 assetHash, bool isLong, uint256 collateral, uint256 leverage, uint256 limitPrice, uint256 timestamp, uint256 status)",
     ];
 
-    const provider = new ethers.JsonRpcProvider(process.env.ROBINHOOD_ALCHEMY_RPC || process.env.RPC_URL || "https://rpc.testnet.chain.robinhood.com");
+    const provider = new ethers.JsonRpcProvider(process.env.RPC_URL || "https://rpc.testnet.chain.robinhood.com");
     const router = new ethers.Contract(routerAddr, ROUTER_ABI, provider);
 
     let rawBids = []; // {price: number, size: number}
@@ -738,7 +738,7 @@ app.post("/api/gasless-execute", async (req, res) => {
       return res.status(400).json({ error: "Missing accountAddress, targets, values, or datas" });
     }
 
-    const provider = new ethers.JsonRpcProvider(process.env.ROBINHOOD_ALCHEMY_RPC || process.env.RPC_URL || "https://rpc.testnet.chain.robinhood.com");
+    const provider = new ethers.JsonRpcProvider(process.env.RPC_URL || "https://rpc.testnet.chain.robinhood.com");
     const signer = agentWallet.connect(provider);
 
     // ── Audit Trail: record reasoning hash on-chain BEFORE execution ──
@@ -853,7 +853,7 @@ app.post("/api/place-limit-order", async (req, res) => {
       "function store_order(address owner, uint256 asset_hash, bool is_long, uint256 collateral, uint256 leverage, uint256 limit_price) returns (uint256)"
     ];
     
-    const sepoliaRpc = process.env.ARB_SEPOLIA_RPC || "https://sepolia-rollup.arbitrum.io/rpc";
+    const sepoliaRpc = "https://sepolia-rollup.arbitrum.io/rpc";
     const sepoliaProvider = new ethers.JsonRpcProvider(sepoliaRpc);
     const wallet = agentWallet.connect(sepoliaProvider);
     const stylus = new ethers.Contract(stylusAddr, STYLUS_ABI, wallet);
