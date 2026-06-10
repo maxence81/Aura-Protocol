@@ -97,7 +97,7 @@ const PYTH_IDS = {
 const ESCROW_ADDRESS = (process.env.ESCROW_ADDRESS || "").trim();
 const ESCROW_ABI = ["function execute_and_bridge(uint256 order_id) external"];
 
-let sepoliaProvider, robinhoodProvider, sepoliaWallet, robinhoodWallet, keeperWallet, lob, perps, ausd, oracle, escrow;
+let sepoliaProvider, robinhoodProvider, sepoliaWallet, robinhoodWallet, keeperWalletSepolia, keeperWalletRobinhood, lob, perps, ausd, oracle, escrow;
 
 // Asset symbol → hash (same convention as everywhere else)
 function assetHash(symbol) {
@@ -185,7 +185,7 @@ async function settleFilledOrders(symbol, midPrice) {
             }
 
             // Ensure approval
-            const allowance = await ausd.allowance(keeperWallet.address, AURA_PERPS_ADDRESS);
+            const allowance = await ausd.allowance(keeperWalletRobinhood.address, AURA_PERPS_ADDRESS);
             if (allowance < collatNum) {
                 const MAX = ethers.MaxUint256;
                 await (await ausd.approve(AURA_PERPS_ADDRESS, MAX)).wait();
@@ -295,14 +295,15 @@ async function main() {
 
     sepoliaWallet = new ethers.Wallet(PRIVATE_KEY, sepoliaProvider);
     robinhoodWallet = new ethers.Wallet(PRIVATE_KEY, robinhoodProvider);
-    keeperWallet = new ethers.Wallet(KEEPER_PRIVATE_KEY, robinhoodProvider);
+    keeperWalletSepolia = new ethers.Wallet(KEEPER_PRIVATE_KEY, sepoliaProvider);
+    keeperWalletRobinhood = new ethers.Wallet(KEEPER_PRIVATE_KEY, robinhoodProvider);
 
-    lob = new ethers.Contract(STYLUS_LOB_ADDRESS, STYLUS_LOB_ABI, sepoliaWallet);
-    perps = new ethers.Contract(AURA_PERPS_ADDRESS, PERPS_ABI, keeperWallet);
-    ausd = new ethers.Contract(AUSD_ADDRESS, AUSD_ABI, keeperWallet);
+    lob = new ethers.Contract(STYLUS_LOB_ADDRESS, STYLUS_LOB_ABI, keeperWalletSepolia);
+    perps = new ethers.Contract(AURA_PERPS_ADDRESS, PERPS_ABI, keeperWalletRobinhood);
+    ausd = new ethers.Contract(AUSD_ADDRESS, AUSD_ABI, keeperWalletRobinhood);
     oracle = new ethers.Contract(process.env.MOCK_ORACLE_ADDRESS || "0x097AeB196366317cf97986A04f32Df312c96ABa1", ORACLE_ABI, robinhoodWallet);
     if (ESCROW_ADDRESS) {
-        escrow = new ethers.Contract(ESCROW_ADDRESS, ESCROW_ABI, sepoliaWallet);
+        escrow = new ethers.Contract(ESCROW_ADDRESS, ESCROW_ABI, keeperWalletSepolia);
         console.log(`[Keeper]  Escrow active at ${ESCROW_ADDRESS}`);
     }
 
