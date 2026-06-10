@@ -855,7 +855,7 @@ app.post("/api/place-limit-order", async (req, res) => {
     
     const sepoliaRpc = process.env.ARB_SEPOLIA_RPC || "https://sepolia-rollup.arbitrum.io/rpc";
     const sepoliaProvider = new ethers.JsonRpcProvider(sepoliaRpc);
-    const wallet = new ethers.Wallet(process.env.PRIVATE_KEY, sepoliaProvider);
+    const wallet = agentWallet.connect(sepoliaProvider);
     const stylus = new ethers.Contract(stylusAddr, STYLUS_ABI, wallet);
 
     console.log("[Backend] Relaying limit order for", owner);
