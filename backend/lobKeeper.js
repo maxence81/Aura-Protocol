@@ -259,9 +259,10 @@ async function tickAsset(symbol, midPrice) {
             console.log(
                 `[Keeper]  match_orders(${symbol}, $${midPrice.toFixed(2)}) | matched: ${matchedOrders} | tx ${receipt.hash} | gas ${receipt.gasUsed}`
             );
-            // Cross-chain settlement: open positions on Robinhood for filled orders
-            await settleFilledOrders(symbol, midPrice);
         }
+        
+        // Cross-chain settlement: open positions on Robinhood for ANY filled orders (new or pending retry)
+        await settleFilledOrders(symbol, midPrice);
     } catch (e) {
         console.error(`[Keeper] match_orders(${symbol}) failed:`, e.shortMessage || e.message);
     }
