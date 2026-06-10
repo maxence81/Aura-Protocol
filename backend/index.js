@@ -38,7 +38,6 @@ const { startCopyEngine, getEngineStatus, getTradeLog, refreshLeaders } = requir
 
 const fs = require("fs");
 const path = require("path");
-const { ethers } = require("ethers");
 
 // Configuration de l'identité de l'Agent (Stable & Sécurisée)
 let agentWallet;
