@@ -87,7 +87,7 @@ export function useTradeState() {
           const rateData = await publicClient.readContract({
             address: CONTRACT_ADDRESSES.AURA_PERPS as `0x${string}`,
             abi: AURA_PERPS_ABI as any, functionName: "getCurrentFundingRate",
-            args: [baseAsset]
+            args: [baseAsset, true]
           }) as bigint;
           // Rate is scaled by 1e18, but wait, it's actually just base rate if 0!
           // Convert to percentage per 8h? Or just display the daily/hourly?
