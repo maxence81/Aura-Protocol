@@ -2,15 +2,8 @@
 // STYLUS_LOB_ADDRESS set at the OS user level) don't shadow the .env file.
 require("dotenv").config({ override: true });
 
+require("./patch_provider.js");
 const { ethers } = require("ethers");
-const OriginalJsonRpcProvider = ethers.JsonRpcProvider;
-ethers.JsonRpcProvider = class extends OriginalJsonRpcProvider {
-    constructor(...args) {
-        super(...args);
-        this.pollingInterval = 12000;
-    }
-};
-
 
 const express = require("express");
 const cors = require("cors");

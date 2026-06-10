@@ -29,6 +29,7 @@
  */
 
 require("dotenv").config({ path: require("path").join(__dirname, ".env"), override: true });
+require("./patch_provider.js");
 const { ethers } = require("ethers");
 const fs = require("fs");
 const path = require("path");
