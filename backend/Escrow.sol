@@ -9,6 +9,7 @@ interface IOrderBook {
     function store_order(address owner, uint256 asset_hash, bool is_long, uint256 collateral, uint256 leverage, uint256 limit_price) external returns (uint256);
     function cancel_order(uint256 order_id, address caller) external returns (bool);
     function get_order(uint256 order_id) external view returns (address, uint256, bool, uint256, uint256, uint256, uint256, uint256);
+    function mark_executed(uint256 order_id) external returns (bool);
 }
 
 contract AuraCrossChainEscrow {
@@ -45,5 +46,16 @@ contract AuraCrossChainEscrow {
         
         require(IERC20(ausd).transfer(msg.sender, collateral), "Refund failed");
         emit OrderCancelled(order_id, msg.sender);
+    }
+
+    function execute_and_bridge(uint256 order_id) external {
+        require(msg.sender == keeper || msg.sender == owner, "Only keeper or owner");
+        (address owner_addr, , bool is_long, uint256 collateral, uint256 leverage, , , ) = IOrderBook(orderbook).get_order(order_id);
+        
+        require(IOrderBook(orderbook).mark_executed(order_id), "OrderBook mark_executed failed");
+        
+        // Transfer collateral to keeper so it can be bridged
+        require(IERC20(ausd).transfer(keeper, collateral), "Transfer to keeper failed");
+        emit CrossChainSettlementRequested(order_id, owner_addr, collateral, is_long, leverage, 0);
     }
 }
