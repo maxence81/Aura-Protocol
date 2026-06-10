@@ -242,8 +242,15 @@ async function tickAsset(symbol, midPrice) {
 
     const priceWei = ethers.parseUnits(midPrice.toFixed(2), 18);
     try {
-        // Prevent burning gas by simulating first
-        const matchedOrders = await lob.match_orders.staticCall(hash, priceWei);
+        // Prevent burning gas by simulating first using an explicit eth_call to guarantee msg.sender
+        const txData = lob.interface.encodeFunctionData("match_orders", [hash, priceWei]);
+        const resultData = await sepoliaProvider.call({
+            from: keeperWalletSepolia.address,
+            to: STYLUS_LOB_ADDRESS,
+            data: txData
+        });
+        const matchedOrders = lob.interface.decodeFunctionResult("match_orders", resultData)[0];
+        
         console.log(`[Keeper] Evaluated ${symbol} at $${midPrice.toFixed(2)} - Should match: ${matchedOrders}`);
         
         if (matchedOrders > 0n) {
