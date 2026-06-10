@@ -1,46 +1,51 @@
-const { ethers } = require("ethers");
-const OriginalJsonRpcProvider = ethers.JsonRpcProvider;
+const originalFetch = global.fetch;
 
-const requestQueue = [];
-let isProcessingQueue = false;
+const rpcQueue = [];
+let isProcessingRpc = false;
 
-async function processQueue() {
-    if (isProcessingQueue) return;
-    isProcessingQueue = true;
-    while (requestQueue.length > 0) {
-        const { payload, resolve, reject, _super, instance } = requestQueue.shift();
+async function processRpcQueue() {
+    if (isProcessingRpc) return;
+    isProcessingRpc = true;
+    while (rpcQueue.length > 0) {
+        const { url, options, resolve, reject } = rpcQueue.shift();
         try {
-            const result = await _super.call(instance, payload);
-            resolve(result);
-        } catch (e) {
-            reject(e);
+            const res = await originalFetch(url, options);
+            resolve(res);
+        } catch (err) {
+            reject(err);
         }
-        // Wait ~200ms between requests (approx 5 req/sec per process)
-        // Since there are multiple processes (index.js, lobKeeper), 5 req/s * 2 = 10 req/s (safely below 15/s)
-        await new Promise(r => setTimeout(r, 200));
+        // Wait 250ms between requests to ensure max 4 requests/sec per instance (8 total)
+        await new Promise(r => setTimeout(r, 250));
     }
-    isProcessingQueue = false;
+    isProcessingRpc = false;
 }
 
-ethers.JsonRpcProvider = class extends OriginalJsonRpcProvider {
-    constructor(...args) {
-        super(...args);
-        // Override polling interval to 60s to avoid spamming the RPC
-        this.pollingInterval = 60000;
-    }
+global.fetch = async function(url, options) {
+    let urlString = "";
+    if (typeof url === 'string') urlString = url;
+    else if (url && url.url) urlString = url.url;
 
-    async _send(payload) {
+    // Check if it's the Robinhood RPC or any QuickNode RPC
+    if (urlString.includes("robinhood.com") || urlString.includes("quiknode") || urlString.includes("quicknode")) {
         return new Promise((resolve, reject) => {
-            requestQueue.push({
-                payload,
-                resolve,
-                reject,
-                _super: OriginalJsonRpcProvider.prototype._send,
-                instance: this
-            });
-            processQueue();
+            rpcQueue.push({ url, options, resolve, reject });
+            processRpcQueue();
         });
     }
+
+    return originalFetch(url, options);
 };
+
+// We also keep the ethers patch just in case, but fetch is foolproof
+const { ethers } = require("ethers");
+if (ethers && ethers.JsonRpcProvider) {
+    const OriginalJsonRpcProvider = ethers.JsonRpcProvider;
+    ethers.JsonRpcProvider = class extends OriginalJsonRpcProvider {
+        constructor(...args) {
+            super(...args);
+            this.pollingInterval = 60000;
+        }
+    };
+}
 
 module.exports = true;
