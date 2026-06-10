@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { ConnectButton, useActiveAccount } from "thirdweb/react";
 import { client } from "../client";
 import { createPublicClient, http, formatUnits, createWalletClient, custom, keccak256, toBytes, encodeFunctionData } from "viem";
-import { CONTRACT_ADDRESSES, AUSD_ABI, AURA_PERPS_ABI, AURA_ROUTER_ABI, STYLUS_LOB_ABI, CONDITIONAL_ORDER_MANAGER_ABI, LIQUIDATION_SHIELD_ABI } from "../../lib/contracts";
+import { CONTRACT_ADDRESSES, AUSD_ABI, AURA_PERPS_ABI, AURA_ROUTER_ABI, STYLUS_LOB_ABI, CONDITIONAL_ORDER_MANAGER_ABI, LIQUIDATION_SHIELD_ABI, AURA_CROSS_CHAIN_ESCROW_ABI, ERC20_ABI } from "../../lib/contracts";
 import { API_URL } from "../../lib/config";
 
 const publicClient = createPublicClient({
@@ -549,26 +549,26 @@ export function useTradeState() {
         const limitPriceWei = BigInt(Math.floor(limitPriceNum * 1e18));
         const leverageBn = BigInt(Math.max(1, Math.min(50, leverage)));
 
-        addLog(`Relaying limit order via backend to Stylus LOB...`, "info");
-        const res = await fetch(`${API_URL}/api/place-limit-order`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            owner: account.address,
-            assetHash: assetHash.toString(),
-            isLong,
-            collateral: amountWei.toString(),
-            leverage: leverageBn.toString(),
-            limitPrice: limitPriceWei.toString()
-          })
+        addLog(`Approving aUSD on Arbitrum Sepolia...`, "info");
+        const { request: approveReq } = await sepoliaPublic.simulateContract({
+          address: CONTRACT_ADDRESSES.ARB_SEPOLIA_AUSD as `0x${string}`,
+          abi: ERC20_ABI,
+          functionName: "approve",
+          args: [CONTRACT_ADDRESSES.STYLUS_ESCROW, amountWei],
+          account: account.address as `0x${string}`,
         });
-        
-        const data = await res.json();
-        if (!res.ok || !data.success) {
-          throw new Error(data.error || "Failed to relay limit order");
-        }
-        
-        const tx = data.txHash;
+        const approveTx = await sepoliaWc.writeContract(approveReq);
+        await sepoliaPublic.waitForTransactionReceipt({ hash: approveTx });
+
+        addLog(`Placing limit order via Stylus Escrow on Arbitrum Sepolia...`, "info");
+        const { request: placeReq } = await sepoliaPublic.simulateContract({
+          address: CONTRACT_ADDRESSES.STYLUS_ESCROW as `0x${string}`,
+          abi: AURA_CROSS_CHAIN_ESCROW_ABI,
+          functionName: "place_limit_order",
+          args: [assetHash, isLong, amountWei, leverageBn, limitPriceWei],
+          account: account.address as `0x${string}`,
+        });
+        const tx = await sepoliaWc.writeContract(placeReq);
         addLog(`Limit order tx sent (${tx.slice(0, 6)}...${tx.slice(-4)})`, "action");
         const receipt = await sepoliaPublic.waitForTransactionReceipt({ hash: tx });
         if (receipt.status === "success") {

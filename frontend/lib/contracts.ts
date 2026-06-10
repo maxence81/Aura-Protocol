@@ -35,6 +35,7 @@ export const CONTRACT_ADDRESSES = {
   LIQUIDATION_SHIELD:
     (process.env.NEXT_PUBLIC_LIQUIDATION_SHIELD_ADDRESS as `0x${string}`) ||
     "0x089ABc77f4C68Da0299C7521ebd82A7Db4791c0B",
+  STYLUS_ESCROW: "0x805b8a01eac377480fc98557f346708f32360a5e" as `0x${string}`,
 };
 
 
@@ -194,4 +195,13 @@ export const AURA_COPY_TRADING_V2_ABI = [
   { type: "function", name: "getFollowerAvailableBalance", inputs: [{ name: "leader", type: "address" }, { name: "follower", type: "address" }], outputs: [{ type: "uint256" }], stateMutability: "view" },
   { type: "function", name: "getLeaderCount", inputs: [], outputs: [{ type: "uint256" }], stateMutability: "view" },
   { type: "function", name: "getActiveLeaders", inputs: [{ name: "offset", type: "uint256" }, { name: "limit", type: "uint256" }], outputs: [{ name: "activeAddrs", type: "address[]" }, { components: [{ name: "isRegistered", type: "bool" }, { name: "isActive", type: "bool" }, { name: "performanceFeeBps", type: "uint256" }, { name: "totalFollowers", type: "uint256" }, { name: "totalCopiedCapital", type: "uint256" }, { name: "totalRealizedPnl", type: "uint256" }, { name: "isPnlPositive", type: "bool" }, { name: "tradesExecuted", type: "uint256" }, { name: "tradesWon", type: "uint256" }, { name: "createdAt", type: "uint256" }], name: "activeProfiles", type: "tuple[]" }], stateMutability: "view" }
+] as const;
+
+export const AURA_CROSS_CHAIN_ESCROW_ABI = [
+  { type: "function", name: "place_limit_order", inputs: [{ name: "asset_hash", type: "uint256" }, { name: "is_long", type: "bool" }, { name: "collateral", type: "uint256" }, { name: "leverage", type: "uint256" }, { name: "limit_price", type: "uint256" }], outputs: [{ type: "uint256" }], stateMutability: "nonpayable" }
+] as const;
+
+export const ERC20_ABI = [
+  { type: "function", name: "approve", inputs: [{ name: "spender", type: "address" }, { name: "amount", type: "uint256" }], outputs: [{ type: "bool" }], stateMutability: "nonpayable" },
+  { type: "function", name: "allowance", inputs: [{ name: "owner", type: "address" }, { name: "spender", type: "address" }], outputs: [{ type: "uint256" }], stateMutability: "view" }
 ] as const;
