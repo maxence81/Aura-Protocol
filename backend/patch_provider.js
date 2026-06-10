@@ -15,8 +15,9 @@ async function processQueue() {
         } catch (e) {
             reject(e);
         }
-        // Wait ~70ms between requests (approx 14 req/sec to stay under 15/sec limit)
-        await new Promise(r => setTimeout(r, 70));
+        // Wait ~200ms between requests (approx 5 req/sec per process)
+        // Since there are multiple processes (index.js, lobKeeper), 5 req/s * 2 = 10 req/s (safely below 15/s)
+        await new Promise(r => setTimeout(r, 200));
     }
     isProcessingQueue = false;
 }
