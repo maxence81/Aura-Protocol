@@ -231,7 +231,7 @@ export function useTradeState() {
     addLog(`Cancelling limit order #${id} on Stylus LOB...`, "info");
     try {
       if (!(await ensureArbitrumSepolia())) return;
-      const stylusAddr = CONTRACT_ADDRESSES.STYLUS_LOB as `0x${string}`;
+      const escrowAddr = CONTRACT_ADDRESSES.STYLUS_ESCROW as `0x${string}`;
       const sepoliaWc = createWalletClient({
         chain: { id: 421614, name: "Arbitrum Sepolia", nativeCurrency: { name: "ETH", symbol: "ETH", decimals: 18 }, rpcUrls: { default: { http: ["https://sepolia-rollup.arbitrum.io/rpc"] } } } as any,
         account: account.address as `0x${string}`,
@@ -239,8 +239,8 @@ export function useTradeState() {
       });
       const tx = await sepoliaWc.writeContract({
         chain: null,
-        address: stylusAddr,
-        abi: STYLUS_LOB_ABI as any,
+        address: escrowAddr,
+        abi: AURA_CROSS_CHAIN_ESCROW_ABI as any,
         functionName: "cancel_order",
         args: [BigInt(id), account.address as `0x${string}`],
       });

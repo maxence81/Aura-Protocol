@@ -198,7 +198,8 @@ export const AURA_COPY_TRADING_V2_ABI = [
 ] as const;
 
 export const AURA_CROSS_CHAIN_ESCROW_ABI = [
-  { type: "function", name: "place_limit_order", inputs: [{ name: "asset_hash", type: "uint256" }, { name: "is_long", type: "bool" }, { name: "collateral", type: "uint256" }, { name: "leverage", type: "uint256" }, { name: "limit_price", type: "uint256" }], outputs: [{ type: "uint256" }], stateMutability: "nonpayable" }
+  { type: "function", name: "place_limit_order", inputs: [{ name: "asset_hash", type: "uint256" }, { name: "is_long", type: "bool" }, { name: "collateral", type: "uint256" }, { name: "leverage", type: "uint256" }, { name: "limit_price", type: "uint256" }], outputs: [{ type: "uint256" }], stateMutability: "nonpayable" },
+  { type: "function", name: "cancel_order", inputs: [{ name: "order_id", type: "uint256" }, { name: "caller", type: "address" }], outputs: [], stateMutability: "nonpayable" }
 ] as const;
 
 export const ERC20_ABI = [
