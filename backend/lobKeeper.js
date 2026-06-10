@@ -113,11 +113,18 @@ function initHashMap() {
 }
 
 async function fetchPythMids() {
-    const ids = ASSETS.map(a => PYTH_IDS[a]).filter(Boolean);
-    if (ids.length === 0) return {};
-    const url = `https://hermes.pyth.network/v2/updates/price/latest?` + ids.map(id => `ids[]=${id}`).join("&");
     try {
-        const res = await fetch(url);
+        const ids = ASSETS.map(a => PYTH_IDS[a]).filter(Boolean);
+        if (ids.length === 0) return {};
+        const url = `https://hermes.pyth.network/v2/updates/price/latest?` + ids.map(id => `ids[]=${id}`).join("&");
+        
+        // Fetch with timeout
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000);
+        
+        const res = await fetch(url, { signal: controller.signal });
+        clearTimeout(timeoutId);
+        
         const data = await res.json();
         const out = {};
         for (const entry of data.parsed || []) {
