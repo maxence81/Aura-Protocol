@@ -568,6 +568,7 @@ export function useTradeState() {
           args: [assetHash, isLong, amountWei, leverageBn, limitPriceWei],
           account: account.address as `0x${string}`,
           gas: 3000000n,
+          chain: null,
         });
         addLog(`Limit order tx sent (${tx.slice(0, 6)}...${tx.slice(-4)})`, "action");
         const receipt = await sepoliaPublic.waitForTransactionReceipt({ hash: tx });
