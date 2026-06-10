@@ -51,6 +51,7 @@ function logSettlementEvent(event) {
 
 // ── Config ──
 const PRIVATE_KEY        = (process.env.PRIVATE_KEY || "").trim();
+const KEEPER_PRIVATE_KEY = (process.env.KEEPER_PRIVATE_KEY || "").trim();
 const STYLUS_LOB_ADDRESS = (process.env.STYLUS_LOB_ADDRESS || "").trim();
 const ARB_SEPOLIA_RPC    = (process.env.ARB_SEPOLIA_RPC || "https://sepolia-rollup.arbitrum.io/rpc").trim();
 const ROBINHOOD_RPC      = (process.env.RPC_URL || "https://rpc.testnet.chain.robinhood.com").trim();
@@ -96,7 +97,7 @@ const PYTH_IDS = {
 const ESCROW_ADDRESS = (process.env.ESCROW_ADDRESS || "").trim();
 const ESCROW_ABI = ["function execute_and_bridge(uint256 order_id) external"];
 
-let sepoliaProvider, robinhoodProvider, sepoliaWallet, robinhoodWallet, lob, perps, ausd, oracle, escrow;
+let sepoliaProvider, robinhoodProvider, sepoliaWallet, robinhoodWallet, keeperWallet, lob, perps, ausd, oracle, escrow;
 
 // Asset symbol → hash (same convention as everywhere else)
 function assetHash(symbol) {
@@ -172,8 +173,19 @@ async function settleFilledOrders(symbol, midPrice) {
             // Open position on Robinhood Chain (keeper advances the aUSD)
             const collatNum = collateral;
             
+            // Execute escrow to collect aUSD collateral on Arbitrum Sepolia
+            if (escrow) {
+                try {
+                    const escrowTx = await escrow.execute_and_bridge(orderId);
+                    await escrowTx.wait();
+                    console.log(`[Keeper]  Escrow settled on Arbitrum Sepolia for order #${orderId}`);
+                } catch (e) {
+                    console.warn(`[Keeper] Escrow settlement failed (maybe already settled?):`, e.shortMessage || e.message);
+                }
+            }
+
             // Ensure approval
-            const allowance = await ausd.allowance(robinhoodWallet.address, AURA_PERPS_ADDRESS);
+            const allowance = await ausd.allowance(keeperWallet.address, AURA_PERPS_ADDRESS);
             if (allowance < collatNum) {
                 const MAX = ethers.MaxUint256;
                 await (await ausd.approve(AURA_PERPS_ADDRESS, MAX)).wait();
@@ -279,24 +291,19 @@ async function main() {
 
     // ── Arbitrum Sepolia (Stylus LOB) ──
     sepoliaProvider = new ethers.JsonRpcProvider(ARB_SEPOLIA_RPC);
-    sepoliaWallet   = new ethers.Wallet(PRIVATE_KEY, sepoliaProvider);
-    lob             = new ethers.Contract(STYLUS_LOB_ADDRESS, STYLUS_LOB_ABI, sepoliaWallet);
-
-    // ── Robinhood Chain (AuraPerps settlement) ──
     robinhoodProvider = new ethers.JsonRpcProvider(ROBINHOOD_RPC);
-    robinhoodWallet   = new ethers.Wallet(PRIVATE_KEY, robinhoodProvider);
 
-    if (ENABLE_SETTLEMENT && AURA_PERPS_ADDRESS && AUSD_ADDRESS) {
-        perps  = new ethers.Contract(AURA_PERPS_ADDRESS, PERPS_ABI, robinhoodWallet);
-        ausd   = new ethers.Contract(AUSD_ADDRESS, AUSD_ABI, robinhoodWallet);
-        oracle = new ethers.Contract(
-            process.env.MOCK_ORACLE_ADDRESS || "0x097AeB196366317cf97986A04f32Df312c96ABa1",
-            ORACLE_ABI, robinhoodWallet
-        );
-        if (ESCROW_ADDRESS) {
-            escrow = new ethers.Contract(ESCROW_ADDRESS, ESCROW_ABI, sepoliaWallet);
-            console.log(`[Keeper]  Escrow active at ${ESCROW_ADDRESS}`);
-        }
+    sepoliaWallet = new ethers.Wallet(PRIVATE_KEY, sepoliaProvider);
+    robinhoodWallet = new ethers.Wallet(PRIVATE_KEY, robinhoodProvider);
+    keeperWallet = new ethers.Wallet(KEEPER_PRIVATE_KEY, robinhoodProvider);
+
+    lob = new ethers.Contract(STYLUS_LOB_ADDRESS, STYLUS_LOB_ABI, sepoliaWallet);
+    perps = new ethers.Contract(AURA_PERPS_ADDRESS, PERPS_ABI, keeperWallet);
+    ausd = new ethers.Contract(AUSD_ADDRESS, AUSD_ABI, keeperWallet);
+    oracle = new ethers.Contract(process.env.MOCK_ORACLE_ADDRESS || "0x097AeB196366317cf97986A04f32Df312c96ABa1", ORACLE_ABI, robinhoodWallet);
+    if (ESCROW_ADDRESS) {
+        escrow = new ethers.Contract(ESCROW_ADDRESS, ESCROW_ABI, sepoliaWallet);
+        console.log(`[Keeper]  Escrow active at ${ESCROW_ADDRESS}`);
     }
 
     initHashMap();
