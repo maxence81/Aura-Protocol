@@ -133,6 +133,8 @@ async function fetchPythMids() {
     }
 }
 
+const failedSettlements = new Set();
+
 /// Cross-chain settlement: for each filled order on Stylus LOB,
 /// open the corresponding position on AuraPerps (Robinhood Chain).
 async function settleFilledOrders(symbol, midPrice) {
@@ -145,9 +147,12 @@ async function settleFilledOrders(symbol, midPrice) {
     } catch (e) {
         return; // no fills or call failed
     }
-    if (filledIds.length === 0) return;
+    
+    // Filter out orders we already know will fail
+    const toProcess = filledIds.filter(id => !failedSettlements.has(id.toString()));
+    if (toProcess.length === 0) return;
 
-    console.log(`[Keeper]  ${filledIds.length} filled order(s) for ${symbol} — settling on Robinhood Chain...`);
+    console.log(`[Keeper]  ${toProcess.length} filled order(s) for ${symbol} — settling on Robinhood Chain...`);
 
     // Update oracle on Robinhood Chain with fresh Pyth price before opening positions
     try {
@@ -157,7 +162,7 @@ async function settleFilledOrders(symbol, midPrice) {
         console.warn(`[Keeper] Oracle update failed for ${symbol}:`, e.shortMessage || e.message);
     }
 
-    for (const orderId of filledIds) {
+    for (const orderId of toProcess) {
         try {
             // Read order details from Stylus LOB
             const order = await lob.get_order(orderId);
@@ -203,6 +208,7 @@ async function settleFilledOrders(symbol, midPrice) {
             }
         } catch (e) {
             console.error(`[Keeper] Settlement failed for order #${orderId}:`, e.shortMessage || e.message);
+            failedSettlements.add(orderId.toString());
         }
     }
 }
