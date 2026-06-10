@@ -2,6 +2,16 @@
 // STYLUS_LOB_ADDRESS set at the OS user level) don't shadow the .env file.
 require("dotenv").config({ override: true });
 
+const { ethers } = require("ethers");
+const OriginalJsonRpcProvider = ethers.JsonRpcProvider;
+ethers.JsonRpcProvider = class extends OriginalJsonRpcProvider {
+    constructor(...args) {
+        super(...args);
+        this.pollingInterval = 12000;
+    }
+};
+
+
 const express = require("express");
 const cors = require("cors");
 const { runAuraCommittee } = require("./agent");
@@ -301,7 +311,7 @@ app.post("/api/update-oracle", async (req, res) => {
 
     console.log(`\n [Oracle Service] Update request for ${asset} at $${price}`);
     
-    const provider = new ethers.JsonRpcProvider(process.env.RPC_URL || "https://rpc.testnet.chain.robinhood.com");
+    const provider = new ethers.JsonRpcProvider(); provider.pollingInterval = 15000;
     const signer = oracleWallet.connect(provider);
     
     const MOCK_ORACLE_ADDR = process.env.MOCK_ORACLE_ADDRESS || "0x0df0FcA88c9DefC9672301892fe2c4f0f9fF5391";
@@ -590,7 +600,7 @@ app.get("/api/orderbook/:asset", async (req, res) => {
       "function getOrderDetails(uint256 orderId) view returns (address user, uint256 assetHash, bool isLong, uint256 collateral, uint256 leverage, uint256 limitPrice, uint256 timestamp, uint256 status)",
     ];
 
-    const provider = new ethers.JsonRpcProvider(process.env.RPC_URL || "https://rpc.testnet.chain.robinhood.com");
+    const provider = new ethers.JsonRpcProvider(); provider.pollingInterval = 15000;
     const router = new ethers.Contract(routerAddr, ROUTER_ABI, provider);
 
     let rawBids = []; // {price: number, size: number}
@@ -738,7 +748,7 @@ app.post("/api/gasless-execute", async (req, res) => {
       return res.status(400).json({ error: "Missing accountAddress, targets, values, or datas" });
     }
 
-    const provider = new ethers.JsonRpcProvider(process.env.RPC_URL || "https://rpc.testnet.chain.robinhood.com");
+    const provider = new ethers.JsonRpcProvider(); provider.pollingInterval = 15000;
     const signer = agentWallet.connect(provider);
 
     // ── Audit Trail: record reasoning hash on-chain BEFORE execution ──
