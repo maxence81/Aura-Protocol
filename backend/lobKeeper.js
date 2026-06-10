@@ -49,17 +49,17 @@ function logSettlementEvent(event) {
 }
 
 // ── Config ──
-const PRIVATE_KEY        = process.env.PRIVATE_KEY;
-const STYLUS_LOB_ADDRESS = process.env.STYLUS_LOB_ADDRESS;
-const ARB_SEPOLIA_RPC    = process.env.ARB_SEPOLIA_RPC || "https://sepolia-rollup.arbitrum.io/rpc";
-const ROBINHOOD_RPC      = process.env.RPC_URL || "https://rpc.testnet.chain.robinhood.com";
+const PRIVATE_KEY        = (process.env.PRIVATE_KEY || "").trim();
+const STYLUS_LOB_ADDRESS = (process.env.STYLUS_LOB_ADDRESS || "").trim();
+const ARB_SEPOLIA_RPC    = (process.env.ARB_SEPOLIA_RPC || "https://sepolia-rollup.arbitrum.io/rpc").trim();
+const ROBINHOOD_RPC      = (process.env.RPC_URL || "https://rpc.testnet.chain.robinhood.com").trim();
 const INTERVAL_MS        = parseInt(process.env.KEEPER_INTERVAL_MS || "10000");
 const ASSETS             = (process.env.KEEPER_ASSETS || "BTC,ETH").split(",").map(s => s.trim().toUpperCase());
 const MIN_ACTIVE         = parseInt(process.env.KEEPER_MIN_ACTIVE || "1");
 
 // Cross-chain settlement config
-const AURA_PERPS_ADDRESS = process.env.AURA_PERPS_ADDRESS;
-const AUSD_ADDRESS       = process.env.AUSD_ADDRESS;
+const AURA_PERPS_ADDRESS = (process.env.AURA_PERPS_ADDRESS || "").trim();
+const AUSD_ADDRESS       = (process.env.AUSD_ADDRESS || "").trim();
 const ENABLE_SETTLEMENT  = process.env.KEEPER_ENABLE_SETTLEMENT !== "0"; // default ON
 
 // ── Stylus LOB ABI (snake_case selectors) ──
@@ -92,7 +92,7 @@ const PYTH_IDS = {
     ETH: "ff61491a931112ddf1bd8147cd1b641375f79f5825126d665480874634fd0ace",
 };
 
-const ESCROW_ADDRESS = process.env.ESCROW_ADDRESS;
+const ESCROW_ADDRESS = (process.env.ESCROW_ADDRESS || "").trim();
 const ESCROW_ABI = ["function execute_and_bridge(uint256 order_id) external"];
 
 let sepoliaProvider, robinhoodProvider, sepoliaWallet, robinhoodWallet, lob, perps, ausd, oracle, escrow;
