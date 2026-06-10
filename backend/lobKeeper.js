@@ -261,7 +261,8 @@ async function tickAsset(symbol, midPrice) {
 async function cycle() {
     const mids = await fetchPythMids();
     if (Object.keys(mids).length === 0) {
-        console.warn("[Keeper] No Pyth prices, skipping cycle.");
+        console.error("[Keeper] No Pyth prices, skipping cycle.");
+        setTimeout(cycle, INTERVAL_MS);
         return;
     }
 
