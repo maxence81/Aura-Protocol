@@ -59,3 +59,17 @@ stylus-orderbook/stylus-check.log
 
 # Package locks (keep only root + backend + frontend)
 # package-lock.json  ← keep these
+cargo-stylus-fork/
+stylus-temp/
+stylus-escrow-temp/
+data_ingestion/
+backend/build/
+scratch/
+
+# Added to clean tree
+cargo-stylus-fork/
+stylus-temp/
+stylus-escrow-temp/
+data_ingestion/
+backend/build/
+scratch/
