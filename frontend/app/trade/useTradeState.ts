@@ -204,6 +204,7 @@ export function useTradeState() {
     if (!window.ethereum || !account?.address) return;
     addLog(`Closing position #${id}...`, "info");
     try {
+      if (!(await ensureRobinhoodChain())) return;
       const wc = createWalletClient({ chain: { id: 46630, name: "Robinhood Testnet", nativeCurrency: { name: "ETH", symbol: "ETH", decimals: 18 }, rpcUrls: { default: { http: ["https://rpc.testnet.chain.robinhood.com"] } } } as any, account: account.address as `0x${string}`, transport: custom(window.ethereum as any) });
 
       // Check if position is owned by AuraAccount — if so, route through executeBatch
@@ -241,7 +242,7 @@ export function useTradeState() {
         chain: null,
         address: escrowAddr,
         abi: AURA_CROSS_CHAIN_ESCROW_ABI as any,
-        functionName: "cancel_order",
+        functionName: "cancelOrder",
         args: [BigInt(id), account.address as `0x${string}`],
       });
       addLog(`Order #${id} cancelled (TX: ${tx.slice(0,6)}...${tx.slice(-4)})`, "action");
@@ -254,6 +255,7 @@ export function useTradeState() {
     if (!window.ethereum || !account?.address) return;
     addLog(`Partially closing #${id} by ${pct}%...`, "info");
     try {
+      if (!(await ensureRobinhoodChain())) return;
       const wc = createWalletClient({ chain: { id: 46630, name: "Robinhood Testnet", nativeCurrency: { name: "ETH", symbol: "ETH", decimals: 18 }, rpcUrls: { default: { http: ["https://rpc.testnet.chain.robinhood.com"] } } } as any, account: account.address as `0x${string}`, transport: custom(window.ethereum as any) });
       const amountWei = BigInt(Math.floor((currentSize * Number(pct)) / 100 * 1e18));
       const tx = await wc.writeContract({ chain: null, address: CONTRACT_ADDRESSES.AURA_PERPS as `0x${string}`, abi: AURA_PERPS_ABI as any, functionName: "closePositionPartially", args: [BigInt(id), amountWei] });
@@ -266,6 +268,7 @@ export function useTradeState() {
     if (!window.ethereum || !account?.address) return;
     addLog(`Adding $${amt} margin to #${id}...`, "info");
     try {
+      if (!(await ensureRobinhoodChain())) return;
       const wc = createWalletClient({ chain: { id: 46630, name: "Robinhood Testnet", nativeCurrency: { name: "ETH", symbol: "ETH", decimals: 18 }, rpcUrls: { default: { http: ["https://rpc.testnet.chain.robinhood.com"] } } } as any, account: account.address as `0x${string}`, transport: custom(window.ethereum as any) });
       const amountWei = BigInt(Math.floor(Number(amt) * 1e18));
       const approveTx = await wc.writeContract({ chain: null, address: CONTRACT_ADDRESSES.AUSD as `0x${string}`, abi: AUSD_ABI as any, functionName: "approve", args: [CONTRACT_ADDRESSES.AURA_PERPS as `0x${string}`, amountWei] });
@@ -282,6 +285,7 @@ export function useTradeState() {
     if (!window.ethereum || !account?.address) return;
     addLog(`Saving triggers for #${id}...`, "info");
     try {
+      if (!(await ensureRobinhoodChain())) return;
       const wc = createWalletClient({ chain: { id: 46630, name: "Robinhood Testnet", nativeCurrency: { name: "ETH", symbol: "ETH", decimals: 18 }, rpcUrls: { default: { http: ["https://rpc.testnet.chain.robinhood.com"] } } } as any, account: account.address as `0x${string}`, transport: custom(window.ethereum as any) });
       const tpWei = tpStr ? BigInt(Math.floor(Number(tpStr) * 1e18)) : BigInt(0);
       const slWei = slStr ? BigInt(Math.floor(Number(slStr) * 1e18)) : BigInt(0);
