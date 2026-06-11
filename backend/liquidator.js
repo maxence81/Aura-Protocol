@@ -4,7 +4,7 @@ const { Client } = require("pg");
 const { computeHealth } = require("./healthFactor");
 
 const RPC_URL = process.env.RPC_URL || "https://rpc.testnet.chain.robinhood.com";
-const provider = new ethers.JsonRpcProvider(); provider.pollingInterval = 60000;
+const provider = new ethers.JsonRpcProvider(process.env.ROBINHOOD_RPC || RPC_URL); provider.pollingInterval = 60000;
 const PRIVATE_KEY = process.env.LIQUIDATOR_PRIVATE_KEY || process.env.PRIVATE_KEY; // The keeper's wallet
 const wallet = new ethers.Wallet(PRIVATE_KEY, provider);
 
