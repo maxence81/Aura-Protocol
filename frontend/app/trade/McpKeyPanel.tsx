@@ -86,7 +86,7 @@ export default function McpKeyPanel({ walletAddress, auraAccountAddress, agentOp
             const res = await fetch(`${API_URL}/api/mcp-keys`, {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ auraAccountAddress }),
+              body: JSON.stringify({ auraAccountAddress, ownerWallet: walletAddress }),
             });
             const data = await res.json();
             if (!res.ok) { setError(data.error); return; }

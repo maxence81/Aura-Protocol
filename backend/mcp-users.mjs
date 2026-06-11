@@ -33,7 +33,7 @@ function saveStore(store) {
 /**
  * Register a user's AuraAccount. Returns the API key. 1 per account.
  */
-export function registerUser(auraAccountAddress) {
+export function registerUser(auraAccountAddress, ownerWallet) {
   const normalized = auraAccountAddress.toLowerCase();
   const store = loadStore();
 
@@ -43,7 +43,7 @@ export function registerUser(auraAccountAddress) {
   }
 
   const apiKey = `aura_${randomUUID().replace(/-/g, "")}`;
-  store[apiKey] = { auraAccount: normalized, createdAt: Date.now() };
+  store[apiKey] = { auraAccount: normalized, ownerWallet: ownerWallet ? ownerWallet.toLowerCase() : null, createdAt: Date.now() };
   saveStore(store);
   return apiKey;
 }
@@ -54,7 +54,7 @@ export function registerUser(auraAccountAddress) {
 export function resolveApiKey(apiKey) {
   const store = loadStore();
   const record = store[apiKey];
-  return record ? record.auraAccount : null;
+  return record ? { auraAccount: record.auraAccount, ownerWallet: record.ownerWallet || null } : null;
 }
 
 /**

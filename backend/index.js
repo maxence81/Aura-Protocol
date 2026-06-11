@@ -303,7 +303,7 @@ app.post("/api/update-oracle", async (req, res) => {
 
     console.log(`\n [Oracle Service] Update request for ${asset} at $${price}`);
     
-    const provider = new ethers.JsonRpcProvider(); provider.pollingInterval = 60000;
+    const provider = new ethers.JsonRpcProvider(process.env.RPC_URL || process.env.ROBINHOOD_ALCHEMY_RPC || "https://rpc.testnet.chain.robinhood.com"); provider.pollingInterval = 60000;
     const signer = oracleWallet.connect(provider);
     
     const MOCK_ORACLE_ADDR = process.env.MOCK_ORACLE_ADDRESS || "0x0df0FcA88c9DefC9672301892fe2c4f0f9fF5391";
@@ -592,7 +592,7 @@ app.get("/api/orderbook/:asset", async (req, res) => {
       "function getOrderDetails(uint256 orderId) view returns (address user, uint256 assetHash, bool isLong, uint256 collateral, uint256 leverage, uint256 limitPrice, uint256 timestamp, uint256 status)",
     ];
 
-    const provider = new ethers.JsonRpcProvider(); provider.pollingInterval = 60000;
+    const provider = new ethers.JsonRpcProvider(process.env.RPC_URL || process.env.ROBINHOOD_ALCHEMY_RPC || "https://rpc.testnet.chain.robinhood.com"); provider.pollingInterval = 60000;
     const router = new ethers.Contract(routerAddr, ROUTER_ABI, provider);
 
     let rawBids = []; // {price: number, size: number}
@@ -740,7 +740,7 @@ app.post("/api/gasless-execute", async (req, res) => {
       return res.status(400).json({ error: "Missing accountAddress, targets, values, or datas" });
     }
 
-    const provider = new ethers.JsonRpcProvider(); provider.pollingInterval = 60000;
+    const provider = new ethers.JsonRpcProvider(process.env.RPC_URL || process.env.ROBINHOOD_ALCHEMY_RPC || "https://rpc.testnet.chain.robinhood.com"); provider.pollingInterval = 60000;
     const signer = agentWallet.connect(provider);
 
     // ── Audit Trail: record reasoning hash on-chain BEFORE execution ──
@@ -805,11 +805,11 @@ app.get("/api/mcp-keys", async (req, res) => {
 });
 
 app.post("/api/mcp-keys", async (req, res) => {
-  const { auraAccountAddress } = req.body;
+  const { auraAccountAddress, ownerWallet } = req.body;
   if (!auraAccountAddress) return res.status(400).json({ error: "auraAccountAddress required" });
   try {
     const { registerUser } = await import("./mcp-users.mjs");
-    const apiKey = registerUser(auraAccountAddress);
+    const apiKey = registerUser(auraAccountAddress, ownerWallet);
     res.json({ apiKey });
   } catch (e) {
     if (e.message === "ALREADY_EXISTS") return res.status(409).json({ error: "This account already has an MCP key. Revoke it first." });
@@ -835,9 +835,9 @@ app.post("/api/mcp-keys/resolve", async (req, res) => {
   if (!apiKey) return res.status(400).json({ error: "apiKey required" });
   try {
     const { resolveApiKey } = await import("./mcp-users.mjs");
-    const auraAccount = resolveApiKey(apiKey);
-    if (!auraAccount) return res.status(404).json({ error: "Unknown key" });
-    res.json({ auraAccount });
+    const result = resolveApiKey(apiKey);
+    if (!result) return res.status(404).json({ error: "Unknown key" });
+    res.json(result);
   } catch (e) {
     res.status(500).json({ error: e.message });
   }
