@@ -673,10 +673,21 @@ if (args.includes("--http")) {
 
   // Factory: create a fresh McpServer per session
   // If auraAccount is provided, write operations go through executeBatchByAgent
-  function createServer(auraAccount) {
+  function createServer(auraAccount, ownerWallet) {
     const s = new McpServer({ name: "aura-perps", version: "1.0.0" });
     let sessionAccount = auraAccount; // mutable — can be set by authenticate tool
-    let sessionOwnerWallet = null;     // the user's EOA wallet (positions are owned by this)
+    let sessionOwnerWallet = ownerWallet || null;     // the user's EOA wallet (positions are owned by this)
+
+    // Auto-resolve ownerWallet from AuraAccount.owner() if not provided
+    if (!sessionOwnerWallet && sessionAccount) {
+      (async () => {
+        try {
+          const accContract = new ethers.Contract(sessionAccount, ["function owner() view returns (address)"], robinhoodProvider);
+          sessionOwnerWallet = (await accContract.owner()).toLowerCase();
+          console.log(`[MCP] Auto-resolved ownerWallet from AuraAccount.owner(): ${sessionOwnerWallet}`);
+        } catch (e) { console.warn("[MCP] Could not auto-resolve owner:", e.message); }
+      })();
+    }
 
     const BACKEND_RESOLVE_URL = (process.env.BACKEND_URL || "https://aura-backend-backend.up.railway.app") + "/api/mcp-keys/resolve";
 
@@ -1122,7 +1133,7 @@ if (args.includes("--http")) {
   async function resolveAuth(req) {
     const auth = req.headers?.authorization || "";
     const token = auth.startsWith("Bearer ") ? auth.slice(7) : null;
-    if (!token) return null;
+    if (!token) return { auraAccount: null, ownerWallet: null };
     try {
       // Ask the main backend to resolve this token
       const res = await fetch(`${BACKEND_URL}/api/mcp-keys/resolve`, {
@@ -1130,18 +1141,18 @@ if (args.includes("--http")) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ apiKey: token }),
       });
-      if (!res.ok) return null;
+      if (!res.ok) return { auraAccount: null, ownerWallet: null };
       const data = await res.json();
-      return data.auraAccount || null;
-    } catch { return null; }
+      return { auraAccount: data.auraAccount || null, ownerWallet: data.ownerWallet || null };
+    } catch { return { auraAccount: null, ownerWallet: null }; }
   }
 
   app.get("/sse", async (req, res) => {
-    const auraAccount = await resolveAuth(req);
+    const { auraAccount, ownerWallet } = await resolveAuth(req);
     const transport = new SSEServerTransport("/messages", res);
     transports[transport.sessionId] = transport;
     res.on("close", () => { delete transports[transport.sessionId]; });
-    const s = createServer(auraAccount);
+    const s = createServer(auraAccount, ownerWallet);
     await s.connect(transport);
   });
 
@@ -1159,13 +1170,14 @@ if (args.includes("--http")) {
   const { WebStandardStreamableHTTPServerTransport } = await import("@modelcontextprotocol/server");
 
   app.all("/mcp", express.json(), async (req, res) => {
-    let auraAccount = await resolveAuth(req);
+    let { auraAccount, ownerWallet } = await resolveAuth(req);
     // If no Bearer token, check if any recent auth exists (stateless workaround)
     if (!auraAccount && authenticatedAccounts.size > 0) {
       // Use the most recently authenticated account (single-user demo simplification)
       auraAccount = [...authenticatedAccounts.values()].pop();
+      ownerWallet = null; // will be resolved via owner() fallback
     }
-    const s = createServer(auraAccount);
+    const s = createServer(auraAccount, ownerWallet);
     const transport = new WebStandardStreamableHTTPServerTransport({ sessionIdGenerator: undefined });
     await s.connect(transport);
 
