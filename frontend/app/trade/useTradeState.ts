@@ -242,7 +242,7 @@ export function useTradeState() {
         chain: null,
         address: escrowAddr,
         abi: AURA_CROSS_CHAIN_ESCROW_ABI as any,
-        functionName: "cancelOrder",
+        functionName: "cancel_order",
         args: [BigInt(id), account.address as `0x${string}`],
       });
       addLog(`Order #${id} cancelled (TX: ${tx.slice(0,6)}...${tx.slice(-4)})`, "action");
@@ -568,7 +568,7 @@ export function useTradeState() {
         const tx = await sepoliaWc.writeContract({
           address: CONTRACT_ADDRESSES.STYLUS_ESCROW as `0x${string}`,
           abi: AURA_CROSS_CHAIN_ESCROW_ABI,
-          functionName: "placeLimitOrder",
+          functionName: "place_limit_order",
           args: [assetHash, isLong, amountWei, leverageBn, limitPriceWei],
           account: account.address as `0x${string}`,
           gas: 3000000n,

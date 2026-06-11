@@ -95,7 +95,7 @@ const PYTH_IDS = {
 };
 
 const ESCROW_ADDRESS = (process.env.ESCROW_ADDRESS || "").trim();
-const ESCROW_ABI = ["function executeAndBridge(uint256 order_id) external"];
+const ESCROW_ABI = ["function execute_and_bridge(uint256 order_id) external"];
 
 let sepoliaProvider, robinhoodProvider, sepoliaWallet, robinhoodWallet, keeperWalletSepolia, keeperWalletRobinhood, lob, perps, ausd, oracle, escrow;
 
@@ -183,7 +183,7 @@ async function settleFilledOrders(symbol, midPrice) {
             // Execute escrow to collect aUSD collateral on Arbitrum Sepolia
             if (escrow) {
                 try {
-                    const escrowTx = await escrow.executeAndBridge(orderId);
+                    const escrowTx = await escrow.execute_and_bridge(orderId);
                     await escrowTx.wait();
                     console.log(`[Keeper]  Escrow settled on Arbitrum Sepolia for order #${orderId}`);
                 } catch (e) {

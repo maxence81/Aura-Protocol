@@ -32,6 +32,8 @@ const STYLUS_LOB_ADDRESS = process.env.STYLUS_LOB_ADDRESS;
 const AURA_PERPS_ADDRESS = process.env.AURA_PERPS_ADDRESS;
 const AUSD_ADDRESS = process.env.AUSD_ADDRESS;
 const MOCK_ORACLE_ADDRESS = process.env.MOCK_ORACLE_ADDRESS;
+const ESCROW_ADDRESS = process.env.ESCROW_ADDRESS;
+const ARB_SEPOLIA_AUSD = process.env.ARB_SEPOLIA_AUSD;
 // ── Providers & Agent Wallet ──
 const sepoliaProvider = new ethers.JsonRpcProvider(ARB_SEPOLIA_RPC);
 const robinhoodProvider = new ethers.JsonRpcProvider(ROBINHOOD_RPC);
@@ -71,6 +73,11 @@ const AUSD_ABI = [
   "function approve(address spender, uint256 amount) returns (bool)",
   "function allowance(address owner, address spender) view returns (uint256)",
   "function balanceOf(address) view returns (uint256)",
+];
+
+const ESCROW_ABI = [
+  "function place_limit_order(uint256 asset_hash, bool is_long, uint256 collateral, uint256 leverage, uint256 limit_price) external returns (uint256)",
+  "function cancel_order(uint256 order_id, address caller) external"
 ];
 
 const ORACLE_ABI = ["function setPrice(string asset, uint256 price) external"];
@@ -196,12 +203,21 @@ server.registerTool("place_limit_order", {
     limit_price: z.number().describe("Limit price in USD"),
   }),
 }, async ({ asset, is_long, collateral, leverage, limit_price }) => {
-  const lob = new ethers.Contract(STYLUS_LOB_ADDRESS, STYLUS_LOB_ABI, agentWalletSepolia);
   const hash = assetHash(asset);
   const colWei = ethers.parseUnits(collateral.toString(), 18);
   const priceWei = ethers.parseUnits(limit_price.toString(), 18);
-  const tx = await lob.store_order(agentWalletSepolia.address, hash, is_long, colWei, BigInt(leverage), priceWei);
+  
+  // Approve aUSD on Sepolia for Escrow
+  const sepAusd = new ethers.Contract(ARB_SEPOLIA_AUSD, AUSD_ABI, agentWalletSepolia);
+  const allowance = await sepAusd.allowance(agentWalletSepolia.address, ESCROW_ADDRESS);
+  if (allowance < colWei) {
+    await (await sepAusd.approve(ESCROW_ADDRESS, ethers.MaxUint256)).wait();
+  }
+
+  const escrow = new ethers.Contract(ESCROW_ADDRESS, ESCROW_ABI, agentWalletSepolia);
+  const tx = await escrow.place_limit_order(hash, is_long, colWei, BigInt(leverage), priceWei);
   const receipt = await tx.wait();
+  
   return { content: [{ type: "text", text: JSON.stringify({
     status: "placed", asset: asset.toUpperCase(), side: is_long ? "LONG" : "SHORT",
     collateral, leverage, limit_price, chain: "Arbitrum Sepolia", txHash: receipt.hash,
@@ -534,8 +550,8 @@ server.registerTool("cancel_limit_order", {
   description: "Cancel an active limit order on the Stylus LOB (Arbitrum Sepolia)",
   inputSchema: z.object({ order_id: z.number().describe("Order ID to cancel") }),
 }, async ({ order_id }) => {
-  const lob = new ethers.Contract(STYLUS_LOB_ADDRESS, STYLUS_LOB_ABI, agentWalletSepolia);
-  const tx = await lob.cancel_order(BigInt(order_id), agentWalletSepolia.address);
+  const escrow = new ethers.Contract(ESCROW_ADDRESS, ESCROW_ABI, agentWalletSepolia);
+  const tx = await escrow.cancel_order(BigInt(order_id), agentWalletSepolia.address);
   const receipt = await tx.wait();
   return { content: [{ type: "text", text: JSON.stringify({ status: "cancelled", orderId: order_id, chain: "Arbitrum Sepolia", txHash: receipt.hash }, null, 2) }] };
 });
@@ -696,13 +712,7 @@ if (args.includes("--http")) {
       return { content: [{ type: "text", text: JSON.stringify({ asset: asset.toUpperCase(), bids: decode(bidsRaw), asks: decode(asksRaw), totalBids: Number(bookDepth[0]), totalAsks: Number(bookDepth[1]) }, null, 2) }] };
     });
 
-    s.registerTool("place_limit_order", { description: "Place limit order on Stylus LOB", inputSchema: z.object({ asset: z.string(), is_long: z.boolean(), collateral: z.number(), leverage: z.number().min(1).max(50), limit_price: z.number() }) }, async ({ asset, is_long, collateral, leverage, limit_price }) => {
-      const lob = new ethers.Contract(STYLUS_LOB_ADDRESS, STYLUS_LOB_ABI, agentWalletSepolia);
-      const owner = sessionAccount || agentWalletSepolia.address;
-      const tx = await lob.store_order(owner, assetHash(asset), is_long, ethers.parseUnits(collateral.toString(), 18), BigInt(leverage), ethers.parseUnits(limit_price.toString(), 18));
-      const receipt = await tx.wait();
-      return { content: [{ type: "text", text: JSON.stringify({ status: "placed", owner, asset: asset.toUpperCase(), side: is_long ? "LONG" : "SHORT", collateral, leverage, limit_price, txHash: receipt.hash }, null, 2) }] };
-    });
+
 
     const timeoutWait = (tx, ms = 15000) => Promise.race([tx.wait(), new Promise((_, r) => setTimeout(() => r(new Error("tx.wait timeout")), ms))]);
 
@@ -958,13 +968,7 @@ if (args.includes("--http")) {
       return { content: [{ type: "text", text: JSON.stringify({ supported: assets, count: assets.length }, null, 2) }] };
     });
 
-    s.registerTool("cancel_limit_order", { description: "Cancel a limit order on Stylus LOB", inputSchema: z.object({ order_id: z.number() }) }, async ({ order_id }) => {
-      const lob = new ethers.Contract(STYLUS_LOB_ADDRESS, STYLUS_LOB_ABI, agentWalletSepolia);
-      const owner = sessionAccount || agentWalletSepolia.address;
-      const tx = await lob.cancel_order(BigInt(order_id), owner);
-      const receipt = await tx.wait();
-      return { content: [{ type: "text", text: JSON.stringify({ status: "cancelled", orderId: order_id, txHash: receipt.hash }, null, 2) }] };
-    });
+
 
     s.registerTool("get_liquidation_price", { description: "Calculate liquidation price for a position", inputSchema: z.object({ position_id: z.number() }) }, async ({ position_id }) => {
       const perps = new ethers.Contract(AURA_PERPS_ADDRESS, PERPS_ABI, robinhoodProvider);
