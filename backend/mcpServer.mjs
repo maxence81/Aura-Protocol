@@ -776,13 +776,16 @@ if (args.includes("--http")) {
       });
     });
 
-    s.registerTool("get_positions", { description: "Get your open positions from AuraPerps (positions owned by your AuraAccount or the agent wallet)", inputSchema: z.object({}) }, async () => {
+    s.registerTool("get_positions", { description: "Get your open positions from AuraPerps (positions owned by your AuraAccount)", inputSchema: z.object({}) }, async () => {
       const perps = new ethers.Contract(AURA_PERPS_ADDRESS, PERPS_ABI, robinhoodProvider);
       const nextId = Number(await perps.nextPositionId());
       const positions = [];
-      const manageable = new Set([agentWallet.address.toLowerCase()]);
+      // Only show positions belonging to the authenticated user's AuraAccount — never the agent wallet's own positions
+      const manageable = new Set();
       if (sessionAccount) manageable.add(sessionAccount.toLowerCase());
-      for (let i = 0; i < nextId && positions.length < 30; i++) { try { const pos = await perps.positions(i); if (pos.isOpen && manageable.has(pos.owner.toLowerCase())) { const price = await fetchPythPrice(pos.asset); positions.push({ id: i, owner: pos.owner, asset: pos.asset, side: pos.isLong ? "LONG" : "SHORT", collateral: Number(ethers.formatUnits(pos.collateralAmount, 18)), leverage: Number(pos.leverage), entryPrice: Number(ethers.formatUnits(pos.entryPrice, 18)), currentPrice: price }); } } catch { continue; } }
+      else manageable.add(agentWallet.address.toLowerCase()); // fallback only if no session
+      // Scan from most recent to oldest for efficiency
+      for (let i = nextId - 1; i >= 0 && positions.length < 30; i--) { try { const pos = await perps.positions(i); if (pos.isOpen && manageable.has(pos.owner.toLowerCase())) { const price = await fetchPythPrice(pos.asset); positions.push({ id: i, owner: pos.owner, asset: pos.asset, side: pos.isLong ? "LONG" : "SHORT", collateral: Number(ethers.formatUnits(pos.collateralAmount, 18)), leverage: Number(pos.leverage), entryPrice: Number(ethers.formatUnits(pos.entryPrice, 18)), currentPrice: price }); } } catch { continue; } }
       return { content: [{ type: "text", text: JSON.stringify({ account: sessionAccount || "agent", positions, count: positions.length }, null, 2) }] };
     });
 
@@ -956,10 +959,12 @@ if (args.includes("--http")) {
     s.registerTool("get_pnl_summary", { description: "Get PnL summary: total PnL, win rate, best/worst trade", inputSchema: z.object({}) }, async () => {
       const perps = new ethers.Contract(AURA_PERPS_ADDRESS, PERPS_ABI, robinhoodProvider);
       const nextId = Number(await perps.nextPositionId());
-      let totalPnl = 0, wins = 0, losses = 0, bestPnl = -Infinity, worstPnl = Infinity, totalVolume = 0, openCount = 0;
-      for (let i = 0; i < nextId && i < 100; i++) { try { const pos = await perps.positions(i); const size = Number(ethers.formatUnits(pos.positionSize, 18)); totalVolume += size; if (pos.isOpen) { openCount++; const price = await fetchPythPrice(pos.asset); if (price) { const [pnl, isProfit] = await perps.calculatePnL(i, ethers.parseUnits(price.toFixed(2), 18)); const pnlNum = Number(ethers.formatUnits(pnl, 18)) * (isProfit ? 1 : -1); totalPnl += pnlNum; if (pnlNum > 0) wins++; else losses++; if (pnlNum > bestPnl) bestPnl = pnlNum; if (pnlNum < worstPnl) worstPnl = pnlNum; } } else { const pnlNum = Number(ethers.formatUnits(pos.realizedPnl, 18)) * (pos.isProfitRealized ? 1 : -1); totalPnl += pnlNum; if (pnlNum > 0) wins++; else losses++; if (pnlNum > bestPnl) bestPnl = pnlNum; if (pnlNum < worstPnl) worstPnl = pnlNum; } } catch { continue; } }
+      // Only count positions belonging to the authenticated user
+      const ownerAddr = sessionAccount ? sessionAccount.toLowerCase() : agentWallet.address.toLowerCase();
+      let totalPnl = 0, wins = 0, losses = 0, bestPnl = -Infinity, worstPnl = Infinity, totalVolume = 0, openCount = 0, scanned = 0;
+      for (let i = nextId - 1; i >= 0 && scanned < 200; i--) { scanned++; try { const pos = await perps.positions(i); if (pos.owner.toLowerCase() !== ownerAddr) continue; const size = Number(ethers.formatUnits(pos.positionSize, 18)); totalVolume += size; if (pos.isOpen) { openCount++; const price = await fetchPythPrice(pos.asset); if (price) { const [pnl, isProfit] = await perps.calculatePnL(i, ethers.parseUnits(price.toFixed(2), 18)); const pnlNum = Number(ethers.formatUnits(pnl, 18)) * (isProfit ? 1 : -1); totalPnl += pnlNum; if (pnlNum > 0) wins++; else losses++; if (pnlNum > bestPnl) bestPnl = pnlNum; if (pnlNum < worstPnl) worstPnl = pnlNum; } } else { const pnlNum = Number(ethers.formatUnits(pos.realizedPnl, 18)) * (pos.isProfitRealized ? 1 : -1); totalPnl += pnlNum; if (pnlNum > 0) wins++; else losses++; if (pnlNum > bestPnl) bestPnl = pnlNum; if (pnlNum < worstPnl) worstPnl = pnlNum; } } catch { continue; } }
       const totalTrades = wins + losses;
-      return { content: [{ type: "text", text: JSON.stringify({ totalPnl: totalPnl.toFixed(2), winRate: totalTrades > 0 ? `${((wins / totalTrades) * 100).toFixed(1)}%` : "N/A", wins, losses, bestTrade: bestPnl === -Infinity ? "N/A" : bestPnl.toFixed(2), worstTrade: worstPnl === Infinity ? "N/A" : worstPnl.toFixed(2), openPositions: openCount, totalVolume: totalVolume.toFixed(2), totalTrades }, null, 2) }] };
+      return { content: [{ type: "text", text: JSON.stringify({ account: sessionAccount || agentWallet.address, totalPnl: totalPnl.toFixed(2), winRate: totalTrades > 0 ? `${((wins / totalTrades) * 100).toFixed(1)}%` : "N/A", wins, losses, bestTrade: bestPnl === -Infinity ? "N/A" : bestPnl.toFixed(2), worstTrade: worstPnl === Infinity ? "N/A" : worstPnl.toFixed(2), openPositions: openCount, totalVolume: totalVolume.toFixed(2), totalTrades }, null, 2) }] };
     });
 
     s.registerTool("get_supported_assets", { description: "List all supported trading assets with current prices", inputSchema: z.object({}) }, async () => {
