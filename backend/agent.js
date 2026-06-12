@@ -122,63 +122,77 @@ async function calculateMinAmountOut(tokenInSymbol, tokenOutSymbol, amountInWei,
 }
 
 function buildEthToTokenSwap(amountWei, tokenOutAddress, recipient, minAmountOut = BigInt(0)) {
+    // WORKAROUND: On Robinhood Testnet, Synthra's WRAP_ETH (0x0b) and Permit2 don't work.
+    // Proven pattern: 1) deposit ETH→WETH, 2) transfer WETH to router, 3) swap with payerIsUser=false.
+
+    const wethIface = new ethers.Interface(["function deposit() external payable"]);
+    const erc20Iface = new ethers.Interface(ERC20_ABI);
     const routerIface = new ethers.Interface(["function execute(bytes calldata commands, bytes[] calldata inputs, uint256 deadline) external payable"]);
-    const commands = "0x0b00";
-    
-    // WRAP_ETH: recipient 2 (Router)
-    const wrapInput = ethers.AbiCoder.defaultAbiCoder().encode(["uint256", "uint256"], [2, amountWei]);
-    
-    // Correctly pack the path for Uniswap V3: [address, uint24, address]
-    // 3000 fee = 0x000bb8
+
+    const WETH = OFFICIAL_CONTRACTS.TOKENS.WETH;
+    const ROUTER = OFFICIAL_CONTRACTS.PROTOCOLS.SYNTHRA_ROUTER;
+
+    // Step 1: Wrap ETH to WETH
+    const depositData = wethIface.encodeFunctionData("deposit");
+
+    // Step 2: Transfer WETH to the Synthra Router
+    const transferData = erc20Iface.encodeFunctionData("transfer", [ROUTER, amountWei]);
+
+    // Step 3: Swap WETH → token via V3_SWAP_EXACT_IN (payerIsUser=false — router already holds the tokens)
+    const commands = "0x00";
     const path = ethers.solidityPacked(
         ["address", "uint24", "address"],
-        [OFFICIAL_CONTRACTS.TOKENS.WETH, 3000, tokenOutAddress]
+        [WETH, 3000, tokenOutAddress]
     );
-    
-    // V3_SWAP_EXACT_IN: recipient (user), amountIn, minAmountOut, path, payerIsUser (false)
     const swapInput = ethers.AbiCoder.defaultAbiCoder().encode(
-        ["address", "uint256", "uint256", "bytes", "bool"], 
+        ["address", "uint256", "uint256", "bytes", "bool"],
         [recipient, amountWei, minAmountOut, path, false]
     );
-    
     const deadline = Math.floor(Date.now() / 1000) + 1800;
+    const executeData = routerIface.encodeFunctionData("execute", [commands, [swapInput], deadline]);
 
     return {
-        targets: [OFFICIAL_CONTRACTS.PROTOCOLS.SYNTHRA_ROUTER],
-        values: [amountWei.toString()],
-        datas: [routerIface.encodeFunctionData("execute", [commands, [wrapInput, swapInput], deadline])]
+        targets: [WETH, WETH, ROUTER],
+        values: [amountWei.toString(), "0", "0"],
+        datas: [depositData, transferData, executeData],
+        requiredApproval: null
     };
 }
 
 function buildTokenToEthSwap(amountWei, tokenInAddress, recipient, eoa, targetAccount, symbol, totalSwaps = 1, minAmountOut = BigInt(0)) {
+    // WORKAROUND: Permit2 + UNWRAP_WETH don't work on Robinhood Testnet.
+    // Pattern: 1) pull token from EOA, 2) transfer to router, 3) swap Token→WETH with payerIsUser=false.
+    // User receives WETH instead of native ETH — functionally identical on testnet.
+
     const routerIface = new ethers.Interface(["function execute(bytes calldata commands, bytes[] calldata inputs, uint256 deadline) external payable"]);
     const erc20Iface = new ethers.Interface(ERC20_ABI);
-    const permit2Iface = new ethers.Interface(["function approve(address token, address spender, uint160 amount, uint48 expiration) external"]);
 
+    const ROUTER = OFFICIAL_CONTRACTS.PROTOCOLS.SYNTHRA_ROUTER;
     const totalApproval = (BigInt(amountWei) * BigInt(totalSwaps)).toString();
 
+    // Step 1: Pull token from EOA to AuraAccount (gasless mode requires this)
     const pullData = erc20Iface.encodeFunctionData("transferFrom", [eoa, targetAccount, amountWei]);
-    const approvePermit2Data = erc20Iface.encodeFunctionData("approve", [OFFICIAL_CONTRACTS.PROTOCOLS.PERMIT2, totalApproval]);
-    const expiration = Math.floor(Date.now() / 1000) + (30 * 24 * 3600); // 30 days
-    const permit2ApproveData = permit2Iface.encodeFunctionData("approve", [tokenInAddress, OFFICIAL_CONTRACTS.PROTOCOLS.SYNTHRA_ROUTER, totalApproval, expiration]);
+
+    // Step 2: Transfer token from AuraAccount to the Router
+    const transferToRouter = erc20Iface.encodeFunctionData("transfer", [ROUTER, amountWei]);
     
-    // Commands: 0x00 = V3_SWAP_EXACT_IN, 0x0c = UNWRAP_WETH
-    const commands = "0x000c";
-    
+    // Step 3: Swap Token → WETH (payerIsUser=false — router already holds the tokens)
+    const commands = "0x00";
     const path = ethers.solidityPacked(
         ["address", "uint24", "address"],
         [tokenInAddress, 3000, OFFICIAL_CONTRACTS.TOKENS.WETH]
     );
-
-    // IMPORTANT: recipient 0x00...02 for unwrap
-    const swapInput = ethers.AbiCoder.defaultAbiCoder().encode(["address", "uint256", "uint256", "bytes", "bool"], ["0x0000000000000000000000000000000000000002", amountWei, minAmountOut, path, true]);
-    const unwrapInput = ethers.AbiCoder.defaultAbiCoder().encode(["address", "uint256"], [recipient, 0]);
+    const swapInput = ethers.AbiCoder.defaultAbiCoder().encode(
+        ["address", "uint256", "uint256", "bytes", "bool"],
+        [recipient, amountWei, minAmountOut, path, false]
+    );
     const deadline = Math.floor(Date.now() / 1000) + 1800;
+    const executeData = routerIface.encodeFunctionData("execute", [commands, [swapInput], deadline]);
 
     return {
-        targets: [tokenInAddress, tokenInAddress, OFFICIAL_CONTRACTS.PROTOCOLS.PERMIT2, OFFICIAL_CONTRACTS.PROTOCOLS.SYNTHRA_ROUTER],
-        values: ["0", "0", "0", "0"],
-        datas: [pullData, approvePermit2Data, permit2ApproveData, routerIface.encodeFunctionData("execute", [commands, [swapInput, unwrapInput], deadline])],
+        targets: [tokenInAddress, tokenInAddress, ROUTER],
+        values: ["0", "0", "0"],
+        datas: [pullData, transferToRouter, executeData],
         requiredApproval: {
             tokenAddress: tokenInAddress,
             spender: targetAccount,
@@ -189,31 +203,38 @@ function buildTokenToEthSwap(amountWei, tokenInAddress, recipient, eoa, targetAc
 }
 
 function buildTokenToTokenSwap(amountWei, tokenInAddress, tokenOutAddress, recipient, eoa, targetAccount, symbol, totalSwaps = 1, minAmountOut = BigInt(0)) {
+    // WORKAROUND: Permit2 doesn't work on Robinhood Testnet Synthra deployment.
+    // Pattern: 1) pull token from EOA, 2) transfer to router, 3) swap with payerIsUser=false.
+
     const routerIface = new ethers.Interface(["function execute(bytes calldata commands, bytes[] calldata inputs, uint256 deadline) external payable"]);
     const erc20Iface = new ethers.Interface(ERC20_ABI);
-    const permit2Iface = new ethers.Interface(["function approve(address token, address spender, uint160 amount, uint48 expiration) external"]);
 
+    const ROUTER = OFFICIAL_CONTRACTS.PROTOCOLS.SYNTHRA_ROUTER;
     const totalApproval = (BigInt(amountWei) * BigInt(totalSwaps)).toString();
 
+    // Step 1: Pull token from EOA to AuraAccount
     const pullData = erc20Iface.encodeFunctionData("transferFrom", [eoa, targetAccount, amountWei]);
-    const approvePermit2Data = erc20Iface.encodeFunctionData("approve", [OFFICIAL_CONTRACTS.PROTOCOLS.PERMIT2, totalApproval]);
-    const expiration = Math.floor(Date.now() / 1000) + (30 * 24 * 3600); // 30 days
-    const permit2ApproveData = permit2Iface.encodeFunctionData("approve", [tokenInAddress, OFFICIAL_CONTRACTS.PROTOCOLS.SYNTHRA_ROUTER, totalApproval, expiration]);
 
+    // Step 2: Transfer token from AuraAccount to the Router
+    const transferToRouter = erc20Iface.encodeFunctionData("transfer", [ROUTER, amountWei]);
+
+    // Step 3: Swap via V3_SWAP_EXACT_IN (payerIsUser=false)
     const commands = "0x00";
-    
     const path = ethers.solidityPacked(
         ["address", "uint24", "address"],
         [tokenInAddress, 3000, tokenOutAddress]
     );
-
-    const swapInput = ethers.AbiCoder.defaultAbiCoder().encode(["address", "uint256", "uint256", "bytes", "bool"], [recipient, amountWei, minAmountOut, path, true]);
+    const swapInput = ethers.AbiCoder.defaultAbiCoder().encode(
+        ["address", "uint256", "uint256", "bytes", "bool"],
+        [recipient, amountWei, minAmountOut, path, false]
+    );
     const deadline = Math.floor(Date.now() / 1000) + 1800;
+    const executeData = routerIface.encodeFunctionData("execute", [commands, [swapInput], deadline]);
 
     return {
-        targets: [tokenInAddress, tokenInAddress, OFFICIAL_CONTRACTS.PROTOCOLS.PERMIT2, OFFICIAL_CONTRACTS.PROTOCOLS.SYNTHRA_ROUTER],
-        values: ["0", "0", "0", "0"],
-        datas: [pullData, approvePermit2Data, permit2ApproveData, routerIface.encodeFunctionData("execute", [commands, [swapInput], deadline])],
+        targets: [tokenInAddress, tokenInAddress, ROUTER],
+        values: ["0", "0", "0"],
+        datas: [pullData, transferToRouter, executeData],
         requiredApproval: {
             tokenAddress: tokenInAddress,
             spender: targetAccount,
@@ -803,7 +824,7 @@ async function proposeExecution(request, targetAccount, eoa, tzOffsetMin = 0) {
 
 
 
-const provider = new ethers.JsonRpcProvider(); provider.pollingInterval = 60000;
+const provider = new ethers.JsonRpcProvider(process.env.RPC_URL || process.env.ROBINHOOD_ALCHEMY_RPC || "https://rpc.testnet.chain.robinhood.com"); provider.pollingInterval = 60000;
 
 async function runAuraCommittee(request, targetAccount, eoa, tzOffsetMin = 0, onStep = null) {
     // ── Intent routing ──

@@ -14,8 +14,8 @@ async function processRpcQueue() {
         } catch (err) {
             reject(err);
         }
-        // Wait 250ms between requests to ensure max 4 requests/sec per instance (8 total)
-        await new Promise(r => setTimeout(r, 250));
+        // Wait 500ms between requests to avoid 429 rate limits on free RPCs
+        await new Promise(r => setTimeout(r, 500));
     }
     isProcessingRpc = false;
 }
@@ -36,16 +36,26 @@ global.fetch = async function(url, options) {
     return originalFetch(url, options);
 };
 
-// We also keep the ethers patch just in case, but fetch is foolproof
+// Patch ethers JsonRpcProvider to use staticNetwork and slow polling.
+// This completely eliminates the "failed to detect network" spam
+// because ethers won't need to call eth_chainId on every instantiation.
 const { ethers } = require("ethers");
 if (ethers && ethers.JsonRpcProvider) {
     const OriginalJsonRpcProvider = ethers.JsonRpcProvider;
     ethers.JsonRpcProvider = class extends OriginalJsonRpcProvider {
-        constructor(...args) {
-            super(...args);
+        constructor(url, network, options) {
+            // If it's a Robinhood testnet URL, use static network (chain 46630)
+            const urlStr = typeof url === 'string' ? url : (url?.url || '');
+            if (urlStr.includes("robinhood.com")) {
+                const robinhoodNetwork = ethers.Network.from(46630);
+                super(url, robinhoodNetwork, { ...options, staticNetwork: robinhoodNetwork });
+            } else {
+                super(url, network, options);
+            }
             this.pollingInterval = 60000;
         }
     };
 }
 
 module.exports = true;
+
