@@ -654,6 +654,73 @@ export default function Home() {
 
     // --- AUTOMATION: Approval de l'EOA vers Aura Account si nécessaire ---
     const executeSwap = async () => {
+        const totalValue = txParams.values ? txParams.values.reduce((acc: bigint, v: any) => acc + BigInt(v), BigInt(0)) : BigInt(0);
+
+        // ──────────────────────────────────────────────────────────────
+        // FIX: The deployed AuraAccount.executeBatch is NOT payable.
+        // If the inner batch needs ETH (e.g., ETH→Token swap), we must
+        // pre-fund the AuraAccount via a plain ETH transfer (its
+        // SimpleAccount `receive()` is payable). The inner router call 
+        // uses the account's own balance to forward ETH.
+        // ──────────────────────────────────────────────────────────────
+        if (totalValue > 0n && auraAccountAddress && txParams.kind !== 'LIMIT_ORDER') {
+            try {
+                const rpc = getRpcClient({ client, chain: robinhoodChain });
+                const auraBalance = await eth_getBalance(rpc, { address: auraAccountAddress });
+
+                if (auraBalance < totalValue) {
+                    const shortfall = totalValue - auraBalance;
+                    addMessage({
+                        id: generateId(),
+                        type: 'system',
+                        content: `Step 1/2: Funding Aura Account with ${(Number(shortfall) / 1e18).toFixed(6)} ETH for the swap...`,
+                        timestamp: new Date()
+                    });
+
+                    const fundingTx = prepareTransaction({
+                        client,
+                        chain: robinhoodChain,
+                        to: auraAccountAddress,
+                        value: shortfall
+                    });
+
+                    const fundingResult: any = await new Promise((resolve, reject) => {
+                        sendTransaction(fundingTx, {
+                            onSuccess: (tx) => resolve(tx),
+                            onError: (err) => reject(err),
+                        });
+                    });
+
+                    await waitForReceipt({
+                        client,
+                        chain: robinhoodChain,
+                        transactionHash: fundingResult.transactionHash
+                    });
+
+                    addMessage({
+                        id: generateId(),
+                        type: 'system',
+                        content: `Step 1/2 Complete: Aura Account funded. Executing swap...`,
+                        timestamp: new Date()
+                    });
+                }
+            } catch (err: any) {
+                addMessage({
+                    id: generateId(),
+                    type: 'system',
+                    content: `Funding failed: ${err.message || err}. Swap cancelled.`,
+                    timestamp: new Date()
+                });
+                setMessages((prev) => prev.map((msg) => {
+                    if (msg.transaction?.id === pendingTxId) {
+                        return { ...msg, transaction: { ...msg.transaction, status: 'rejected' as const } };
+                    }
+                    return msg;
+                }));
+                return;
+            }
+        }
+
         // ─── Gasless Mode ─────────────────────────────────────────────
         // If the user has an AuraAccount with the backend agent registered,
         // we can execute via the backend relay (zero gas for the user).
@@ -852,73 +919,6 @@ export default function Home() {
             });
         } else {
             const contract = getContract({ client, chain: robinhoodChain, address: auraAccountAddress, abi: AURA_ACCOUNT_ABI });
-            const totalValue = txParams.values.reduce((acc: bigint, v: any) => acc + BigInt(v), BigInt(0));
-
-            // ──────────────────────────────────────────────────────────────
-            // FIX: The deployed AuraAccount.executeBatch is NOT payable.
-            // If the inner batch needs ETH (e.g., ETH→Token swap), we must
-            // pre-fund the AuraAccount via a plain ETH transfer (its
-            // SimpleAccount `receive()` is payable), then call executeBatch
-            // with value: 0. The inner router call uses the account's own
-            // balance to forward ETH.
-            // ──────────────────────────────────────────────────────────────
-            if (totalValue > 0n) {
-                try {
-                    const rpc = getRpcClient({ client, chain: robinhoodChain });
-                    const auraBalance = await eth_getBalance(rpc, { address: auraAccountAddress });
-
-                    if (auraBalance < totalValue) {
-                        const shortfall = totalValue - auraBalance;
-                        addMessage({
-                            id: generateId(),
-                            type: 'system',
-                            content: `Step 1/2: Funding Aura Account with ${(Number(shortfall) / 1e18).toFixed(6)} ETH for the swap...`,
-                            timestamp: new Date()
-                        });
-
-                        const fundingTx = prepareTransaction({
-                            client,
-                            chain: robinhoodChain,
-                            to: auraAccountAddress,
-                            value: shortfall
-                        });
-
-                        const fundingResult: any = await new Promise((resolve, reject) => {
-                            sendTransaction(fundingTx, {
-                                onSuccess: (tx) => resolve(tx),
-                                onError: (err) => reject(err),
-                            });
-                        });
-
-                        await waitForReceipt({
-                            client,
-                            chain: robinhoodChain,
-                            transactionHash: fundingResult.transactionHash
-                        });
-
-                        addMessage({
-                            id: generateId(),
-                            type: 'system',
-                            content: `Step 1/2 Complete: Aura Account funded. Executing swap...`,
-                            timestamp: new Date()
-                        });
-                    }
-                } catch (err: any) {
-                    addMessage({
-                        id: generateId(),
-                        type: 'system',
-                        content: `Funding failed: ${err.message || err}. Swap cancelled.`,
-                        timestamp: new Date()
-                    });
-                    setMessages((prev) => prev.map((msg) => {
-                        if (msg.transaction?.id === pendingTxId) {
-                            return { ...msg, transaction: { ...msg.transaction, status: 'rejected' as const } };
-                        }
-                        return msg;
-                    }));
-                    return;
-                }
-            }
 
             transaction = prepareContractCall({
                 contract,

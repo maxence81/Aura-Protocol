@@ -21,7 +21,7 @@ const VAULT_CONFIG = {
         TSLA: "0xC9f9c86933092BbbfFF3CCb4b105A4A94bf3Bd4E",
         AMZN: "0x5884aD2f920c162CFBbACc88C9C51AA75eC09E02",
         NFLX: "0x4e464c5800000000000000000000000000000000",
-        AMD:  "0x414d440000000000000000000000000000000000",
+        AMD:  "0x71178BAc73cBeb415514eB542a8995b82669778d",
         PLTR: "0x504c545200000000000000000000000000000000",
         BTC:  "0x2260fac5e5542a773aa44fbcfedf7c193bc2c599"
     }
@@ -285,7 +285,7 @@ async function runVaultStrategyCycle() {
     console.log("║    AURA FUND MANAGER — Strategy Cycle  ║");
     console.log("╚══════════════════════════════════════════╝\n");
 
-    const provider = new ethers.JsonRpcProvider(); provider.pollingInterval = 60000;
+    const provider = new ethers.JsonRpcProvider(process.env.RPC_URL || process.env.ROBINHOOD_ALCHEMY_RPC || "https://rpc.testnet.chain.robinhood.com"); provider.pollingInterval = 60000;
     const wallet = new ethers.Wallet(require("fs").readFileSync("backend/.aura_agent_key", "utf8").trim(), provider);
     const vaultAddr = process.env.INTELLIGENCE_VAULT_ADDRESS;
 

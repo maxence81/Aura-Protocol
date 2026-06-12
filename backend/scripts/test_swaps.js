@@ -18,6 +18,7 @@ const TOKENS = {
     WETH: "0x33e4191705c386532ba27cBF171Db86919200B94",
     AMZN: "0x5884aD2f920c162CFBbACc88C9C51AA75eC09E02",
     TSLA: "0xC9f9c86933092BbbfFF3CCb4b105A4A94bf3Bd4E",
+    AMD: "0x71178BAc73cBeb415514eB542a8995b82669778d",
     AUSD: process.env.AUSD_ADDRESS || "0x359961489f069F16E5dbA46d9b174bBF7b25147B",
 };
 
@@ -68,8 +69,30 @@ async function main() {
 
     // Test 3: AMZN → TSLA
     await testTokenToToken(wallet, TOKENS.AMZN, TOKENS.TSLA, "AMZN", "TSLA", "0.0001");
+    await sleep(2000);
 
-    console.log(`\n═══════════════════════════════════`);
+    // Test 4: AMZN → AMD
+    await testTokenToToken(wallet, TOKENS.AMZN, TOKENS.AMD, "AMZN", "AMD", "0.0001");
+    await sleep(2000);
+
+    // Test 5: TSLA → AMZN
+    await testTokenToToken(wallet, TOKENS.TSLA, TOKENS.AMZN, "TSLA", "AMZN", "0.0001");
+    await sleep(2000);
+
+    // Test 6: TSLA → WETH
+    await testTokenToToken(wallet, TOKENS.TSLA, TOKENS.WETH, "TSLA", "WETH", "0.0001");
+    await sleep(2000);
+
+    // Test 7: WETH → AMZN
+    await testTokenToToken(wallet, TOKENS.WETH, TOKENS.AMZN, "WETH", "AMZN", "0.0001");
+    await sleep(2000);
+
+    // Test 8: WETH → TSLA
+    await testTokenToToken(wallet, TOKENS.WETH, TOKENS.TSLA, "WETH", "TSLA", "0.0001");
+    await sleep(2000);
+
+    // Test 9: ETH → TSLA
+    await testEthToToken(wallet, TOKENS.TSLA, "TSLA", "0.0001");
     console.log(`✅ Passed: ${passed}  ❌ Failed: ${failed}`);
     console.log(`═══════════════════════════════════\n`);
     process.exit(failed > 0 ? 1 : 0);
@@ -131,7 +154,16 @@ async function testTokenToToken(wallet, tokenInAddr, tokenOutAddr, inSym, outSym
 
         // 2. Swap
         const router = new ethers.Contract(ROUTER, ROUTER_ABI, wallet);
-        const path = ethers.solidityPacked(["address","uint24","address"], [tokenInAddr, 3000, tokenOutAddr]);
+        const wethAddress = TOKENS.WETH; // Use WETH from TOKENS
+        let path;
+        if (tokenInAddr.toLowerCase() === wethAddress.toLowerCase() || tokenOutAddr.toLowerCase() === wethAddress.toLowerCase()) {
+            path = ethers.solidityPacked(["address","uint24","address"], [tokenInAddr, 3000, tokenOutAddr]);
+        } else {
+            path = ethers.solidityPacked(
+                ["address", "uint24", "address", "uint24", "address"],
+                [tokenInAddr, 3000, wethAddress, 3000, tokenOutAddr]
+            );
+        }
         const inp = ethers.AbiCoder.defaultAbiCoder().encode(
             ["address","uint256","uint256","bytes","bool"],
             [wallet.address, amt, 0, path, false]

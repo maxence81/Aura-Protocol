@@ -13,7 +13,7 @@ const OFFICIAL_CONTRACTS = {
         TSLA: "0xC9f9c86933092BbbfFF3CCb4b105A4A94bf3Bd4E",
         AMZN: "0x5884aD2f920c162CFBbACc88C9C51AA75eC09E02",
         NFLX: "0x4e464c5800000000000000000000000000000000",
-        AMD:  "0x414d440000000000000000000000000000000000",
+        AMD:  "0x71178BAc73cBeb415514eB542a8995b82669778d",
         PLTR: "0x504c545200000000000000000000000000000000",
         BTC:  "0x2260fac5e5542a773aa44fbcfedf7c193bc2c599"
     },
@@ -222,10 +222,19 @@ function buildTokenToTokenSwap(amountWei, tokenInAddress, tokenOutAddress, recip
 
     // Step 3: Swap via V3_SWAP_EXACT_IN (payerIsUser=false)
     const commands = "0x00";
-    const path = ethers.solidityPacked(
-        ["address", "uint24", "address"],
-        [tokenInAddress, 3000, tokenOutAddress]
-    );
+    const WETH = OFFICIAL_CONTRACTS.TOKENS.WETH;
+    let path;
+    if (tokenInAddress.toLowerCase() === WETH.toLowerCase() || tokenOutAddress.toLowerCase() === WETH.toLowerCase()) {
+        path = ethers.solidityPacked(
+            ["address", "uint24", "address"],
+            [tokenInAddress, 3000, tokenOutAddress]
+        );
+    } else {
+        path = ethers.solidityPacked(
+            ["address", "uint24", "address", "uint24", "address"],
+            [tokenInAddress, 3000, WETH, 3000, tokenOutAddress]
+        );
+    }
     const swapInput = ethers.AbiCoder.defaultAbiCoder().encode(
         ["address", "uint256", "uint256", "bytes", "bool"],
         [recipient, amountWei, minAmountOut, path, false]
