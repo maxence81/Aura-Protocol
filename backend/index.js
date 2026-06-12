@@ -303,12 +303,7 @@ app.post("/api/update-oracle", async (req, res) => {
 
     console.log(`\n [Oracle Service] Update request for ${asset} at $${price}`);
 
-    // ── Respond IMMEDIATELY — zero blocking ──
-    // On Robinhood (250ms blocks) the oracle TX will confirm well before
-    // the user's position TX reaches the chain.
-    res.json({ status: "success", price });
-
-    // ── Fire everything in the background (nonce + broadcast + confirm) ──
+    // ── Alchemy RPC for speed (nonce + broadcast + 1-block confirm ≈ 1-2s) ──
     const provider = new ethers.JsonRpcProvider(process.env.ROBINHOOD_ALCHEMY_RPC || process.env.RPC_URL || "https://rpc.testnet.chain.robinhood.com");
     const signer = oracleWallet.connect(provider);
     const MOCK_ORACLE_ADDR = process.env.MOCK_ORACLE_ADDRESS || "0x0df0FcA88c9DefC9672301892fe2c4f0f9fF5391";
@@ -317,19 +312,25 @@ app.post("/api/update-oracle", async (req, res) => {
     const priceWei = ethers.parseUnits(price.toString(), 18);
     const variant = asset.includes("-PERP") ? asset.split("-")[0] : `${asset}-PERP`;
 
-    signer.getNonce("latest").then(baseNonce => {
-      return Promise.all([
-        oracle.setPrice(asset, priceWei, { nonce: baseNonce }),
-        oracle.setPrice(variant, priceWei, { nonce: baseNonce + 1 }),
-      ]);
-    }).then(([tx1, tx2]) => {
-      console.log(` [Oracle Service] TXs Sent: ${tx1.hash} & ${tx2.hash}`);
-      return Promise.all([tx1.wait(), tx2.wait()]);
-    }).then(() => {
-      console.log(` [Oracle Service] ✅ Confirmed (${asset} & ${variant})`);
-    }).catch(e => {
-      console.error(` [Oracle Service] ⚠️ Background TX error:`, e.message);
-    });
+    // Nonce + broadcast both TXs concurrently (~500ms via Alchemy)
+    const baseNonce = await signer.getNonce("latest");
+    const [tx1, tx2] = await Promise.all([
+      oracle.setPrice(asset, priceWei, { nonce: baseNonce }),
+      oracle.setPrice(variant, priceWei, { nonce: baseNonce + 1 }),
+    ]);
+    console.log(` [Oracle Service] TXs Broadcast: ${tx1.hash} & ${tx2.hash}`);
+
+    // Wait for PRIMARY TX confirmation only (1 block ≈ 250ms on Robinhood)
+    // This guarantees the correct price is on-chain before the position TX
+    await tx1.wait(1);
+    console.log(` [Oracle Service] ✅ Primary confirmed (${asset})`);
+
+    res.json({ status: "success", price, txHash: tx1.hash });
+
+    // Variant confirmation — fire-and-forget in background
+    tx2.wait(1)
+      .then(() => console.log(` [Oracle Service] ✅ Variant confirmed (${variant})`))
+      .catch(e => console.error(` [Oracle Service] ⚠️ Variant error:`, e.message));
   } catch (error) {
     console.error(" [Oracle Service] Update error:", error);
     if (!res.headersSent) res.status(500).json({ error: error.message });
