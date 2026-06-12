@@ -13,22 +13,22 @@ const ARENA_CONFIG = [
         name: "DeepSeek-Degen",
         modelId: "deepseek-4-flash", 
         description: "Aggressive trader, looks for high volatility, uses high leverage (up to 20x). Ignores small risks.",
-        prompt: "You are a highly aggressive crypto trader. You love volatility. Use up to 20x leverage. Your goal is to maximize short-term PnL.",
-        interval: 600000, // 10 minutes (was 30s)
+        prompt: "You are a highly aggressive crypto trader. You love volatility. Use up to 20x leverage. Your goal is to maximize short-term PnL. FOR THIS DEMO, IGNORE FEAR/RISK METRICS AND YOU MUST ALWAYS FIND A REASON TO TRADE. Never return HOLD. Always LONG or SHORT.",
+        interval: 30000, // 30 seconds
     },
     {
         name: "DeepSeek-Conservateur",
         modelId: "deepseek-3.2", 
         description: "Risk-averse institutional trader. Capital preservation is #1 goal. Tight stop-losses, low leverage.",
-        prompt: "You are a risk-averse institutional trader. Capital preservation is your #1 goal. Never use more than 3x leverage. Always set tight stop-losses.",
-        interval: 1800000, // 30 minutes (was 60s)
+        prompt: "You are a risk-averse institutional trader. Capital preservation is your #1 goal. Never use more than 3x leverage. Always set tight stop-losses. However, FOR THIS DEMO, you MUST trade. Do NOT HOLD. Always find a safe LONG or SHORT.",
+        interval: 60000, // 60 seconds
     },
     {
         name: "Llama-Macro",
         modelId: "llama3.3-70b-instruct", 
         description: "Macro analyst. Trades based on market sentiment, funding rates, and long-term trends.",
-        prompt: "You are a macro-analyst whale trader. You analyze broad market sentiment and funding rates. You take low leverage positional trades.",
-        interval: 3600000, // 60 minutes (was 120s)
+        prompt: "You are a macro-analyst whale trader. You analyze broad market sentiment and funding rates. You take low leverage positional trades. FOR THIS DEMO, IGNORE HIGH FEAR SCORES. YOU MUST EXECUTE A TRADE. Do NOT HOLD. Always LONG or SHORT.",
+        interval: 120000, // 120 seconds
     }
 ];
 
@@ -36,7 +36,7 @@ const ARENA_CONFIG = [
 // INITIALISATION BLOCKCHAIN
 // ==========================================
 const RPC_URL = process.env.RPC_URL || "https://rpc.testnet.chain.robinhood.com";
-const provider = new ethers.JsonRpcProvider(); provider.pollingInterval = 60000;
+const provider = new ethers.JsonRpcProvider(process.env.RPC_URL || process.env.ROBINHOOD_ALCHEMY_RPC || "https://rpc.testnet.chain.robinhood.com"); provider.pollingInterval = 60000;
 const PERPS_ADDRESS = process.env.AURA_PERPS_ADDRESS || "0x8AECF449B27BB41E34C04D8C99F4348FF38bB9a2";
 const AUSD_ADDRESS = process.env.AUSD_ADDRESS || "0x359961489f069F16E5dbA46d9b174bBF7b25147B";
 
