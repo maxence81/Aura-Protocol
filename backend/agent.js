@@ -81,6 +81,8 @@ function getTokenAddress(symbol) {
     if (upper === "AMD") return OFFICIAL_CONTRACTS.TOKENS.AMD;
     if (upper === "PLTR") return OFFICIAL_CONTRACTS.TOKENS.PLTR;
     if (upper === "BTC") return OFFICIAL_CONTRACTS.TOKENS.BTC;
+    if (upper === "USDC") return OFFICIAL_CONTRACTS.TOKENS.USDC;
+    if (upper === "SYN") return OFFICIAL_CONTRACTS.TOKENS.SYN;
     return null;
 }
 
