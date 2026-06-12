@@ -666,6 +666,7 @@ async function getGlobalStats(req, res) {
 
         res.json({
             totalLeaders: leaders.length,
+            activeTraders: leaders.length,
             totalAum: totalAum.toFixed(2),
             totalFollowers,
             totalPnl: totalPnl.toFixed(2),
