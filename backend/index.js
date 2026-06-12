@@ -303,7 +303,7 @@ app.post("/api/update-oracle", async (req, res) => {
 
     console.log(`\n [Oracle Service] Update request for ${asset} at $${price}`);
     
-    const provider = new ethers.JsonRpcProvider(process.env.RPC_URL || process.env.ROBINHOOD_ALCHEMY_RPC || "https://rpc.testnet.chain.robinhood.com"); provider.pollingInterval = 60000;
+    const provider = new ethers.JsonRpcProvider(process.env.ROBINHOOD_ALCHEMY_RPC || process.env.RPC_URL || "https://rpc.testnet.chain.robinhood.com"); provider.pollingInterval = 60000;
     const signer = oracleWallet.connect(provider);
     
     const MOCK_ORACLE_ADDR = process.env.MOCK_ORACLE_ADDRESS || "0x0df0FcA88c9DefC9672301892fe2c4f0f9fF5391";
@@ -320,13 +320,15 @@ app.post("/api/update-oracle", async (req, res) => {
     const tx2Promise = oracle.setPrice(variant, priceWei, { nonce: baseNonce + 1 });
 
     const [tx1, tx2] = await Promise.all([tx1Promise, tx2Promise]);
-    console.log(` [Oracle Service] TXs Sent: ${tx1.hash} & ${tx2.hash}. Waiting...`);
+    console.log(` [Oracle Service] TXs Sent: ${tx1.hash} & ${tx2.hash}. Responding immediately.`);
     
-    await Promise.all([tx1.wait(), tx2.wait()]);
-    
-    console.log(` [Oracle Service] Oracle Updated successfully (Both ${asset} & ${variant})`);
+    // Respond immediately — don't block the frontend for 60s waiting for confirmation
+    res.json({ status: "success", txHash: tx1.hash });
 
-    res.json({ status: "success", txHash: tx.hash });
+    // Wait for confirmation in the background (fire-and-forget)
+    Promise.all([tx1.wait(), tx2.wait()])
+      .then(() => console.log(` [Oracle Service] ✅ Confirmed (Both ${asset} & ${variant})`))
+      .catch((e) => console.error(` [Oracle Service] ⚠️ Confirmation error (non-blocking):`, e.message));
   } catch (error) {
     console.error(" [Oracle Service] Update error:", error);
     res.status(500).json({ error: error.message });
@@ -592,7 +594,7 @@ app.get("/api/orderbook/:asset", async (req, res) => {
       "function getOrderDetails(uint256 orderId) view returns (address user, uint256 assetHash, bool isLong, uint256 collateral, uint256 leverage, uint256 limitPrice, uint256 timestamp, uint256 status)",
     ];
 
-    const provider = new ethers.JsonRpcProvider(process.env.RPC_URL || process.env.ROBINHOOD_ALCHEMY_RPC || "https://rpc.testnet.chain.robinhood.com"); provider.pollingInterval = 60000;
+    const provider = new ethers.JsonRpcProvider(process.env.ROBINHOOD_ALCHEMY_RPC || process.env.RPC_URL || "https://rpc.testnet.chain.robinhood.com"); provider.pollingInterval = 60000;
     const router = new ethers.Contract(routerAddr, ROUTER_ABI, provider);
 
     let rawBids = []; // {price: number, size: number}
@@ -740,7 +742,7 @@ app.post("/api/gasless-execute", async (req, res) => {
       return res.status(400).json({ error: "Missing accountAddress, targets, values, or datas" });
     }
 
-    const provider = new ethers.JsonRpcProvider(process.env.RPC_URL || process.env.ROBINHOOD_ALCHEMY_RPC || "https://rpc.testnet.chain.robinhood.com"); provider.pollingInterval = 60000;
+    const provider = new ethers.JsonRpcProvider(process.env.ROBINHOOD_ALCHEMY_RPC || process.env.RPC_URL || "https://rpc.testnet.chain.robinhood.com"); provider.pollingInterval = 60000;
     const signer = agentWallet.connect(provider);
 
     // ── Audit Trail: record reasoning hash on-chain BEFORE execution ──
