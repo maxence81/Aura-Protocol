@@ -546,6 +546,23 @@ server.registerTool("get_supported_assets", {
   return { content: [{ type: "text", text: JSON.stringify({ supported: assets, count: assets.length, chains: { limitOrders: "Arbitrum Sepolia (Stylus LOB)", marketOrders: "Robinhood Chain (AuraPerps)" } }, null, 2) }] };
 });
 
+server.registerTool("get_limit_orders", {
+  description: "Get the active limit orders for the user on the Stylus LOB (Arbitrum Sepolia)",
+  inputSchema: z.object({
+    address: z.string().describe("User's wallet address")
+  }),
+}, async ({ address }) => {
+  try {
+    const fetch = (await import("node-fetch")).default;
+    const res = await fetch(`http://localhost:${process.env.PORT || 3001}/api/my-orders/${address}`);
+    if (!res.ok) throw new Error("Failed to fetch limit orders");
+    const data = await res.json();
+    return { content: [{ type: "text", text: JSON.stringify(data, null, 2) }] };
+  } catch (error) {
+    return { content: [{ type: "text", text: JSON.stringify({ error: error.message }, null, 2) }] };
+  }
+});
+
 server.registerTool("cancel_limit_order", {
   description: "Cancel an active limit order on the Stylus LOB (Arbitrum Sepolia)",
   inputSchema: z.object({ order_id: z.number().describe("Order ID to cancel") }),
@@ -1252,6 +1269,7 @@ if (args.includes("--http")) {
     console.log(`║  Agent: ${agentWallet.address}  ║`);
     console.log(`║                                                           ║`);
     console.log(`║  Tools: get_price, get_orderbook, place_limit_order,      ║`);
+    console.log(`║    get_limit_orders, cancel_limit_order,                 ║`);
     console.log(`║    place_market_order, get_positions, close_position,      ║`);
     console.log(`║    get_account_balance, set_stop_loss_take_profit,         ║`);
     console.log(`║    add_margin, get_market_analysis, get_funding_rate,      ║`);
