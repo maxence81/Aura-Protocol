@@ -244,7 +244,16 @@ async function _scanBlocks() {
                 console.log(`[CopyEngine] 🎯 Leader trade detected: ${ownerLower} — queuing copy execution`);
 
                 // Use a simple estimate for leader balance (wallet balance only, avoids scanning positions)
-                const leaderBalance = await aUSDContract.balanceOf(owner);
+                let leaderBalance = await aUSDContract.balanceOf(owner);
+
+                // Cap leaderTotalBalance so the risk fraction is meaningful.
+                // Without this cap, leaders with huge balances (e.g. 10M from minting)
+                // would produce a tiny risk fraction → copies < $1.
+                // Cap at 5x collateral = 20% risk fraction minimum.
+                const maxBalance = collateral * 5n;
+                if (leaderBalance > maxBalance) {
+                    leaderBalance = maxBalance;
+                }
 
                 _enqueue({
                     type: "COPY_OPEN",
