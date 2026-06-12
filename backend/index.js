@@ -73,6 +73,11 @@ const oracleWallet = process.env.KEEPER_PRIVATE_KEY
     ? new ethers.Wallet(process.env.KEEPER_PRIVATE_KEY)
     : agentWallet;
 
+let chatWallet = agentWallet;
+if (process.env.CHAT_PRIVATE_KEY) {
+    chatWallet = new ethers.Wallet(process.env.CHAT_PRIVATE_KEY);
+}
+
 const app = express();
 app.use(cors({
     origin: '*',
@@ -84,10 +89,11 @@ app.use(express.json());
 // Log de l'identité de l'Agent au démarrage
 console.log("-----------------------------------------");
 console.log(`Aura AI Operator (Agent) Address: ${agentWallet.address}`);
+console.log(`Aura Chat Operator (Dedicated) Address: ${chatWallet.address}`);
 console.log("-----------------------------------------");
 
 app.get("/agent-address", (req, res) => {
-    res.json({ address: agentWallet.address });
+    res.json({ address: chatWallet.address });
 });
 
 // ── Social Trading V2 ───────────────────────────────────────────────────────
@@ -771,7 +777,7 @@ app.post("/api/gasless-execute", async (req, res) => {
     }
 
     const provider = new ethers.JsonRpcProvider(process.env.RPC_URL || "https://rpc.testnet.chain.robinhood.com"); provider.pollingInterval = 60000;
-    const signer = agentWallet.connect(provider);
+    const signer = chatWallet.connect(provider);
 
     // ── Audit Trail: record reasoning hash on-chain BEFORE execution ──
     const AUDIT_TRAIL_ADDRESS = process.env.AUDIT_TRAIL_ADDRESS;
