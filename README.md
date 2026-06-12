@@ -74,45 +74,64 @@ Full benchmark details in the [dedicated section below](#stylus-vs-solidity-benc
 
 ## Live Architecture
 
-```
-+------------------------------- USER (one signature) --------------------------------+
-|                                                                                     |
-|         /chat (NLP intent)                              /trade (manual)             |
-|              |                                               |                      |
-|              v                                               v                      |
-|  +---------------------------+              +-------------------------------+       |
-|  | Multi-Agent Committee     |              | Order Panel                   |       |
-|  |  - Executor (Llama 3.1)  |              |  - Market  -> AuraPerps       |       |
-|  |  - Risk Auditor          |              |  - Limit   -> Stylus LOB      |       |
-|  |  - Macro Analyzer        |              +---------------+---------------+       |
-|  +-----------+---------------+                             |                        |
-|              |                                             v                        |
-|              v                              +-------------------------------+       |
-|    Synthra V3 Router                        | Hybrid Execution Engine       |       |
-|    (Robinhood Chain)                        |  1. Walk Stylus LOB           |       |
-|                                             |  2. Fallback -> Vault LP      |       |
-|                                             +---------------+---------------+       |
-+---------------------------------------------|--------------------------------------|+
-                                              |
-              +-------------------------------+-------------------------------+
-              |                                                               |
-              v                                                               v
-+---------------------------+                          +-----------------------------+
-| Stylus LOB (WASM)         |                          | AuraPerps + Vault LP        |
-| Arbitrum Sepolia (421614) |                          | Robinhood Chain (46630)     |
-|                           |                          |                             |
-| - store_order             |                          | - openPosition              |
-| - match_orders            |<--- AI Keeper --->       | - closePosition             |
-| - consume_order           |     (Pyth feed)          | - liquidatePosition         |
-| - get_active_orders_sorted|                          | - Pyth MockOracle           |
-+---------------------------+                          +-----------------------------+
-
-                        +-----------------------------+
-                        | AI Market Maker             |
-                        |  - marketMaker.js           |
-                        |  - places bid/ask quotes    |
-                        |  - around Pyth mid          |
-                        +-----------------------------+
+```mermaid
+graph TD
+    User([👤 User / Browser])
+    
+    subgraph Frontend [Next.js Frontend]
+        ChatUI[💬 Chat UI]
+        TradeUI[📈 Trade Panel]
+        WebMCP[🔌 WebMCP Client]
+    end
+    
+    subgraph Backend [Node.js Agent Layer]
+        Relayer[⛽ Gasless Relayer]
+        MCP[🤖 Claude MCP Server]
+        Macro[📊 Macro Analyzer]
+        Pyth[📡 Pyth Feeds]
+    end
+    
+    subgraph Robinhood [Robinhood Chain]
+        Account[🛡️ AuraAccount (ERC-4337)]
+        Router[🔄 Synthra V3 Router]
+        Vault[🏦 Aura Vault]
+    end
+    
+    subgraph Arbitrum [Arbitrum Sepolia]
+        Stylus[⚡ Stylus LOB WASM]
+    end
+    
+    %% Frontend Connections
+    User -->|NLP Prompts| ChatUI
+    User -->|Manual Trades| TradeUI
+    ChatUI <-->|AI Agent| WebMCP
+    
+    %% Backend Connections
+    WebMCP <-->|SSE Tool Calls| MCP
+    ChatUI -->|Signed Payloads| Relayer
+    Relayer <--> Macro
+    Relayer <--> Pyth
+    
+    %% Execution
+    TradeUI -->|Limit Orders| Stylus
+    TradeUI -->|Market Orders| Router
+    
+    Relayer -->|Dedicated Chat Wallet| Account
+    Account -->|Batch Swap/DCA| Router
+    Router <-->|Sourced Liquidity| Vault
+    
+    %% AI capabilities
+    MCP -.->|get_limit_orders| Stylus
+    MCP -.->|place_limit_order| Stylus
+    MCP -.->|swap| Router
+    
+    classDef frontend fill:#1e1e2f,stroke:#4a4a6a,stroke-width:2px,color:#fff;
+    classDef backend fill:#2d1b2e,stroke:#a64d79,stroke-width:2px,color:#fff;
+    classDef contract fill:#1b2e25,stroke:#4caf50,stroke-width:2px,color:#fff;
+    
+    class Frontend,ChatUI,TradeUI,WebMCP frontend;
+    class Backend,Relayer,MCP,Macro,Pyth backend;
+    class Robinhood,Arbitrum,Account,Router,Vault,Stylus contract;
 ```
 
 ---

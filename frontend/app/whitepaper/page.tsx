@@ -219,7 +219,7 @@ const sections = [
           <li className="flex items-start gap-3">
             <div className="w-1.5 h-1.5 rounded-full bg-neon-green shadow-[0_0_5px_#39ff14] mt-2 shrink-0" />
             <span className="text-white/80 leading-relaxed">
-              <strong className="text-neon-green">23 tools exposed:</strong> get_price, get_orderbook, place_limit_order, place_market_order, get_positions, close_position, get_account_balance, set_stop_loss_take_profit, add_margin, get_market_analysis, get_funding_rate, partial_close, dca_order, cancel_dca, schedule_swap, get_audit_trail, get_pnl_summary, get_liquidation_price, get_supported_assets, cancel_limit_order, swap, deposit_vault, authenticate.
+              <strong className="text-neon-green">24 tools exposed:</strong> get_price, get_orderbook, place_limit_order, get_limit_orders, place_market_order, get_positions, close_position, get_account_balance, set_stop_loss_take_profit, add_margin, get_market_analysis, get_funding_rate, partial_close, dca_order, cancel_dca, schedule_swap, get_audit_trail, get_pnl_summary, get_liquidation_price, get_supported_assets, cancel_limit_order, swap, deposit_vault, authenticate.
             </span>
           </li>
           <li className="flex items-start gap-3">
@@ -244,6 +244,34 @@ const sections = [
             <div className="w-1.5 h-1.5 rounded-full bg-neon-green shadow-[0_0_5px_#39ff14] mt-2 shrink-0" />
             <span className="text-white/80 leading-relaxed">
               <strong className="text-neon-green">No other DeFi project has this.</strong> The most complete DeFi MCP server ever built. Any AI in the world can read our Stylus order book, execute trades, manage risk, and earn yield via a single URL endpoint.
+            </span>
+          </li>
+        </ul>
+      </>
+    ),
+  },
+  {
+    num: "09",
+    title: "Decoupled Architecture (Relayer vs Vault)",
+    icon: Shield,
+    iconColor: "text-neon-cyan",
+    glowClass: "cyber-glow-cyan",
+    content: (
+      <>
+        <p className="text-white/80 leading-relaxed">
+          Aura enforces strict separation of concerns at the private key level to eliminate nonce collisions and secure the autonomous trading loop.
+        </p>
+        <ul className="mt-4 space-y-3">
+          <li className="flex items-start gap-3">
+            <div className="w-1.5 h-1.5 rounded-full bg-neon-cyan shadow-[0_0_5px_#00f0ff] mt-2 shrink-0" />
+            <span className="text-white/80 leading-relaxed">
+              <strong className="text-neon-cyan">Dedicated Chat Wallet:</strong> The AI Agent MCP and the gasless relayer operate on a separate wallet (the Chat Wallet) authorized via <code>setAiAgent</code> on the AuraAccount. This ensures AI intents never conflict with core protocol execution.
+            </span>
+          </li>
+          <li className="flex items-start gap-3">
+            <div className="w-1.5 h-1.5 rounded-full bg-neon-cyan shadow-[0_0_5px_#00f0ff] mt-2 shrink-0" />
+            <span className="text-white/80 leading-relaxed">
+              <strong className="text-neon-cyan">Router-Level Abstraction:</strong> Swaps are executed through the Synthra V3 Router, shielding the Vault LP from direct external calls. The Agent only interacts with the router.
             </span>
           </li>
         </ul>

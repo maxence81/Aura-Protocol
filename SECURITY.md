@@ -8,20 +8,26 @@ This document describes the trust assumptions, threat model, and security archit
 
 Aura uses a **defense-in-depth** approach with three independent layers of protection between user intent and on-chain execution.
 
-```
-User Intent (NLP)
-       |
-       v
-[Executor Agent] -- proposes a transaction plan
-       |
-       v
-[Risk Auditor Agent] -- independently validates safety
-       |
-       v
-[On-Chain Guardrails] -- enforces hard limits at contract level
-       |
-       v
-User Signature (final approval)
+```mermaid
+flowchart TD
+    User([User Intent - Natural Language])
+    Executor[🤖 Executor Agent]
+    RiskAuditor[🛡️ Risk Auditor Agent]
+    Guardrail[⛓️ On-Chain Guardrails]
+    Signature([✍️ User Signature])
+    
+    User -->|Proposes Action| Executor
+    Executor -->|Drafts On-Chain Plan| RiskAuditor
+    RiskAuditor -->|Validates Safety & Prices| Guardrail
+    Guardrail -->|Enforces Hard Limits| Signature
+    
+    classDef agent fill:#2d1b2e,stroke:#a64d79,stroke-width:2px,color:#fff;
+    classDef contract fill:#1b2e25,stroke:#4caf50,stroke-width:2px,color:#fff;
+    classDef user fill:#1e1e2f,stroke:#4a4a6a,stroke-width:2px,color:#fff;
+    
+    class Executor,RiskAuditor agent;
+    class Guardrail contract;
+    class User,Signature user;
 ```
 
 No single component can execute a transaction alone. The user always has final sign-off.
