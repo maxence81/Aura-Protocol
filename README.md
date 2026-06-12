@@ -78,60 +78,59 @@ Full benchmark details in the [dedicated section below](#stylus-vs-solidity-benc
 graph TD
     User([User / Browser])
     
-    subgraph Frontend [Next.js Frontend]
+    subgraph Flow1 [1. Agent AI Interface /chat]
+        direction TB
         ChatUI[Chat UI]
-        TradeUI[Trade Panel]
         WebMCP[WebMCP Client]
-    end
-    
-    subgraph Backend [Node.js Agent Layer]
         Relayer[Gasless Relayer]
-        MCP[Claude MCP Server]
         Macro[Macro Analyzer]
-        Pyth[Pyth Feeds]
-    end
-    
-    subgraph Robinhood [Robinhood Chain]
         Account[AuraAccount ERC-4337]
-        Router[Synthra V3 Router]
-        Vault[Aura Vault]
+        SpotRouter[Synthra V3 Router]
+        
+        ChatUI <-->|Agentic Loop| WebMCP
+        ChatUI -->|Signed Payloads| Relayer
+        Relayer <--> Macro
+        Relayer -->|executeBatchByAgent| Account
+        Account -->|Swaps & DCA| SpotRouter
     end
     
-    subgraph Arbitrum [Arbitrum Sepolia]
+    subgraph Flow2 [2. Pro Trading /trade]
+        direction TB
+        TradeUI[Trade Panel]
+        PerpsRouter[AuraPerps Router]
         Stylus[Stylus LOB WASM]
+        Vault[Aura Vault LP]
+        
+        TradeUI -->|Market Orders| PerpsRouter
+        TradeUI -->|Limit Orders| Stylus
+        PerpsRouter <-->|Liquidity| Vault
     end
     
-    %% Frontend Connections
-    User -->|NLP Prompts| ChatUI
-    User -->|Manual Trades| TradeUI
-    ChatUI <-->|AI Agent| WebMCP
+    subgraph Flow3 [3. Remote AI / MCP Server]
+        direction TB
+        ExternalAI([External AI e.g. Claude])
+        MCP[Aura MCP Server]
+        
+        ExternalAI <-->|SSE / x402 Protocol| MCP
+        MCP -.->|place_limit_order| Stylus
+        MCP -.->|market_order| PerpsRouter
+        MCP -.->|swap| SpotRouter
+        MCP -.->|market_analysis| Macro
+    end
     
-    %% Backend Connections
-    WebMCP <-->|SSE Tool Calls| MCP
-    ChatUI -->|Signed Payloads| Relayer
-    Relayer <--> Macro
-    Relayer <--> Pyth
+    User --> ChatUI
+    User --> TradeUI
     
-    %% Execution
-    TradeUI -->|Limit Orders| Stylus
-    TradeUI -->|Market Orders| Router
-    
-    Relayer -->|Dedicated Chat Wallet| Account
-    Account -->|Batch Swap/DCA| Router
-    Router <-->|Sourced Liquidity| Vault
-    
-    %% AI capabilities
-    MCP -.->|get_limit_orders| Stylus
-    MCP -.->|place_limit_order| Stylus
-    MCP -.->|swap| Router
-    
-    classDef frontend fill:#1e1e2f,stroke:#4a4a6a,stroke-width:2px,color:#fff;
+    %% Style definitions
+    classDef ui fill:#1e1e2f,stroke:#4a4a6a,stroke-width:2px,color:#fff;
     classDef backend fill:#2d1b2e,stroke:#a64d79,stroke-width:2px,color:#fff;
     classDef contract fill:#1b2e25,stroke:#4caf50,stroke-width:2px,color:#fff;
+    classDef external fill:#3a2e1b,stroke:#ffae00,stroke-width:2px,color:#fff;
     
-    class Frontend,ChatUI,TradeUI,WebMCP frontend;
-    class Backend,Relayer,MCP,Macro,Pyth backend;
-    class Robinhood,Arbitrum,Account,Router,Vault,Stylus contract;
+    class ChatUI,TradeUI,WebMCP ui;
+    class Relayer,Macro,MCP backend;
+    class Account,SpotRouter,PerpsRouter,Stylus,Vault contract;
+    class ExternalAI,User external;
 ```
 
 ---
