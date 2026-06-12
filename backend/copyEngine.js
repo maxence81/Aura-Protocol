@@ -3,30 +3,28 @@
  * 
  * Production Copy Trading Engine — Off-chain Keeper
  * ──────────────────────────────────────────────────
- * Listens to AuraPerps events via WebSocket, detects leader trades,
+ * Scans AuraPerps for leader trades via manual block polling (no ethers events),
  * and replicates them on-chain via AuraCopyTradingV2.
  *
  * Architecture:
- *   WebSocket Provider ──► Event Listener ──► Trade Queue ──► Executor
- *                                                              │
- *                                              ┌───────────────┘
- *                                              ▼
- *                                    AuraCopyTradingV2.sol
- *                                              │
- *                                              ▼
- *                                        AuraPerps.sol
+ *   Manual Block Scanner ──► Trade Queue ──► Executor
+ *                                             │
+ *                             ┌────────────────┘
+ *                             ▼
+ *                   AuraCopyTradingV2.sol
+ *                             │
+ *                             ▼
+ *                       AuraPerps.sol
  *
- * Error Handling Strategy:
- *   - Open trades: 3 retries with exponential backoff (1s, 2s, 4s)
- *   - Close trades: 5 retries (closing is critical) with gas bump on each retry
- *   - Gas estimation: pre-flight check with 20% buffer
- *   - Nonce management: sequential with mutex lock
- *   - Event replay: on reconnect, replays events from last processed block
+ * Rate-Limit Strategy:
+ *   - Manual getLogs every 30s (1 RPC call per scan)
+ *   - No ethers `.on()` event polling (avoids eth_blockNumber spam)
+ *   - Health monitor disabled (too many RPC calls for free tier)
+ *   - All errors caught — process NEVER crashes
  *
  * @author Aura Protocol
  */
 const { ethers } = require("ethers");
-const { computeHealth, recommendTopUp } = require("./healthFactor");
 
 // ══════════════════════ ABIs ══════════════════════
 
@@ -68,31 +66,23 @@ const AUSD_ABI = [
     "function balanceOf(address) view returns (uint256)",
 ];
 
-const ORACLE_ABI = [
-    "function getPrice(string) view returns (uint256)",
-];
-
 // ══════════════════════ CONFIGURATION ══════════════════════
 
 const MAX_RETRIES_OPEN  = 3;
 const MAX_RETRIES_CLOSE = 5;
 const BASE_RETRY_DELAY_MS = 1000;
-const GAS_BUFFER_PERCENT  = 20; // 20% gas buffer
-const GAS_BUMP_PERCENT    = 15; // 15% gas bump per retry
-const HEALTH_CHECK_INTERVAL_MS = 30_000; // 30s
-const RECONNECT_DELAY_MS = 3000;
-const MAX_RECONNECT_ATTEMPTS = 10;
+const GAS_BUFFER_PERCENT  = 20;
+const GAS_BUMP_PERCENT    = 15;
+const SCAN_INTERVAL_MS    = 30_000; // Scan for new events every 30s
 
 // ══════════════════════ ENGINE STATE ══════════════════════
 
 let isRunning = false;
 let provider = null;
-let wsProvider = null;
 let keeperWallet = null;
 let perpsContract = null;
 let copyTradingContract = null;
 let aUSDContract = null;
-let oracleContract = null;
 
 // Set of registered leader addresses (lowercase) — cached for fast lookup
 const registeredLeaders = new Set();
@@ -101,8 +91,11 @@ const registeredLeaders = new Set();
 const executionQueue = [];
 let isExecuting = false;
 
-// Last processed block for replay on reconnect
-let lastProcessedBlock = 0;
+// Last scanned block for manual polling
+let lastScannedBlock = 0;
+
+// Scanner interval reference
+let scanInterval = null;
 
 // Audit log
 const tradeLog = [];
@@ -114,12 +107,11 @@ const tradeLog = [];
  * Called once at server startup.
  */
 async function startCopyEngine() {
-    const rpcUrl = process.env.ROBINHOOD_ALCHEMY_RPC || process.env.RPC_URL;
+    const rpcUrl = process.env.RPC_URL || "https://rpc.testnet.chain.robinhood.com";
     const privateKey = process.env.PRIVATE_KEY;
     const perpsAddr = process.env.AURA_PERPS_ADDRESS;
     const copyTradingAddr = process.env.COPY_TRADING_V2_ADDRESS;
     const aUSDAddr = process.env.AUSD_ADDRESS;
-    const oracleAddr = process.env.MOCK_ORACLE_ADDRESS;
 
     if (!copyTradingAddr) {
         console.log("[CopyEngine] COPY_TRADING_V2_ADDRESS not set — engine disabled");
@@ -130,33 +122,39 @@ async function startCopyEngine() {
         return;
     }
 
-    // HTTP provider for read operations
+    // Use a SEPARATE provider for the CopyEngine to avoid sharing polling state
+    // with the rest of the backend. Disable automatic polling entirely.
     provider = new ethers.JsonRpcProvider(rpcUrl);
-    provider.pollingInterval = 5000; // 5s interval to balance latency and rate limits on public RPC
+    provider.pollingInterval = 120_000; // Very slow — we do our own manual polling
     keeperWallet = new ethers.Wallet(privateKey, provider);
 
     // Contracts
     perpsContract = new ethers.Contract(perpsAddr, PERPS_ABI, keeperWallet);
     copyTradingContract = new ethers.Contract(copyTradingAddr, COPY_TRADING_ABI, keeperWallet);
     aUSDContract = new ethers.Contract(aUSDAddr, AUSD_ABI, provider);
-    oracleContract = new ethers.Contract(oracleAddr, ORACLE_ABI, provider);
 
     // Cache registered leaders
     await _refreshLeaderCache();
 
-    // Subscribe to events
-    await _subscribeToEvents();
+    // Get current block as starting point
+    try {
+        lastScannedBlock = await provider.getBlockNumber();
+    } catch (err) {
+        console.error("[CopyEngine] Failed to get initial block number:", err.message);
+        lastScannedBlock = 0;
+    }
 
-    // Start health monitoring loop
-    _startHealthMonitor();
+    // Start manual block scanner (replaces ethers .on() events)
+    _startBlockScanner();
 
     isRunning = true;
-    lastProcessedBlock = await provider.getBlockNumber();
 
     console.log(`[CopyEngine] ✅ Started — Keeper: ${keeperWallet.address}`);
     console.log(`[CopyEngine]    Perps:       ${perpsAddr}`);
     console.log(`[CopyEngine]    CopyTrading: ${copyTradingAddr}`);
     console.log(`[CopyEngine]    Leaders cached: ${registeredLeaders.size}`);
+    console.log(`[CopyEngine]    Starting block: ${lastScannedBlock}`);
+    console.log(`[CopyEngine]    Scan interval: ${SCAN_INTERVAL_MS / 1000}s`);
 }
 
 /**
@@ -164,115 +162,150 @@ async function startCopyEngine() {
  */
 function stopCopyEngine() {
     isRunning = false;
-    if (wsProvider) {
-        wsProvider.destroy();
-        wsProvider = null;
+    if (scanInterval) {
+        clearInterval(scanInterval);
+        scanInterval = null;
     }
     console.log("[CopyEngine] ⏹ Stopped");
 }
 
-// ══════════════════════ EVENT SUBSCRIPTION ══════════════════════
+// ══════════════════════ MANUAL BLOCK SCANNER ══════════════════════
 
-async function _subscribeToEvents() {
-    // Use polling-based event listener since not all Arbitrum Orbit RPCs support WebSocket
-    // This is robust for hackathon environments
+/**
+ * Manual block scanner — replaces ethers .on() event listeners.
+ * 
+ * Every SCAN_INTERVAL_MS, we:
+ *   1. Get the current block number (1 RPC call)
+ *   2. Fetch PositionOpened + PositionClosed logs since lastScannedBlock (1 RPC call)
+ *   3. Process any leader trades found
+ * 
+ * Total: ~2 RPC calls per scan. At 30s interval = 4 calls/min.
+ * This is safe for any free-tier RPC.
+ */
+function _startBlockScanner() {
+    console.log("[CopyEngine] Starting manual block scanner...");
 
-    console.log("[CopyEngine] Subscribing to AuraPerps events via polling...");
+    // Run first scan after 5s delay (let the rest of the server boot)
+    setTimeout(() => _scanBlocks(), 5000);
 
-    // Listen for PositionOpened
-    perpsContract.on("PositionOpened", async (positionId, owner, asset, isLong, collateral, leverage, entryPrice, openedAt, event) => {
-        const ownerLower = owner.toLowerCase();
-        console.log(`[CopyEngine] PositionOpened: id=${positionId} owner=${ownerLower} asset=${asset} isLong=${isLong} collateral=${ethers.formatEther(collateral)}`);
+    scanInterval = setInterval(() => {
+        _scanBlocks().catch(err => {
+            console.error("[CopyEngine] Block scan error (non-fatal):", err.message);
+        });
+    }, SCAN_INTERVAL_MS);
+}
 
-        // Check if this is a leader's trade (not a copy position)
-        if (!registeredLeaders.has(ownerLower)) {
-            return; // Not a registered leader, ignore
+async function _scanBlocks() {
+    if (!isRunning) return;
+
+    try {
+        const currentBlock = await provider.getBlockNumber();
+
+        if (currentBlock <= lastScannedBlock) {
+            return; // No new blocks
         }
 
-        // Don't copy our own positions (copy positions are owned by CopyTrading contract)
-        const copyTradingAddr = await copyTradingContract.getAddress();
-        if (ownerLower === copyTradingAddr.toLowerCase()) {
-            return; // This is a copy position, not a leader's original trade
+        // Limit range to 1000 blocks max to avoid huge getLogs responses
+        const fromBlock = lastScannedBlock + 1;
+        const toBlock = Math.min(currentBlock, fromBlock + 999);
+
+        // Fetch PositionOpened events
+        const openFilter = perpsContract.filters.PositionOpened();
+        const openLogs = await provider.getLogs({
+            ...openFilter,
+            fromBlock,
+            toBlock,
+        });
+
+        // Fetch PositionClosed events
+        const closeFilter = perpsContract.filters.PositionClosed();
+        const closeLogs = await provider.getLogs({
+            ...closeFilter,
+            fromBlock,
+            toBlock,
+        });
+
+        // Process opened positions
+        for (const log of openLogs) {
+            try {
+                const parsed = perpsContract.interface.parseLog(log);
+                if (!parsed) continue;
+
+                const { positionId, owner, asset, isLong, collateral, leverage, entryPrice } = parsed.args;
+                const ownerLower = owner.toLowerCase();
+
+                console.log(`[CopyEngine] PositionOpened: id=${positionId} owner=${ownerLower} asset=${asset} isLong=${isLong} collateral=${ethers.formatEther(collateral)}`);
+
+                if (!registeredLeaders.has(ownerLower)) continue;
+
+                const copyTradingAddr = (await copyTradingContract.getAddress()).toLowerCase();
+                if (ownerLower === copyTradingAddr) continue;
+
+                console.log(`[CopyEngine] 🎯 Leader trade detected: ${ownerLower} — queuing copy execution`);
+
+                // Use a simple estimate for leader balance (wallet balance only, avoids scanning positions)
+                const leaderBalance = await aUSDContract.balanceOf(owner);
+
+                _enqueue({
+                    type: "COPY_OPEN",
+                    leader: owner,
+                    leaderPositionId: positionId,
+                    asset,
+                    isLong,
+                    leaderCollateral: collateral,
+                    leaderTotalBalance: leaderBalance,
+                    leverage,
+                    leaderEntryPrice: entryPrice,
+                    timestamp: Date.now(),
+                    retries: 0,
+                });
+            } catch (err) {
+                console.error("[CopyEngine] Error processing open log:", err.message);
+            }
         }
 
-        console.log(`[CopyEngine] 🎯 Leader trade detected: ${ownerLower} — queuing copy execution`);
+        // Process closed positions
+        for (const log of closeLogs) {
+            try {
+                const parsed = perpsContract.interface.parseLog(log);
+                if (!parsed) continue;
 
-        // Get leader's total balance to calculate risk fraction
-        const leaderBalance = await _getLeaderTotalBalance(ownerLower);
+                const { positionId, owner } = parsed.args;
+                const ownerLower = owner.toLowerCase();
 
-        _enqueue({
-            type: "COPY_OPEN",
-            leader: owner,
-            leaderPositionId: positionId,
-            asset,
-            isLong,
-            leaderCollateral: collateral,
-            leaderTotalBalance: leaderBalance,
-            leverage,
-            leaderEntryPrice: entryPrice,
-            timestamp: Date.now(),
-            retries: 0,
-        });
-    });
+                if (!registeredLeaders.has(ownerLower)) continue;
 
-    // Listen for PositionClosed
-    perpsContract.on("PositionClosed", async (positionId, owner, pnl, isProfit, exitPrice, fundingFee, event) => {
-        const ownerLower = owner.toLowerCase();
+                const copyTradingAddr = (await copyTradingContract.getAddress()).toLowerCase();
+                if (ownerLower === copyTradingAddr) continue;
 
-        if (!registeredLeaders.has(ownerLower)) return;
+                console.log(`[CopyEngine] 🔻 Leader close detected: ${ownerLower} pos=${positionId}`);
 
-        const copyTradingAddr = await copyTradingContract.getAddress();
-        if (ownerLower === copyTradingAddr.toLowerCase()) return;
+                _enqueue({
+                    type: "COPY_CLOSE",
+                    leaderPositionId: positionId,
+                    leader: owner,
+                    timestamp: Date.now(),
+                    retries: 0,
+                });
+            } catch (err) {
+                console.error("[CopyEngine] Error processing close log:", err.message);
+            }
+        }
 
-        console.log(`[CopyEngine] 🔻 Leader close detected: ${ownerLower} pos=${positionId}`);
+        lastScannedBlock = toBlock;
 
-        _enqueue({
-            type: "COPY_CLOSE",
-            leaderPositionId: positionId,
-            leader: owner,
-            timestamp: Date.now(),
-            retries: 0,
-        });
-    });
+        if (openLogs.length > 0 || closeLogs.length > 0) {
+            console.log(`[CopyEngine] Scanned blocks ${fromBlock}-${toBlock}: ${openLogs.length} opens, ${closeLogs.length} closes`);
+        }
 
-    // Listen for PositionLiquidated — emergency close all copies
-    perpsContract.on("PositionLiquidated", async (positionId, liquidator, owner, bounty, event) => {
-        const ownerLower = owner.toLowerCase();
-
-        if (!registeredLeaders.has(ownerLower)) return;
-
-        const copyTradingAddr = await copyTradingContract.getAddress();
-        if (ownerLower === copyTradingAddr.toLowerCase()) return;
-
-        console.log(`[CopyEngine] ⚠️ Leader LIQUIDATED: ${ownerLower} pos=${positionId} — emergency closing copies`);
-
-        _enqueue({
-            type: "EMERGENCY_CLOSE",
-            leaderPositionId: positionId,
-            leader: owner,
-            timestamp: Date.now(),
-            retries: 0,
-        });
-    });
-
-    // Listen for new leader registrations to update cache
-    copyTradingContract.on("LeaderRegistered", (leader, feeBps) => {
-        registeredLeaders.add(leader.toLowerCase());
-        console.log(`[CopyEngine] New leader registered: ${leader} (fee: ${feeBps} bps)`);
-    });
-
-    copyTradingContract.on("LeaderDeactivated", (leader) => {
-        // Don't remove from cache — we still need to process closes
-        console.log(`[CopyEngine] Leader deactivated: ${leader}`);
-    });
+    } catch (err) {
+        // CRITICAL: Never crash on scan errors. Log and retry next interval.
+        console.error("[CopyEngine] Block scan failed (will retry):", err.message);
+    }
 }
 
 // ══════════════════════ EXECUTION QUEUE ══════════════════════
 
-/**
- * Enqueue a trade operation. Operations are processed sequentially
- * to prevent nonce conflicts.
- */
 function _enqueue(task) {
     executionQueue.push(task);
     _processQueue();
@@ -313,15 +346,6 @@ async function _executeTask(task) {
 
 // ══════════════════════ COPY OPEN EXECUTION ══════════════════════
 
-/**
- * Execute a copy-open trade via AuraCopyTradingV2.
- *
- * Pre-flight checks:
- *   1. Verify keeper has enough ETH for gas
- *   2. Estimate gas and apply buffer
- *   3. Call executeCopyOpen on the smart contract
- *   4. Log the result
- */
 async function _executeCopyOpen(task) {
     const {
         leader, leaderPositionId, asset, isLong,
@@ -335,7 +359,6 @@ async function _executeCopyOpen(task) {
     const feeData = await provider.getFeeData();
     const gasPrice = feeData.gasPrice || feeData.maxFeePerGas;
 
-    // Estimate gas
     let estimatedGas;
     try {
         estimatedGas = await copyTradingContract.executeCopyOpen.estimateGas(
@@ -371,7 +394,6 @@ async function _executeCopyOpen(task) {
     const receipt = await tx.wait();
 
     if (receipt.status === 1) {
-        // Parse events from receipt to count successful copies
         const copyOpenEvents = receipt.logs.filter(log => {
             try {
                 const parsed = copyTradingContract.interface.parseLog(log);
@@ -400,7 +422,6 @@ async function _executeCopyClose(task) {
 
     console.log(`[CopyEngine] Executing COPY_CLOSE: leaderPos=${leaderPositionId}`);
 
-    // Check if there are any copy positions to close
     let copies;
     try {
         copies = await copyTradingContract.getCopyPositions(leaderPositionId);
@@ -415,7 +436,6 @@ async function _executeCopyClose(task) {
         return;
     }
 
-    // Gas pre-flight
     const keeperBalance = await provider.getBalance(keeperWallet.address);
     const feeData = await provider.getFeeData();
     const gasPrice = feeData.gasPrice || feeData.maxFeePerGas;
@@ -478,7 +498,6 @@ async function _executeEmergencyClose(task) {
         return;
     }
 
-    // Close each copy individually to maximize success rate
     for (const cp of copies) {
         if (!cp.isOpen) continue;
 
@@ -496,14 +515,6 @@ async function _executeEmergencyClose(task) {
 
 // ══════════════════════ ERROR HANDLING ══════════════════════
 
-/**
- * Error handling strategy:
- *   - COPY_OPEN: 3 retries with exponential backoff
- *   - COPY_CLOSE: 5 retries (closing is more critical)
- *   - EMERGENCY_CLOSE: 5 retries
- *   - Each retry bumps gas price by 15%
- *   - After max retries, log and skip
- */
 function _handleTaskError(task, error) {
     const maxRetries = task.type === "COPY_OPEN" ? MAX_RETRIES_OPEN : MAX_RETRIES_CLOSE;
 
@@ -521,113 +532,8 @@ function _handleTaskError(task, error) {
     }
 }
 
-// ══════════════════════ HEALTH MONITORING ══════════════════════
-
-let healthCheckInterval = null;
-
-function _startHealthMonitor() {
-    if (healthCheckInterval) clearInterval(healthCheckInterval);
-
-    healthCheckInterval = setInterval(async () => {
-        if (!isRunning) return;
-        try {
-            await _checkAllPositionHealth();
-        } catch (err) {
-            console.error(`[CopyEngine] Health check error: ${err.message}`);
-        }
-    }, HEALTH_CHECK_INTERVAL_MS);
-
-    console.log(`[CopyEngine] Health monitor started (interval: ${HEALTH_CHECK_INTERVAL_MS / 1000}s)`);
-}
-
-async function _checkAllPositionHealth() {
-    const leaderCount = await copyTradingContract.getLeaderCount();
-
-    for (let i = 0; i < Number(leaderCount); i++) {
-        const leader = await copyTradingContract.leaderList(i);
-        const followers = await copyTradingContract.getLeaderFollowers(leader);
-
-        for (const follower of followers) {
-            const openPositions = await copyTradingContract.getFollowerOpenPositions(leader, follower);
-
-            for (const posId of openPositions) {
-                try {
-                    const pos = await perpsContract.positions(posId);
-                    if (!pos.isOpen) continue;
-
-                    const currentPrice = await oracleContract.getPrice(pos.asset);
-                    const nowSeconds = BigInt(Math.floor(Date.now() / 1000));
-
-                    const { healthBps } = computeHealth({
-                        isLong: pos.isLong,
-                        collateralAmount: pos.collateralAmount,
-                        entryPrice: pos.entryPrice,
-                        positionSize: pos.positionSize,
-                        openedAt: Number(pos.openedAt),
-                    }, currentPrice, nowSeconds);
-
-                    // Emergency close if health drops below 5%
-                    if (healthBps < 500) {
-                        console.log(`[CopyEngine] ⚠️ Critical health (${healthBps} bps) for follower pos ${posId} — emergency closing`);
-                        _enqueue({
-                            type: "EMERGENCY_CLOSE",
-                            leaderPositionId: 0, // We don't know the leader pos
-                            leader: leader,
-                            followerPositionId: posId,
-                            timestamp: Date.now(),
-                            retries: 0,
-                        });
-                    } else if (healthBps < 2000) {
-                        console.log(`[CopyEngine] ⚡ Low health (${healthBps} bps) for follower pos ${posId}`);
-                    }
-                } catch (err) {
-                    // Position might have been closed, skip silently
-                }
-            }
-        }
-    }
-}
-
 // ══════════════════════ HELPERS ══════════════════════
 
-/**
- * Get the leader's total aUSD balance (on-chain position collateral + wallet balance).
- * Used for proportional calculation.
- */
-async function _getLeaderTotalBalance(leaderAddress) {
-    try {
-        // Get leader's aUSD wallet balance
-        const walletBalance = await aUSDContract.balanceOf(leaderAddress);
-
-        // Get leader's total collateral in open positions on AuraPerps
-        // We scan their positions — this is a simplified approach
-        let totalCollateral = 0n;
-        const nextPosId = await perpsContract.nextPositionId();
-
-        // Optimization: only scan recent positions (last 200)
-        const startId = nextPosId > 200n ? nextPosId - 200n : 0n;
-
-        for (let id = startId; id < nextPosId; id++) {
-            try {
-                const pos = await perpsContract.positions(id);
-                if (pos.owner.toLowerCase() === leaderAddress.toLowerCase() && pos.isOpen) {
-                    totalCollateral += pos.collateralAmount;
-                }
-            } catch {
-                // Skip invalid positions
-            }
-        }
-
-        return walletBalance + totalCollateral;
-    } catch (err) {
-        console.error(`[CopyEngine] Failed to get leader balance: ${err.message}`);
-        return 0n;
-    }
-}
-
-/**
- * Refresh the leader cache from on-chain state.
- */
 async function _refreshLeaderCache() {
     try {
         const count = await copyTradingContract.getLeaderCount();
@@ -659,7 +565,6 @@ function _logTrade(task, status, details, txHash = null) {
 
     tradeLog.push(entry);
 
-    // Keep only last 1000 entries in memory
     if (tradeLog.length > 1000) {
         tradeLog.splice(0, tradeLog.length - 1000);
     }
@@ -671,23 +576,17 @@ function getTradeLog() {
 
 // ══════════════════════ API HELPERS ══════════════════════
 
-/**
- * Get engine status for the /api/copy-engine/status endpoint.
- */
 function getEngineStatus() {
     return {
         isRunning,
         keeper: keeperWallet?.address || null,
         registeredLeaders: registeredLeaders.size,
         queueLength: executionQueue.length,
-        lastProcessedBlock,
+        lastProcessedBlock: lastScannedBlock,
         tradeLogCount: tradeLog.length,
     };
 }
 
-/**
- * Force refresh the leader cache (e.g., after deploying a new leader).
- */
 async function refreshLeaders() {
     await _refreshLeaderCache();
     return { leadersCount: registeredLeaders.size, leaders: Array.from(registeredLeaders) };

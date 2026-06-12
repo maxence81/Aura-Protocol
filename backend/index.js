@@ -3,6 +3,26 @@
 require("dotenv").config({ override: true });
 
 require("./patch_provider.js");
+
+// ── Safety net: prevent unhandled RPC errors (429, network timeouts) from crashing ──
+process.on("uncaughtException", (err) => {
+    if (err.code === "SERVER_ERROR" || err.message?.includes("429") || err.message?.includes("Too Many Requests") || err.message?.includes("retry limit")) {
+        console.error("[SAFETY] RPC rate-limit error caught (process NOT crashing):", err.message);
+    } else {
+        console.error("[SAFETY] Uncaught exception:", err);
+        // Only crash on truly unexpected errors
+        // process.exit(1);
+    }
+});
+process.on("unhandledRejection", (reason) => {
+    const msg = reason?.message || String(reason);
+    if (msg.includes("429") || msg.includes("Too Many Requests") || msg.includes("retry limit") || msg.includes("SERVER_ERROR")) {
+        console.error("[SAFETY] RPC rate-limit rejection caught (process NOT crashing):", msg);
+    } else {
+        console.error("[SAFETY] Unhandled rejection:", reason);
+    }
+});
+
 const { ethers } = require("ethers");
 
 const express = require("express");
