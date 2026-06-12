@@ -84,6 +84,7 @@ contract AuraPerpsRouter is Ownable {
     function setKeeper(address _keeper) external onlyOwner { keeper = _keeper; }
     function setMmAgent(address _agent) external onlyOwner { mmAgent = _agent; }
     function setOrderBook(address _ob) external onlyOwner { orderBook = IAuraOrderBook(_ob); }
+    function setAuraPerps(address _perps) external onlyOwner { perps = IAuraPerps(_perps); }
 
     function registerAsset(string calldata asset) external onlyOwner {
         uint256 h = uint256(keccak256(abi.encodePacked(asset)));
