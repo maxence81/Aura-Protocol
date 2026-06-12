@@ -15,7 +15,9 @@ const OFFICIAL_CONTRACTS = {
         NFLX: "0x4e464c5800000000000000000000000000000000",
         AMD:  "0x71178BAc73cBeb415514eB542a8995b82669778d",
         PLTR: "0x504c545200000000000000000000000000000000",
-        BTC:  "0x2260fac5e5542a773aa44fbcfedf7c193bc2c599"
+        BTC:  "0x2260fac5e5542a773aa44fbcfedf7c193bc2c599",
+        USDC: "0xbf4479C07Dc6fdc6dAa764A0ccA06969e894275F",
+        SYN:  "0xC5124C846c6e6307986988dFb7e743327aA05F19"
     },
     PROTOCOLS: {
         // HARDCODED to bypass wrong .env configurations where ROUTER_ADDRESS points to LOB router
@@ -313,7 +315,7 @@ async function proposeLimitOrder(request, eoa) {
 
 The user wants to place a RESTING limit order on the on-chain order book (Aura Stylus LOB on Arbitrum Sepolia).
 
-Available assets: ETH, BTC, TSLA, AMZN, NFLX, AMD, PLTR.
+Available assets: ETH, BTC, TSLA, AMZN, NFLX, AMD, PLTR, USDC, SYN.
 
 Direction:
   - "long" / "buy" / "bid" → is_long = true
@@ -407,7 +409,7 @@ async function proposeConditionalOrder(request, eoa) {
 
 The user wants to set a price trigger on an EXISTING perpetual position. When the trigger price is hit, the position will be automatically closed.
 
-Available assets: ETH, BTC, TSLA, AMZN, NFLX, AMD, PLTR.
+Available assets: ETH, BTC, TSLA, AMZN, NFLX, AMD, PLTR, USDC, SYN.
 
 Order types:
   - STOP_LOSS (0): closes position to limit losses. For longs: triggers when price DROPS to/below trigger. For shorts: triggers when price RISES to/above trigger.
@@ -687,6 +689,8 @@ async function proposeExecution(request, targetAccount, eoa, tzOffsetMin = 0) {
     - AMD: ${OFFICIAL_CONTRACTS.TOKENS.AMD}
     - PLTR: ${OFFICIAL_CONTRACTS.TOKENS.PLTR}
     - BTC: ${OFFICIAL_CONTRACTS.TOKENS.BTC}
+    - USDC: ${OFFICIAL_CONTRACTS.TOKENS.USDC}
+    - SYN: ${OFFICIAL_CONTRACTS.TOKENS.SYN}
 
     Determine the DIRECTION of the swap:
     - "swap X ETH to AUSD" means token_in=ETH, token_out=AUSD
@@ -730,6 +734,9 @@ async function proposeExecution(request, targetAccount, eoa, tzOffsetMin = 0) {
     const tokenOutSymbol = parsed.token_out_symbol.toUpperCase();
     
     // Safely parse amount using ethers to avoid LLM math errors
+    if (!parsed.amount || parsed.amount.toString().trim() === "") {
+        throw new Error("Missing amount. Please specify an amount to swap (e.g., 'swap 1 AMZN to TSLA').");
+    }
     const amountRaw = ethers.parseUnits(parsed.amount.toString(), 18);
     console.log(` Amount conversion: ${parsed.amount} -> ${amountRaw.toString()} wei`);
     
