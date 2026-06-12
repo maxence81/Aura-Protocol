@@ -437,12 +437,17 @@ async function startArena() {
     ARENA_CONFIG.forEach((config, index) => {
         const walletInfo = agentsData[index];
         
+        const runLoop = async () => {
+            try {
+                await runAgent(config, walletInfo);
+            } catch (err) {
+                console.error(`[Arena] Erreur: ${err.message}`);
+            }
+            setTimeout(runLoop, config.interval);
+        };
+
         // Stagger agents by 60 seconds to avoid overlap during their initial 50-second history sync
-        setTimeout(() => runAgent(config, walletInfo), index * 60000); 
-        
-        setInterval(() => {
-            runAgent(config, walletInfo);
-        }, config.interval);
+        setTimeout(runLoop, index * 60000); 
     });
 }
 
