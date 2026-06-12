@@ -11,10 +11,10 @@ Aura uses a **defense-in-depth** approach with three independent layers of prote
 ```mermaid
 flowchart TD
     User([User Intent - Natural Language])
-    Executor[🤖 Executor Agent]
-    RiskAuditor[🛡️ Risk Auditor Agent]
-    Guardrail[⛓️ On-Chain Guardrails]
-    Signature([✍️ User Signature])
+    Executor[Executor Agent]
+    RiskAuditor[Risk Auditor Agent]
+    Guardrail[On-Chain Guardrails]
+    Signature([User Signature])
     
     User -->|Proposes Action| Executor
     Executor -->|Drafts On-Chain Plan| RiskAuditor
@@ -257,11 +257,11 @@ The MCP server allows any AI (Claude, ChatGPT, etc.) to trade on behalf of a use
 - Act without on-chain authorization (`setAiAgent` must be signed first)
 - Access the user's private key (delegation model — key never leaves the browser)
 
-### Future Plans: x402 Protocol (DDoS & Spam Prevention)
+### x402 Protocol (DDoS & Spam Prevention)
 
-To prevent spam and resource exhaustion on the MCP server and Express API endpoints by remote AI agents, Aura Protocol plans to integrate the **x402 protocol** (HTTP 402 Payment Required). 
+To prevent spam and resource exhaustion on the MCP server and Express API endpoints by remote AI agents, Aura Protocol has integrated the **x402 protocol** (HTTP 402 Payment Required). 
 
-By requiring a micro-payment (e.g., in USDC on Arbitrum) for compute-heavy endpoints (like `get_market_analysis` which aggregates Pyth and NewsAPI data), the x402 protocol will act as a programmable economic shield against DDoS attacks. AI agents will be required to attach a valid cryptographic payment receipt for their requests to be processed, ensuring sustainable infrastructure costs.
+By requiring a micro-payment (e.g., in USDC on Arbitrum) for compute-heavy endpoints (like `get_market_analysis` which aggregates Pyth and NewsAPI data), the x402 protocol acts as a programmable economic shield against DDoS attacks. AI agents are required to attach a valid cryptographic payment receipt for their requests to be processed, ensuring sustainable infrastructure costs.
 
 ---
 

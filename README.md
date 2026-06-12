@@ -76,29 +76,29 @@ Full benchmark details in the [dedicated section below](#stylus-vs-solidity-benc
 
 ```mermaid
 graph TD
-    User([👤 User / Browser])
+    User([User / Browser])
     
     subgraph Frontend [Next.js Frontend]
-        ChatUI[💬 Chat UI]
-        TradeUI[📈 Trade Panel]
-        WebMCP[🔌 WebMCP Client]
+        ChatUI[Chat UI]
+        TradeUI[Trade Panel]
+        WebMCP[WebMCP Client]
     end
     
     subgraph Backend [Node.js Agent Layer]
-        Relayer[⛽ Gasless Relayer]
-        MCP[🤖 Claude MCP Server]
-        Macro[📊 Macro Analyzer]
-        Pyth[📡 Pyth Feeds]
+        Relayer[Gasless Relayer]
+        MCP[Claude MCP Server]
+        Macro[Macro Analyzer]
+        Pyth[Pyth Feeds]
     end
     
     subgraph Robinhood [Robinhood Chain]
-        Account[🛡️ AuraAccount (ERC-4337)]
-        Router[🔄 Synthra V3 Router]
-        Vault[🏦 Aura Vault]
+        Account[AuraAccount ERC-4337]
+        Router[Synthra V3 Router]
+        Vault[Aura Vault]
     end
     
     subgraph Arbitrum [Arbitrum Sepolia]
-        Stylus[⚡ Stylus LOB WASM]
+        Stylus[Stylus LOB WASM]
     end
     
     %% Frontend Connections
@@ -192,11 +192,13 @@ Real numbers from `scripts/bench-guardrail.js` on Arbitrum Sepolia:
 ### Robinhood Chain Testnet (Settlement layer)
 | Contract | Address |
 |---|---|
-| AuraPerps | `0x8AECF449B27BB41E34C04D8C99F4348FF38bB9a2` |
+| AuraPerps | `0x23aEa07e298d16b00d59c22c865065Be61edAa55` |
 | AuraVault (LP) | `0x4Ae6Ab5BCAb4F0f2FAcAA47aD2ea5832eBDF5792` |
 | AuraIntelligenceVault (ERC-4626) | `0x69A88c72eAda96A515e0dc57632A6Abf59EA2E38` |
-| AuraPerpsRouter (Hybrid) | `0x5F88E57fBDC5B83827273d2ab8843226F40d0E13` |
-| AuraAccount Factory | `0x95Aa20d53EB26f292a71D8B38515BBeC8905b550` |
+| AuraPerpsRouter (Hybrid LOB) | `0xE960d3FfC63B74aBb499E70ea275C980A4b25ab8` |
+| Synthra V3 Universal Router (Spot) | `0x6F308B834595312f734e65e273F2210f43Fc48F8` |
+| AuraAccount Factory | `0x0C42313e922E7d8b2A1175a695f083Bb0e0cF64A` |
+| AuraCopyTrading V2 | `0x9f25DFA06596A6c4508D0d8634abA4eb0C75B34d` |
 | **AuraAuditTrail** | `0x42D141CBe4aDc46B082D702C2e1bD802236348C4` |
 | aUSD | `0x359961489f069F16E5dbA46d9b174bBF7b25147B` |
 | Pyth MockOracle | `0x097AeB196366317cf97986A04f32Df312c96ABa1` |
@@ -392,18 +394,18 @@ Claude → "Done! Limit order placed on Stylus LOB. TX: 0xabc..."
 
 ---
 
-## Future Plans: x402 Protocol Integration (Monetization for AI Agents)
+## x402 Protocol Integration (Monetization for AI Agents)
 
-As presented during the Arbitrum hackathon, Aura Protocol plans to integrate the **x402 protocol** (HTTP 402 Payment Required) to monetize its MCP Server and API endpoints. 
+Aura Protocol has fully integrated the **x402 protocol** (HTTP 402 Payment Required) to monetize its MCP Server and API endpoints. 
 
 Since Aura exposes a Model Context Protocol (MCP) server for remote AI agents (like Claude Desktop or custom trading bots), these agents consume computational resources and premium data (e.g., Pyth Network feeds, NewsAPI sentiment analysis).
 
-In the future, the Express backend and MCP server will be protected by an x402 middleware:
-1. Remote AI agents will receive an HTTP 402 response when requesting premium analyses (`get_market_analysis`) or executing complex on-chain strategies.
-2. The agent will settle a micro-payment (e.g., 0.50 USDC) natively on Arbitrum.
-3. Upon verifying the payment receipt, the Aura backend will serve the data/execution.
+The Express backend and MCP server are protected by an x402 middleware:
+1. Remote AI agents receive an HTTP 402 response when requesting premium analyses (`get_market_analysis`) or executing complex on-chain strategies.
+2. The agent settles a micro-payment (e.g., 0.50 USDC) natively on Arbitrum.
+3. Upon verifying the payment receipt, the Aura backend serves the data/execution.
 
-This turns Aura into a true "Machine-to-Machine" (M2M) economy, where autonomous agents pay for services programmatically without human intervention.
+This makes Aura a true "Machine-to-Machine" (M2M) economy, where autonomous agents pay for services programmatically without human intervention.
 
 ---
 
