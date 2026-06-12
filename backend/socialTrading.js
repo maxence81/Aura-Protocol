@@ -32,21 +32,21 @@ const AUSD_ABI = [
 function getCopyTradingContract() {
     const addr = process.env.COPY_TRADING_V2_ADDRESS;
     if (!addr) return null;
-    const provider = new ethers.JsonRpcProvider(); provider.pollingInterval = 60000;
+    const provider = new ethers.JsonRpcProvider(process.env.RPC_URL || process.env.ROBINHOOD_ALCHEMY_RPC || "https://rpc.testnet.chain.robinhood.com"); provider.pollingInterval = 60000;
     return new ethers.Contract(addr, COPY_TRADING_ABI, provider);
 }
 
 function getPerpsContract() {
     const addr = process.env.AURA_PERPS_ADDRESS;
     if (!addr) return null;
-    const provider = new ethers.JsonRpcProvider(); provider.pollingInterval = 60000;
+    const provider = new ethers.JsonRpcProvider(process.env.RPC_URL || process.env.ROBINHOOD_ALCHEMY_RPC || "https://rpc.testnet.chain.robinhood.com"); provider.pollingInterval = 60000;
     return new ethers.Contract(addr, PERPS_ABI, provider);
 }
 
 function getOracleContract() {
     const addr = process.env.MOCK_ORACLE_ADDRESS;
     if (!addr) return null;
-    const provider = new ethers.JsonRpcProvider(); provider.pollingInterval = 60000;
+    const provider = new ethers.JsonRpcProvider(process.env.RPC_URL || process.env.ROBINHOOD_ALCHEMY_RPC || "https://rpc.testnet.chain.robinhood.com"); provider.pollingInterval = 60000;
     return new ethers.Contract(addr, ORACLE_ABI, provider);
 }
 
@@ -142,7 +142,7 @@ async function getLeaderProfile(req, res) {
             isPnlPositive: profileRaw.isPnlPositive,
             tradesExecuted: Number(profileRaw.tradesExecuted),
             tradesWon: Number(profileRaw.tradesWon),
-            joinedAt: profileRaw.joinedAt
+            createdAt: profileRaw.createdAt
         };
 
         try {
@@ -328,7 +328,7 @@ async function getLeaderboard(req, res) {
                 isPnlPositive: profileRaw.isPnlPositive,
                 tradesExecuted: Number(profileRaw.tradesExecuted),
                 tradesWon: Number(profileRaw.tradesWon),
-                joinedAt: profileRaw.joinedAt
+                createdAt: profileRaw.createdAt
             };
 
             try {
@@ -420,7 +420,7 @@ async function getLeaderHistory(req, res) {
             isPnlPositive: profileRaw.isPnlPositive,
             tradesExecuted: Number(profileRaw.tradesExecuted),
             tradesWon: Number(profileRaw.tradesWon),
-            joinedAt: profileRaw.joinedAt
+            createdAt: profileRaw.createdAt
         };
 
         try {
@@ -453,7 +453,7 @@ async function getLeaderHistory(req, res) {
         }
 
         // Query CopyTradeClosed events for this leader
-        const provider = new ethers.JsonRpcProvider(); provider.pollingInterval = 60000;
+        const provider = new ethers.JsonRpcProvider(process.env.RPC_URL || process.env.ROBINHOOD_ALCHEMY_RPC || "https://rpc.testnet.chain.robinhood.com"); provider.pollingInterval = 60000;
         const currentBlock = await provider.getBlockNumber();
 
         // Estimate blocks for the time period (Arbitrum Orbit ~250ms block time)
