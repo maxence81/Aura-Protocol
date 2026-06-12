@@ -819,7 +819,11 @@ if (args.includes("--http")) {
       const price = await fetchPythPrice(pos.asset);
       if (price) { const oracle = new ethers.Contract(MOCK_ORACLE_ADDRESS, ORACLE_ABI, agentWallet); await (await oracle.setPrice(pos.asset, ethers.parseUnits(price.toFixed(2), 18))).wait(); }
 
-      if (sessionAccount) {
+      const posOwner = pos.owner.toLowerCase();
+
+      // Route based on who actually owns the position on-chain
+      if (sessionAccount && posOwner === sessionAccount.toLowerCase()) {
+        // Position owned by AuraAccount → close via executeBatchByAgent
         const closeData = perpsIface.encodeFunctionData("closePosition", [BigInt(position_id)]);
         const account = new ethers.Contract(sessionAccount, AURA_ACCOUNT_ABI, agentWallet);
         const tx = await account.executeBatchByAgent([AURA_PERPS_ADDRESS], [0n], [closeData]);
@@ -827,9 +831,15 @@ if (args.includes("--http")) {
         return { content: [{ type: "text", text: JSON.stringify({ status: "closed", account: sessionAccount, positionId: position_id, asset: pos.asset, exitPrice: price, txHash: receipt.hash }, null, 2) }] };
       }
 
-      const tx = await perps.closePosition(position_id);
-      const receipt = await tx.wait();
-      return { content: [{ type: "text", text: JSON.stringify({ status: "closed", positionId: position_id, asset: pos.asset, exitPrice: price, txHash: receipt.hash }, null, 2) }] };
+      if (posOwner === agentWallet.address.toLowerCase()) {
+        // Position owned by agent wallet directly → close directly
+        const tx = await perps.closePosition(position_id);
+        const receipt = await tx.wait();
+        return { content: [{ type: "text", text: JSON.stringify({ status: "closed", positionId: position_id, asset: pos.asset, exitPrice: price, txHash: receipt.hash }, null, 2) }] };
+      }
+
+      // Position owner doesn't match session or agent — cannot close
+      return { content: [{ type: "text", text: JSON.stringify({ error: "Not the position owner", positionId: position_id, positionOwner: pos.owner, sessionAccount: sessionAccount || "none", agentWallet: agentWallet.address, hint: "This position belongs to a different wallet. Make sure you authenticate with the correct API key." }, null, 2) }] };
     });
 
     s.registerTool("get_account_balance", { description: "Get aUSD and ETH balance for your account", inputSchema: z.object({ address: z.string().optional() }) }, async ({ address }) => {
@@ -844,22 +854,32 @@ if (args.includes("--http")) {
     s.registerTool("set_stop_loss_take_profit", { description: "Set stop-loss and/or take-profit on a position", inputSchema: z.object({ position_id: z.number(), take_profit: z.number().optional(), stop_loss: z.number().optional() }) }, async ({ position_id, take_profit = 0, stop_loss = 0 }) => {
       const tpWei = ethers.parseUnits(take_profit.toString(), 18);
       const slWei = ethers.parseUnits(stop_loss.toString(), 18);
-      if (sessionAccount) {
+      const perps = new ethers.Contract(AURA_PERPS_ADDRESS, PERPS_ABI, agentWallet);
+      const pos = await perps.positions(position_id);
+      const posOwner = pos.owner.toLowerCase();
+
+      if (sessionAccount && posOwner === sessionAccount.toLowerCase()) {
         const data = perpsIface.encodeFunctionData("setTriggerOrders", [BigInt(position_id), tpWei, slWei]);
         const account = new ethers.Contract(sessionAccount, AURA_ACCOUNT_ABI, agentWallet);
         const tx = await account.executeBatchByAgent([AURA_PERPS_ADDRESS], [0n], [data]);
         const receipt = await tx.wait();
         return { content: [{ type: "text", text: JSON.stringify({ status: "triggers_set", account: sessionAccount, positionId: position_id, takeProfit: take_profit, stopLoss: stop_loss, txHash: receipt.hash }, null, 2) }] };
       }
-      const perps = new ethers.Contract(AURA_PERPS_ADDRESS, PERPS_ABI, agentWallet);
-      const tx = await perps.setTriggerOrders(BigInt(position_id), tpWei, slWei);
-      const receipt = await tx.wait();
-      return { content: [{ type: "text", text: JSON.stringify({ status: "triggers_set", positionId: position_id, takeProfit: take_profit, stopLoss: stop_loss, txHash: receipt.hash }, null, 2) }] };
+      if (posOwner === agentWallet.address.toLowerCase()) {
+        const tx = await perps.setTriggerOrders(BigInt(position_id), tpWei, slWei);
+        const receipt = await tx.wait();
+        return { content: [{ type: "text", text: JSON.stringify({ status: "triggers_set", positionId: position_id, takeProfit: take_profit, stopLoss: stop_loss, txHash: receipt.hash }, null, 2) }] };
+      }
+      return { content: [{ type: "text", text: JSON.stringify({ error: "Not the position owner", positionId: position_id, positionOwner: pos.owner, hint: "Authenticate with the correct API key." }, null, 2) }] };
     });
 
     s.registerTool("add_margin", { description: "Add collateral to a position to reduce liquidation risk", inputSchema: z.object({ position_id: z.number(), amount: z.number() }) }, async ({ position_id, amount }) => {
       const amtWei = ethers.parseUnits(amount.toString(), 18);
-      if (sessionAccount) {
+      const perps = new ethers.Contract(AURA_PERPS_ADDRESS, PERPS_ABI, agentWallet);
+      const pos = await perps.positions(position_id);
+      const posOwner = pos.owner.toLowerCase();
+
+      if (sessionAccount && posOwner === sessionAccount.toLowerCase()) {
         const approveData = ausdIface.encodeFunctionData("approve", [AURA_PERPS_ADDRESS, amtWei]);
         const marginData = perpsIface.encodeFunctionData("addMargin", [BigInt(position_id), amtWei]);
         const account = new ethers.Contract(sessionAccount, AURA_ACCOUNT_ABI, agentWallet);
@@ -867,13 +887,15 @@ if (args.includes("--http")) {
         const receipt = await tx.wait();
         return { content: [{ type: "text", text: JSON.stringify({ status: "margin_added", account: sessionAccount, positionId: position_id, addedAmount: amount, txHash: receipt.hash }, null, 2) }] };
       }
-      const ausd = new ethers.Contract(AUSD_ADDRESS, AUSD_ABI, agentWallet);
-      const allowance = await ausd.allowance(agentWallet.address, AURA_PERPS_ADDRESS);
-      if (allowance < amtWei) await (await ausd.approve(AURA_PERPS_ADDRESS, ethers.MaxUint256)).wait();
-      const perps = new ethers.Contract(AURA_PERPS_ADDRESS, PERPS_ABI, agentWallet);
-      const tx = await perps.addMargin(BigInt(position_id), amtWei);
-      const receipt = await tx.wait();
-      return { content: [{ type: "text", text: JSON.stringify({ status: "margin_added", positionId: position_id, addedAmount: amount, txHash: receipt.hash }, null, 2) }] };
+      if (posOwner === agentWallet.address.toLowerCase()) {
+        const ausd = new ethers.Contract(AUSD_ADDRESS, AUSD_ABI, agentWallet);
+        const allowance = await ausd.allowance(agentWallet.address, AURA_PERPS_ADDRESS);
+        if (allowance < amtWei) await (await ausd.approve(AURA_PERPS_ADDRESS, ethers.MaxUint256)).wait();
+        const tx = await perps.addMargin(BigInt(position_id), amtWei);
+        const receipt = await tx.wait();
+        return { content: [{ type: "text", text: JSON.stringify({ status: "margin_added", positionId: position_id, addedAmount: amount, txHash: receipt.hash }, null, 2) }] };
+      }
+      return { content: [{ type: "text", text: JSON.stringify({ error: "Not the position owner", positionId: position_id, positionOwner: pos.owner, hint: "Authenticate with the correct API key." }, null, 2) }] };
     });
 
     s.registerTool("get_market_analysis", { description: "Get AI macro analysis (sentiment, news, correlations) for an asset", inputSchema: z.object({ asset: z.string() }) }, async ({ asset }) => {
@@ -913,16 +935,23 @@ if (args.includes("--http")) {
       const price = await fetchPythPrice(pos.asset);
       if (price) await (await oracle.setPrice(pos.asset, ethers.parseUnits(price.toFixed(2), 18))).wait();
       const sizeWei = ethers.parseUnits(close_size.toString(), 18);
-      if (sessionAccount) {
+      const posOwner = pos.owner.toLowerCase();
+
+      if (sessionAccount && posOwner === sessionAccount.toLowerCase()) {
         const data = perpsIface.encodeFunctionData("closePositionPartially", [BigInt(position_id), sizeWei]);
         const account = new ethers.Contract(sessionAccount, AURA_ACCOUNT_ABI, agentWallet);
         const tx = await account.executeBatchByAgent([AURA_PERPS_ADDRESS], [0n], [data]);
         const receipt = await tx.wait();
         return { content: [{ type: "text", text: JSON.stringify({ status: "partially_closed", account: sessionAccount, positionId: position_id, closedSize: close_size, exitPrice: price, txHash: receipt.hash }, null, 2) }] };
       }
-      const tx = await perps.closePositionPartially(BigInt(position_id), sizeWei);
-      const receipt = await tx.wait();
-      return { content: [{ type: "text", text: JSON.stringify({ status: "partially_closed", positionId: position_id, closedSize: close_size, exitPrice: price, txHash: receipt.hash }, null, 2) }] };
+
+      if (posOwner === agentWallet.address.toLowerCase()) {
+        const tx = await perps.closePositionPartially(BigInt(position_id), sizeWei);
+        const receipt = await tx.wait();
+        return { content: [{ type: "text", text: JSON.stringify({ status: "partially_closed", positionId: position_id, closedSize: close_size, exitPrice: price, txHash: receipt.hash }, null, 2) }] };
+      }
+
+      return { content: [{ type: "text", text: JSON.stringify({ error: "Not the position owner", positionId: position_id, positionOwner: pos.owner, sessionAccount: sessionAccount || "none", agentWallet: agentWallet.address, hint: "This position belongs to a different wallet. Make sure you authenticate with the correct API key." }, null, 2) }] };
     });
 
     s.registerTool("dca_order", { description: "Schedule a DCA: auto-open positions at intervals. Max 10 orders, min 5 min.", inputSchema: z.object({ asset: z.string(), amount: z.number(), interval_minutes: z.number().min(5), num_orders: z.number().min(2).max(10), is_long: z.boolean().optional(), leverage: z.number().min(1).max(50).optional() }) }, async ({ asset, amount, interval_minutes, num_orders, is_long = true, leverage = 1 }) => {
