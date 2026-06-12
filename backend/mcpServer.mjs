@@ -822,8 +822,9 @@ if (args.includes("--http")) {
       const posOwner = pos.owner.toLowerCase();
 
       // Route based on who actually owns the position on-chain
-      if (sessionAccount && posOwner === sessionAccount.toLowerCase()) {
-        // Position owned by AuraAccount → close via executeBatchByAgent
+      // Match: AuraAccount itself, OR EOA wallet (owner of AuraAccount) — both route via executeBatchByAgent
+      if (sessionAccount && (posOwner === sessionAccount.toLowerCase() || (sessionOwnerWallet && posOwner === sessionOwnerWallet.toLowerCase()))) {
+        // Close via executeBatchByAgent — contract's _isOwnerOrDelegate accepts AuraAccount for its owner's positions
         const closeData = perpsIface.encodeFunctionData("closePosition", [BigInt(position_id)]);
         const account = new ethers.Contract(sessionAccount, AURA_ACCOUNT_ABI, agentWallet);
         const tx = await account.executeBatchByAgent([AURA_PERPS_ADDRESS], [0n], [closeData]);
@@ -858,7 +859,7 @@ if (args.includes("--http")) {
       const pos = await perps.positions(position_id);
       const posOwner = pos.owner.toLowerCase();
 
-      if (sessionAccount && posOwner === sessionAccount.toLowerCase()) {
+      if (sessionAccount && (posOwner === sessionAccount.toLowerCase() || (sessionOwnerWallet && posOwner === sessionOwnerWallet.toLowerCase()))) {
         const data = perpsIface.encodeFunctionData("setTriggerOrders", [BigInt(position_id), tpWei, slWei]);
         const account = new ethers.Contract(sessionAccount, AURA_ACCOUNT_ABI, agentWallet);
         const tx = await account.executeBatchByAgent([AURA_PERPS_ADDRESS], [0n], [data]);
@@ -879,7 +880,7 @@ if (args.includes("--http")) {
       const pos = await perps.positions(position_id);
       const posOwner = pos.owner.toLowerCase();
 
-      if (sessionAccount && posOwner === sessionAccount.toLowerCase()) {
+      if (sessionAccount && (posOwner === sessionAccount.toLowerCase() || (sessionOwnerWallet && posOwner === sessionOwnerWallet.toLowerCase()))) {
         const approveData = ausdIface.encodeFunctionData("approve", [AURA_PERPS_ADDRESS, amtWei]);
         const marginData = perpsIface.encodeFunctionData("addMargin", [BigInt(position_id), amtWei]);
         const account = new ethers.Contract(sessionAccount, AURA_ACCOUNT_ABI, agentWallet);
@@ -937,7 +938,7 @@ if (args.includes("--http")) {
       const sizeWei = ethers.parseUnits(close_size.toString(), 18);
       const posOwner = pos.owner.toLowerCase();
 
-      if (sessionAccount && posOwner === sessionAccount.toLowerCase()) {
+      if (sessionAccount && (posOwner === sessionAccount.toLowerCase() || (sessionOwnerWallet && posOwner === sessionOwnerWallet.toLowerCase()))) {
         const data = perpsIface.encodeFunctionData("closePositionPartially", [BigInt(position_id), sizeWei]);
         const account = new ethers.Contract(sessionAccount, AURA_ACCOUNT_ABI, agentWallet);
         const tx = await account.executeBatchByAgent([AURA_PERPS_ADDRESS], [0n], [data]);

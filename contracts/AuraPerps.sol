@@ -20,6 +20,11 @@ interface IAuraStylusMath {
     function calculatePriceImpact(uint256 positionSize, uint256 vaultTVL, uint256 currentPrice) external pure returns (uint256);
 }
 
+/// @notice Interface for AuraAccount — checks ownership chain for MCP delegation
+interface IAuraAccount {
+    function owner() external view returns (address);
+}
+
 contract AuraPerps is Ownable {
     IERC20 public aUSD;
     IMockOracle public oracle;
@@ -224,10 +229,26 @@ contract AuraPerps is Ownable {
         return positionId;
     }
 
+    /// @dev Returns true if msg.sender is the position owner OR is an AuraAccount
+    ///      whose owner() is the position owner. This allows the MCP agent to manage
+    ///      positions opened by the user's EOA wallet through the AuraAccount delegation.
+    function _isOwnerOrDelegate(address posOwner) internal view returns (bool) {
+        if (posOwner == msg.sender) return true;
+        // Check if msg.sender is a contract whose owner() matches the position owner
+        if (msg.sender.code.length > 0) {
+            try IAuraAccount(msg.sender).owner() returns (address accountOwner) {
+                return accountOwner == posOwner;
+            } catch {
+                return false;
+            }
+        }
+        return false;
+    }
+
     function addMargin(uint256 positionId, uint256 additionalCollateral) external {
         Position storage pos = positions[positionId];
         require(pos.isOpen, "AuraPerps: Position not open");
-        require(pos.owner == msg.sender, "AuraPerps: Not owner");
+        require(_isOwnerOrDelegate(pos.owner), "AuraPerps: Not owner");
 
         require(aUSD.transferFrom(msg.sender, address(this), additionalCollateral), "AuraPerps: Transfer failed");
         pos.collateralAmount += additionalCollateral;
@@ -238,7 +259,7 @@ contract AuraPerps is Ownable {
     function setTriggerOrders(uint256 positionId, uint256 tpPrice, uint256 slPrice) external {
         Position storage pos = positions[positionId];
         require(pos.isOpen, "AuraPerps: Position not open");
-        require(pos.owner == msg.sender, "AuraPerps: Not owner");
+        require(_isOwnerOrDelegate(pos.owner), "AuraPerps: Not owner");
 
         pos.takeProfitPrice = tpPrice;
         pos.stopLossPrice = slPrice;
@@ -269,7 +290,7 @@ contract AuraPerps is Ownable {
     function closePosition(uint256 positionId) external {
         Position storage pos = positions[positionId];
         require(pos.isOpen, "AuraPerps: Position not open");
-        require(pos.owner == msg.sender, "AuraPerps: Not the position owner");
+        require(_isOwnerOrDelegate(pos.owner), "AuraPerps: Not the position owner");
 
         _close(positionId, pos.positionSize);
     }
@@ -277,7 +298,7 @@ contract AuraPerps is Ownable {
     function closePositionPartially(uint256 positionId, uint256 closeSize) external {
         Position storage pos = positions[positionId];
         require(pos.isOpen, "AuraPerps: Position not open");
-        require(pos.owner == msg.sender, "AuraPerps: Not owner");
+        require(_isOwnerOrDelegate(pos.owner), "AuraPerps: Not owner");
         require(closeSize > 0 && closeSize <= pos.positionSize, "AuraPerps: Invalid close size");
 
         _close(positionId, closeSize);
