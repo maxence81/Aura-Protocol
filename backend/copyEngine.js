@@ -114,7 +114,7 @@ const tradeLog = [];
  * Called once at server startup.
  */
 async function startCopyEngine() {
-    const rpcUrl = process.env.RPC_URL;
+    const rpcUrl = process.env.ROBINHOOD_ALCHEMY_RPC || process.env.RPC_URL;
     const privateKey = process.env.PRIVATE_KEY;
     const perpsAddr = process.env.AURA_PERPS_ADDRESS;
     const copyTradingAddr = process.env.COPY_TRADING_V2_ADDRESS;
