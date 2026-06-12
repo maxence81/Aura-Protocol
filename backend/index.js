@@ -628,7 +628,7 @@ app.get("/api/orderbook/:asset", async (req, res) => {
       "function getOrderDetails(uint256 orderId) view returns (address user, uint256 assetHash, bool isLong, uint256 collateral, uint256 leverage, uint256 limitPrice, uint256 timestamp, uint256 status)",
     ];
 
-    const provider = new ethers.JsonRpcProvider(process.env.RPC_URL || "https://rpc.testnet.chain.robinhood.com"); provider.pollingInterval = 60000;
+    const provider = new ethers.JsonRpcProvider(process.env.RPC_URL || "https://rpc.testnet.chain.robinhood.com"); provider.pollingInterval = 500;
     const router = new ethers.Contract(routerAddr, ROUTER_ABI, provider);
 
     let rawBids = []; // {price: number, size: number}
@@ -776,7 +776,7 @@ app.post("/api/gasless-execute", async (req, res) => {
       return res.status(400).json({ error: "Missing accountAddress, targets, values, or datas" });
     }
 
-    const provider = new ethers.JsonRpcProvider(process.env.RPC_URL || "https://rpc.testnet.chain.robinhood.com"); provider.pollingInterval = 60000;
+    const provider = new ethers.JsonRpcProvider(process.env.RPC_URL || "https://rpc.testnet.chain.robinhood.com"); provider.pollingInterval = 500;
     const signer = chatWallet.connect(provider);
 
     // ── Audit Trail: record reasoning hash on-chain BEFORE execution ──
