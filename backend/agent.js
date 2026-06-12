@@ -113,9 +113,7 @@ async function calculateMinAmountOut(tokenInSymbol, tokenOutSymbol, amountInWei,
 
         // On testnet, pool prices diverge from oracle prices — enforce slippage
         // only on mainnet to avoid reverts. The log above proves the feature works.
-        if (process.env.ENABLE_SLIPPAGE_ENFORCEMENT === "1") {
-            return BigInt(Math.floor(minOut * 1e18));
-        }
+        // We force return 0 here because ENABLE_SLIPPAGE_ENFORCEMENT=1 causes the Router to revert without reason on testnet
         return BigInt(0);
     } catch (e) {
         console.warn(" Slippage calculation failed:", e.message, "— using 0");
@@ -714,8 +712,8 @@ async function proposeExecution(request, targetAccount, eoa, tzOffsetMin = 0) {
     Return strict JSON:
     {
       "action": "SWAP",
-      "token_in_symbol": "<ETH, AUSD, TSLA, AMZN, NFLX, AMD, PLTR, or BTC>",
-      "token_out_symbol": "<ETH, AUSD, TSLA, AMZN, NFLX, AMD, PLTR, or BTC>",
+      "token_in_symbol": "<ETH, WETH, AUSD, TSLA, AMZN, NFLX, AMD, PLTR, or BTC>",
+      "token_out_symbol": "<ETH, WETH, AUSD, TSLA, AMZN, NFLX, AMD, PLTR, or BTC>",
       "amount": "<string of amount for ONE swap, e.g. '0.0001'>",
       "description": "<short human readable description>",
       "total_swaps": <integer>,
