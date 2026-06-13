@@ -166,12 +166,12 @@ function encodeVaultActions(proposals, vaultState) {
             const tokenOut = VAULT_CONFIG.TOKENS[prop.token];
             if (!tokenOut) continue;
 
-            // 1. Transfer aUSD to Router
-            const transferData = erc20Iface.encodeFunctionData("transfer", [VAULT_CONFIG.SYNTHRA_ROUTER, amountAUSD]);
+            // 1. Approve aUSD to Router
+            const approveData = erc20Iface.encodeFunctionData("approve", [VAULT_CONFIG.SYNTHRA_ROUTER, amountAUSD]);
             encodedActions.push({
                 target: VAULT_CONFIG.AUSD_ADDRESS,
-                data: transferData,
-                description: `Transfer tokens to Router for swap (${prop.token})`
+                data: approveData,
+                description: `Approve Router for swap (${prop.token})`
             });
 
             // 2. Execute Swap on Router

@@ -263,7 +263,7 @@ export default function VaultPage() {
       if (data.proposal) addLog("Analyst Agent", `Strategy: ${data.proposal.action}. ${data.proposal.reasoning}`, "analyst");
       if (data.riskAssessment) addLog("Risk Officer", `${data.riskAssessment.approved ? "APPROVED" : "REJECTED"} - Risk: ${data.riskAssessment.riskScore}/100. ${data.riskAssessment.rationale}`, "risk");
       if (data.encodedStrategies?.length > 0) {
-        data.encodedStrategies.forEach((s: any) => addLog("Execution", `Ready: ${s.description}`, "execution"));
+        [...data.encodedStrategies].reverse().forEach((s: any) => addLog("Execution", `Ready: ${s.description}`, "execution"));
         addLog("System", "Executing strategies on-chain via Agent Wallet...", "system");
         try {
           const execRes = await fetch(`${API_URL}/api/vault/execute`, {
