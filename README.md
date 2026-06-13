@@ -185,20 +185,19 @@ Real numbers from `scripts/bench-guardrail.js` on Arbitrum Sepolia:
 | Contract | Address |
 |---|---|
 | **Stylus LOB v2** | [`0x3346abe000118b25aca953f48deb1978a069e7de`](https://sepolia.arbiscan.io/address/0x3346abe000118b25aca953f48deb1978a069e7de) |
-| **Stylus Guardrail** | [`0xd57a35af5ea3176667d79d6e460e39e9ba79bc08`](https://sepolia.arbiscan.io/address/0xd57a35af5ea3176667d79d6e460e39e9ba79bc08) |
-| Solidity LOB (bench reference) | [`0x030839d7AC5Df159dB38ACa99CF8258BF9EC447E`](https://sepolia.arbiscan.io/address/0x030839d7AC5Df159dB38ACa99CF8258BF9EC447E) |
+| **AuraCrossChainEscrow (Stylus)** | [`0x19147627a4b6b0b803b097d3c6216c3351d4913e`](https://sepolia.arbiscan.io/address/0x19147627a4b6b0b803b097d3c6216c3351d4913e) |
 
 ### Robinhood Chain Testnet (Settlement layer)
 | Contract | Address |
 |---|---|
 | AuraPerps | `0x23aEa07e298d16b00d59c22c865065Be61edAa55` |
-| AuraVault (LP) | `0x4Ae6Ab5BCAb4F0f2FAcAA47aD2ea5832eBDF5792` |
-| AuraIntelligenceVault (ERC-4626) | `0x69A88c72eAda96A515e0dc57632A6Abf59EA2E38` |
-| AuraPerpsRouter (Hybrid LOB) | `0xE960d3FfC63B74aBb499E70ea275C980A4b25ab8` |
+| AuraIntelligenceVault (ERC-4626) | `0x789b90ebAabC68858e9DEaAE8197793d582c66cb` |
+| AuraPerpsRouter (Hybrid LOB) | `0x35650De9a304BB4eE9A0c23F2bcf0D9E71F7cDe3` |
 | Synthra V3 Universal Router (Spot) | `0x6F308B834595312f734e65e273F2210f43Fc48F8` |
-| AuraAccount Factory | `0x0C42313e922E7d8b2A1175a695f083Bb0e0cF64A` |
-| AuraCopyTrading V2 | `0x9f25DFA06596A6c4508D0d8634abA4eb0C75B34d` |
-| **AuraAuditTrail** | `0x42D141CBe4aDc46B082D702C2e1bD802236348C4` |
+| AuraAccount Factory | `0x95Aa20d53EB26f292a71D8B38515BBeC8905b550` |
+| AuraCopyTrading V2 | `0xd879DcfE7e62a1aD5877A006322A5EaF87E31ce8` |
+| **Conditional Order Manager** | `0x981503939B94D0Aeb5110d96d2c4FDEE26b177C2` |
+| **Liquidation Shield** | `0x8DB493DF1E09a15f02f90117b3d32cb5B2A6d4b2` |
 | aUSD | `0x359961489f069F16E5dbA46d9b174bBF7b25147B` |
 | Pyth MockOracle | `0x097AeB196366317cf97986A04f32Df312c96ABa1` |
 
