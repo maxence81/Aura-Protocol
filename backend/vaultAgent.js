@@ -11,7 +11,8 @@ dotenv.config();
 
 const VAULT_CONFIG = {
     // Protocol addresses on Robinhood Chain
-    SYNTHRA_ROUTER: process.env.ROUTER_ADDRESS || "0x63110251e8C487bAb7f77861F230E2251Bd86335",
+    // Hardcoded to bypass wrong .env configurations where ROUTER_ADDRESS points to LOB router
+    SYNTHRA_ROUTER: "0x6F308B834595312f734e65e273F2210f43Fc48F8",
     AUSD_ADDRESS: process.env.AUSD_ADDRESS || "0x50a8Ecee8B72A21F33847FD44cC491B1dD338aE0",
     WETH: "0x33e4191705c386532ba27cBF171Db86919200B94",
 
@@ -23,7 +24,9 @@ const VAULT_CONFIG = {
         NFLX: "0x4e464c5800000000000000000000000000000000",
         AMD:  "0x71178BAc73cBeb415514eB542a8995b82669778d",
         PLTR: "0x504c545200000000000000000000000000000000",
-        BTC:  "0x2260fac5e5542a773aa44fbcfedf7c193bc2c599"
+        BTC:  "0x2260fac5e5542a773aa44fbcfedf7c193bc2c599",
+        USDC: "0xbf4479C07Dc6fdc6dAa764A0ccA06969e894275F",
+        SYN:  "0xC5124C846c6e6307986988dFb7e743327aA05F19"
     }
 };
 
@@ -149,7 +152,15 @@ function encodeVaultActions(proposals, vaultState) {
 
     for (const prop of proposals) {
         if (prop.action === "SWAP") {
-            const amountAUSD = (BigInt(vaultState.tvl_raw) * BigInt(prop.percentage_of_vault)) / 100n;
+            let amountAUSD = (BigInt(vaultState.tvl_raw) * BigInt(prop.percentage_of_vault)) / 100n;
+            
+            // Safety cap: take into account liquidity size (pool is ~11k aUSD)
+            // Max 500 aUSD per swap to avoid high slippage
+            const MAX_SWAP_SIZE = ethers.parseEther("500");
+            if (amountAUSD > MAX_SWAP_SIZE) {
+                amountAUSD = MAX_SWAP_SIZE;
+            }
+
             if (amountAUSD === 0n) continue;
 
             const tokenOut = VAULT_CONFIG.TOKENS[prop.token];
@@ -249,7 +260,7 @@ async function executeStrategiesOnChain(actions, vaultAddr, signer) {
             });
             const receipt = await tx.wait();
             console.log(`    Success! Hash: ${tx.hash}`);
-            results.push({ description: action.description, success: true, hash: tx.hash });
+            results.push({ description: action.description, success: true, txHash: tx.hash });
         } catch (err) {
             console.error(`    Failed: ${err.message}`);
             results.push({ description: action.description, success: false, error: err.message });
