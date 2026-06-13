@@ -599,69 +599,87 @@ function TraderProfileContent() {
         setHistory(hData);
       }
     } catch {
-      // Backend not available  use mock data for demo
-      setProfile({
-        address,
-        rank: 3,
-        totalPnl: 12450.67,
-        roi: 34.5,
-        winRate: 72.3,
-        tradesExecuted: 156,
-        maxDrawdown: -8.2,
-        totalCopiedCapital: 45200,
-        totalFollowers: 47,
-        createdAt: new Date(Date.now() - 45 * 86400000).toISOString(),
-      });
-      setStrategies([
-        {
-          id: 1,
-          name: "Alpha Momentum",
-          description: "Trend-following strategy using momentum indicators on ETH and BTC pairs",
-          totalPnl: "8230.45",
-          roi: 28.5,
-          winRate: 74,
-          followerCount: 32,
-          totalFollowerCapital: "28500",
-          performanceFeeBps: 1000,
-          isActive: true,
-        },
-        {
-          id: 2,
-          name: "Mean Reversion Pro",
-          description: "Statistical arbitrage on crypto pairs with volatility-adjusted sizing",
-          totalPnl: "4220.22",
-          roi: 19.2,
-          winRate: 68,
-          followerCount: 15,
-          totalFollowerCapital: "16700",
-          performanceFeeBps: 1500,
-          isActive: true,
-        },
-      ]);
-      // Generate mock history
-      const days = selectedPeriod;
-      const mockHistory: HistoryEntry[] = [];
-      let cumPnl = 0;
-      for (let i = 0; i < days; i++) {
-        const date = new Date(Date.now() - (days - i) * 86400000)
-          .toISOString()
-          .split("T")[0];
-        const dailyPnl = (Math.random() - 0.35) * 800;
-        cumPnl += dailyPnl;
-        mockHistory.push({
-          date,
-          cumulativePnl: cumPnl,
-          dailyPnl,
-          roi: (cumPnl / 36000) * 100,
+      // Backend not available -> fetch from blockchain directly!
+      try {
+        const copyTradingContract = getContract({
+          client,
+          chain: robinhoodChain,
+          address: CONTRACT_ADDRESSES.AURA_COPY_TRADING_V2,
+          abi: AURA_COPY_TRADING_V2_ABI as any,
         });
+        
+        const leaderData = await readContract({
+          contract: copyTradingContract,
+          method: "leaders",
+          params: [address],
+        });
+
+        const [
+          isRegistered, isActive, performanceFeeBps, 
+          totalFollowers, totalCopiedCapital, 
+          totalRealizedPnl, isPnlPositive, 
+          tradesExecuted, tradesWon, createdAt
+        ] = leaderData as any;
+
+        if (isRegistered) {
+          const realizedPnlNum = parseFloat(formatEther(totalRealizedPnl));
+          const pnlValue = isPnlPositive ? realizedPnlNum : -realizedPnlNum;
+          const copiedCapNum = parseFloat(formatEther(totalCopiedCapital));
+          
+          setProfile({
+            address,
+            rank: 0,
+            totalPnl: pnlValue,
+            roi: copiedCapNum > 0 ? (pnlValue / copiedCapNum) * 100 : 0,
+            winRate: Number(tradesExecuted) > 0 ? (Number(tradesWon) / Number(tradesExecuted)) * 100 : 0,
+            tradesExecuted: Number(tradesExecuted),
+            maxDrawdown: 0,
+            totalCopiedCapital: copiedCapNum,
+            totalFollowers: Number(totalFollowers),
+            createdAt: new Date(Number(createdAt) * 1000).toISOString(),
+          });
+
+          setStrategies([
+            {
+              id: 1, // Currently V2 supports 1 strategy per leader
+              name: "Primary Strategy",
+              description: "On-chain strategy executed by this leader",
+              totalPnl: pnlValue.toFixed(2),
+              roi: copiedCapNum > 0 ? (pnlValue / copiedCapNum) * 100 : 0,
+              winRate: Number(tradesExecuted) > 0 ? (Number(tradesWon) / Number(tradesExecuted)) * 100 : 0,
+              followerCount: Number(totalFollowers),
+              totalFollowerCapital: copiedCapNum.toFixed(2),
+              performanceFeeBps: Number(performanceFeeBps),
+              isActive: isActive,
+            }
+          ]);
+        } else {
+          // Not registered
+          setProfile(null);
+          setStrategies([]);
+        }
+        
+        // Zero out history to avoid fake charts
+        const days = selectedPeriod;
+        const flatHistory: HistoryEntry[] = [];
+        for (let i = 0; i < days; i++) {
+          const date = new Date(Date.now() - (days - i) * 86400000).toISOString().split("T")[0];
+          flatHistory.push({ date, cumulativePnl: 0, dailyPnl: 0, roi: 0 });
+        }
+        setHistory({
+          address,
+          days,
+          totalPnl: 0,
+          totalCopiedCapital: 0,
+          history: flatHistory,
+        });
+
+      } catch (e) {
+        console.error("Failed to fetch from contract:", e);
+        setProfile(null);
+        setStrategies([]);
+        setHistory(null);
       }
-      setHistory({
-        address,
-        days,
-        totalPnl: cumPnl,
-        totalCopiedCapital: 36000,
-        history: mockHistory,
-      });
     } finally {
       setLoading(false);
       initialFetchDone.current = true;
