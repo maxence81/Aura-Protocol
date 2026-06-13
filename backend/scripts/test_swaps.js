@@ -93,6 +93,10 @@ async function main() {
 
     // Test 9: ETH → TSLA
     await testEthToToken(wallet, TOKENS.TSLA, "TSLA", "0.0001");
+    // Test 10: aUSD → WETH
+    await testTokenToToken(wallet, TOKENS.AUSD, TOKENS.WETH, "AUSD", "WETH", "0.0001");
+    await sleep(2000);
+
     console.log(`✅ Passed: ${passed}  ❌ Failed: ${failed}`);
     console.log(`═══════════════════════════════════\n`);
     process.exit(failed > 0 ? 1 : 0);
