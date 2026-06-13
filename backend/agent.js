@@ -275,23 +275,24 @@ function getAssetHashUint256(symbol) {
     return BigInt(hash).toString();
 }
 
-/// Encode store_order(...) directly to the Stylus LOB. Caller (msg.sender) must
-/// be the LOB's `router`. We initialized the contract with the deployer EOA as
-/// router, so the user signing this tx with the same EOA is authorized.
 function buildLimitOrderTx({ asset, isLong, collateral, leverage, limitPrice, eoa }) {
-    const stylusLob = OFFICIAL_CONTRACTS.PROTOCOLS.STYLUS_LOB;
-    const lobIface = new ethers.Interface([
-        "function store_order(address owner, uint256 asset_hash, bool is_long, uint256 collateral, uint256 leverage, uint256 limit_price) returns (uint256)"
+    const escrowAddress = process.env.ESCROW_ADDRESS || "0xba18dbaf3229a460df64ff7d27503647037d7dd0";
+    const ausdAddress = "0x27cd6eD9482FF6Ae388F629E8E6D57d8dc975c5A"; // ARB_SEPOLIA_AUSD
+
+    const erc20Iface = new ethers.Interface([
+        "function approve(address spender, uint256 amount) returns (bool)"
+    ]);
+    const escrowIface = new ethers.Interface([
+        "function placeLimitOrder(uint256 asset_hash, bool is_long, uint256 collateral, uint256 leverage, uint256 limit_price) returns (uint256)"
     ]);
 
     const assetHash = getAssetHashUint256(asset);
-    // collateral and limit_price arrive in human units → scale to 18 decimals
     const collateralWei = ethers.parseUnits(collateral.toString(), 18).toString();
     const limitPriceWei = ethers.parseUnits(limitPrice.toString(), 18).toString();
     const leverageInt = Math.max(1, Math.min(50, parseInt(leverage) || 1));
 
-    const data = lobIface.encodeFunctionData("store_order", [
-        eoa,
+    const approveData = erc20Iface.encodeFunctionData("approve", [escrowAddress, collateralWei]);
+    const escrowData = escrowIface.encodeFunctionData("placeLimitOrder", [
         assetHash,
         isLong,
         collateralWei,
@@ -300,14 +301,14 @@ function buildLimitOrderTx({ asset, isLong, collateral, leverage, limitPrice, eo
     ]);
 
     return {
-        targets: [stylusLob],
-        values: ["0"],
-        datas: [data],
+        targets: [ausdAddress, escrowAddress],
+        values: ["0", "0"],
+        datas: [approveData, escrowData],
         chainId: CHAINS.ARBITRUM_SEPOLIA,
-        // Single-call shape (no AuraAccount.executeBatch wrap) for direct EOA → LOB signing.
+        // Single-call shape (no AuraAccount.executeBatch wrap) for direct EOA
         kind: "LIMIT_ORDER",
-        contractAddress: stylusLob,
-        encodedCalldata: data,
+        contractAddress: escrowAddress,
+        encodedCalldata: escrowData,
         ethValue: "0"
     };
 }

@@ -1093,8 +1093,10 @@ export default function SocialPage() {
               <button
                 onClick={handleRegisterAsLeader}
                 disabled={isRegistering || isAlreadyTrader}
-                className={`mr-2 hidden lg:flex items-center justify-center gap-2 px-6 py-2.5 bg-[#00f0ff]/15 text-white border-b-2 border-[#00f0ff] hover:bg-[#00f0ff]/25 transition-all text-xs font-bold font-mono tracking-wide ${
-                  isAlreadyTrader ? "opacity-50 cursor-not-allowed" : ""
+                className={`mr-2 hidden lg:flex items-center justify-center gap-2 px-6 py-2.5 bg-[#00f0ff]/15 text-white border-b-2 border-[#00f0ff] transition-all text-xs font-bold font-mono tracking-wide ${
+                  isAlreadyTrader 
+                    ? "opacity-50 cursor-not-allowed pointer-events-none" 
+                    : "hover:bg-[#00f0ff]/25"
                 }`}
               >
                 <TrendingUp size={14} />

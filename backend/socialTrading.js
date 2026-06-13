@@ -321,6 +321,29 @@ async function getLeaderboard(req, res) {
         // Fetch all active leaders
         const [addrs, profiles] = await contract.getActiveLeaders(0, 100);
         let leaders = [];
+        let statsMap = {};
+
+        try {
+            if (addrs.length > 0) {
+                const lowerAddrs = addrs.map(a => a.toLowerCase());
+                const paramsStr = lowerAddrs.map((_, idx) => `$${idx + 1}`).join(',');
+                const pnlQuery = await db.query(`
+                    SELECT LOWER(owner) as owner_addr,
+                           SUM(pnl * CASE WHEN is_profit THEN 1 ELSE -1 END) as total_pnl,
+                           SUM(CASE WHEN is_profit THEN 1 ELSE 0 END) as wins,
+                           COUNT(*) as trades
+                    FROM positions_closed
+                    WHERE LOWER(owner) IN (${paramsStr})
+                    GROUP BY LOWER(owner)
+                `, lowerAddrs);
+
+                for (let row of pnlQuery.rows) {
+                    statsMap[row.owner_addr] = row;
+                }
+            }
+        } catch (e) {
+            console.error("DB error in getLeaderboard batch fetch:", e.message);
+        }
 
         for (let i = 0; i < addrs.length; i++) {
             let profileRaw = profiles[i];
@@ -337,34 +360,25 @@ async function getLeaderboard(req, res) {
                 createdAt: profileRaw.createdAt
             };
 
-            try {
-                const pnlQuery = await db.query(`
-                    SELECT SUM(pnl * CASE WHEN is_profit THEN 1 ELSE -1 END) as total_pnl,
-                           SUM(CASE WHEN is_profit THEN 1 ELSE 0 END) as wins,
-                           COUNT(*) as trades
-                    FROM positions_closed
-                    WHERE LOWER(owner) = $1
-                `, [addrs[i].toLowerCase()]);
+            const addrLower = addrs[i].toLowerCase();
+            const personalStats = statsMap[addrLower];
 
-                if (pnlQuery.rows.length > 0) {
-                    const personalStats = pnlQuery.rows[0];
-                    const rawPnl = parseFloat(personalStats.total_pnl || 0);
-                    const personalPnl = rawPnl / 1e18;
-                    const personalWins = parseInt(personalStats.wins || 0, 10);
-                    const personalTrades = parseInt(personalStats.trades || 0, 10);
+            if (personalStats) {
+                const rawPnl = parseFloat(personalStats.total_pnl || 0);
+                const personalPnl = rawPnl / 1e18;
+                const personalWins = parseInt(personalStats.wins || 0, 10);
+                const personalTrades = parseInt(personalStats.trades || 0, 10);
 
-                    const socialPnlStr = ethers.formatEther(profile.totalRealizedPnl);
-                    const socialPnl = parseFloat(socialPnlStr) * (profile.isPnlPositive ? 1 : -1);
-                    const combinedPnl = socialPnl + personalPnl;
+                const socialPnlStr = ethers.formatEther(profile.totalRealizedPnl);
+                const socialPnl = parseFloat(socialPnlStr) * (profile.isPnlPositive ? 1 : -1);
+                const combinedPnl = socialPnl + personalPnl;
 
-                    profile.totalRealizedPnl = ethers.parseEther(Math.abs(combinedPnl).toFixed(18));
-                    profile.isPnlPositive = combinedPnl >= 0;
-                    profile.tradesExecuted += personalTrades;
-                    profile.tradesWon += personalWins;
-                }
-            } catch (e) {
-                // ignore
+                profile.totalRealizedPnl = ethers.parseEther(Math.abs(combinedPnl).toFixed(18));
+                profile.isPnlPositive = combinedPnl >= 0;
+                profile.tradesExecuted += personalTrades;
+                profile.tradesWon += personalWins;
             }
+
             leaders.push(formatLeaderProfile(addrs[i], profile));
         }
 

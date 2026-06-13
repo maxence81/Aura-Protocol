@@ -47,6 +47,7 @@ impl AuraCrossChainEscrow {
         Ok(())
     }
 
+    #[selector(name = "place_limit_order")]
     pub fn place_limit_order(&mut self, asset_hash: U256, is_long: bool, collateral: U256, leverage: U256, limit_price: U256) -> Result<U256, Vec<u8>> {
         let caller = self.vm().msg_sender();
         let my_addr = self.vm().contract_address();
@@ -70,6 +71,7 @@ impl AuraCrossChainEscrow {
         Ok(order_id)
     }
 
+    #[selector(name = "cancel_order")]
     pub fn cancel_order(&mut self, order_id: U256, caller: Address) -> Result<(), Vec<u8>> {
         let msg_sender = self.vm().msg_sender();
         if msg_sender != caller {
@@ -104,6 +106,7 @@ impl AuraCrossChainEscrow {
         Ok(())
     }
 
+    #[selector(name = "execute_and_bridge")]
     pub fn execute_and_bridge(&mut self, order_id: U256) -> Result<(), Vec<u8>> {
         let msg_sender = self.vm().msg_sender();
         let keeper = self.keeper.get();

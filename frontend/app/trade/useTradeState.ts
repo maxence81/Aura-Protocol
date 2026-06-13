@@ -568,7 +568,7 @@ export function useTradeState() {
         const tx = await sepoliaWc.writeContract({
           address: CONTRACT_ADDRESSES.STYLUS_ESCROW as `0x${string}`,
           abi: AURA_CROSS_CHAIN_ESCROW_ABI,
-          functionName: "place_limit_order",
+          functionName: "placeLimitOrder",
           args: [assetHash, isLong, amountWei, leverageBn, limitPriceWei],
           account: account.address as `0x${string}`,
           gas: 3000000n,
