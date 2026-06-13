@@ -159,7 +159,10 @@ export function useTradeState() {
           const chunkSize = 500;
           for (let i = 0; i < count; i += chunkSize) {
             const chunk = calls.slice(i, i + chunkSize);
-            const chunkResults = await publicClient.multicall({ contracts: chunk });
+            const chunkResults = await publicClient.multicall({ 
+              contracts: chunk,
+              multicallAddress: "0xca11bde05977b3631167028862be2a173976ca11" as `0x${string}`
+            });
             results.push(...chunkResults.map(r => r.status === 'success' ? r.result : null));
           }
 
