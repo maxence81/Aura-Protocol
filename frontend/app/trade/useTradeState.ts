@@ -147,18 +147,25 @@ export function useTradeState() {
           const positions: OnChainPosition[] = [];
           const history: OnChainPosition[] = [];
           const count = Number(nextPosId);
-          // Batch all position reads in parallel
-          const calls = Array.from({ length: count }, (_, i) =>
-            publicClient.readContract({
+          // Batch position reads using multicall to prevent RPC rate limits and speed up loading
+          const calls = Array.from({ length: count }, (_, i) => ({
               address: CONTRACT_ADDRESSES.AURA_PERPS as `0x${string}`,
-              abi: AURA_PERPS_ABI as any, functionName: "positions",
+              abi: AURA_PERPS_ABI as any,
+              functionName: "positions",
               args: [BigInt(i)],
-            })
-          );
-          const results = await Promise.all(calls);
+          }));
+          
+          const results = [];
+          const chunkSize = 500;
+          for (let i = 0; i < count; i += chunkSize) {
+            const chunk = calls.slice(i, i + chunkSize);
+            const chunkResults = await publicClient.multicall({ contracts: chunk });
+            results.push(...chunkResults.map(r => r.status === 'success' ? r.result : null));
+          }
+
           for (let i = 0; i < count; i++) {
             const pos = results[i] as any;
-            if (pos[0].toLowerCase() === account.address.toLowerCase() || pos[0].toLowerCase() === auraAcct) {
+            if (pos && (pos[0].toLowerCase() === account.address.toLowerCase() || pos[0].toLowerCase() === auraAcct)) {
               const d = {
                 id: i, asset: pos[1], isLong: pos[2],
                 collateral: Number(formatUnits(pos[3], 18)),
