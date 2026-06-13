@@ -35,7 +35,7 @@ export const CONTRACT_ADDRESSES = {
   LIQUIDATION_SHIELD:
     (process.env.NEXT_PUBLIC_LIQUIDATION_SHIELD_ADDRESS as `0x${string}`) ||
     "0x089ABc77f4C68Da0299C7521ebd82A7Db4791c0B",
-  STYLUS_ESCROW: "0xba18dbaf3229a460df64ff7d27503647037d7dd0" as `0x${string}`,
+  STYLUS_ESCROW: "0xc46aa77e6e800726e7edd8895a46b47d178fa78b" as `0x${string}`,
 };
 
 

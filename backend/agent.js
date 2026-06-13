@@ -276,7 +276,7 @@ function getAssetHashUint256(symbol) {
 }
 
 function buildLimitOrderTx({ asset, isLong, collateral, leverage, limitPrice, eoa }) {
-    const escrowAddress = process.env.ESCROW_ADDRESS || "0xba18dbaf3229a460df64ff7d27503647037d7dd0";
+    const escrowAddress = process.env.ESCROW_ADDRESS || "0xc46aa77e6e800726e7edd8895a46b47d178fa78b";
     const ausdAddress = "0x27cd6eD9482FF6Ae388F629E8E6D57d8dc975c5A"; // ARB_SEPOLIA_AUSD
 
     const erc20Iface = new ethers.Interface([

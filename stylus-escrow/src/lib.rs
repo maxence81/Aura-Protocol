@@ -14,8 +14,8 @@ sol! {
 
 sol_interface! {
     interface IERC20 {
-        function transferFrom(address from, address to, uint256 amount) external returns (bool);
-        function transfer(address to, uint256 amount) external returns (bool);
+        function transferFrom(address from, address to, uint256 amount) external;
+        function transfer(address to, uint256 amount) external;
     }
     interface IOrderBook {
         function store_order(address owner, uint256 asset_hash, bool is_long, uint256 collateral, uint256 leverage, uint256 limit_price) external returns (uint256);
@@ -55,10 +55,7 @@ impl AuraCrossChainEscrow {
         let ausd = IERC20::new(self.ausd.get());
         
         let call = Call::new_mutating(&mut *self);
-        let transfer_ok = ausd.transfer_from(self.vm(), call, caller, my_addr, collateral).map_err(|_| b"transfer_from call failed".to_vec())?;
-        if !transfer_ok {
-            return Err(b"TransferFrom returned false".to_vec());
-        }
+        ausd.transfer_from(self.vm(), call, caller, my_addr, collateral).map_err(|_| b"transfer_from call failed".to_vec())?;
 
         let orderbook = IOrderBook::new(self.orderbook.get());
         let call2 = Call::new_mutating(&mut *self);
@@ -93,10 +90,7 @@ impl AuraCrossChainEscrow {
 
         let ausd = IERC20::new(self.ausd.get());
         let call2 = Call::new_mutating(&mut *self);
-        let transfer_ok = ausd.transfer(self.vm(), call2, msg_sender, collateral).map_err(|_| b"Refund call failed".to_vec())?;
-        if !transfer_ok {
-            return Err(b"Refund failed".to_vec());
-        }
+        ausd.transfer(self.vm(), call2, msg_sender, collateral).map_err(|_| b"Refund call failed".to_vec())?;
 
         self.vm().log(OrderCancelled {
             order_id,
@@ -127,10 +121,7 @@ impl AuraCrossChainEscrow {
 
         let ausd = IERC20::new(self.ausd.get());
         let call2 = Call::new_mutating(&mut *self);
-        let transfer_ok = ausd.transfer(self.vm(), call2, keeper, collateral).map_err(|_| b"Transfer to keeper call failed".to_vec())?;
-        if !transfer_ok {
-            return Err(b"Transfer to keeper failed".to_vec());
-        }
+        ausd.transfer(self.vm(), call2, keeper, collateral).map_err(|_| b"Transfer to keeper call failed".to_vec())?;
 
         self.vm().log(CrossChainSettlementRequested {
             order_id,
