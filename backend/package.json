@@ -36,6 +36,6 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
-    "solc": "^0.8.20"
+    "solc": "^0.8.35"
   }
 }

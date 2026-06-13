@@ -7,7 +7,7 @@ const perpsAddress = process.env.AURA_PERPS_ADDRESS;
 const keeperPrivateKey = process.env.KEEPER_PRIVATE_KEY;
 
 async function main() {
-    const provider = new ethers.JsonRpcProvider(); provider.pollingInterval = 15000;
+    const provider = new ethers.JsonRpcProvider(process.env.RPC_URL || process.env.ROBINHOOD_ALCHEMY_RPC || "https://rpc.testnet.chain.robinhood.com"); provider.pollingInterval = 15000;
     const wallet = new ethers.Wallet(privateKey, provider);
     const keeperWallet = new ethers.Wallet(keeperPrivateKey);
     

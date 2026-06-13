@@ -1,4 +1,7 @@
 import { createPublicClient, http } from 'viem';
+import fs from 'fs';
+import path from 'path';
+import { fileURLToPath } from 'url';
 
 // Configuration x402
 const RPC_URL = process.env.RPC_URL || "https://rpc.testnet.chain.robinhood.com";
@@ -10,8 +13,29 @@ const publicClient = createPublicClient({
   transport: http(RPC_URL)
 });
 
-// Cache en mémoire pour éviter les re-vérifications inutiles (1 heure)
-const verifiedTxs = new Map();
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const DB_FILE = path.join(__dirname, '.x402_consumed.json');
+
+// Registre persistant des transactions déjà consommées
+let consumedTxs = new Set();
+try {
+    if (fs.existsSync(DB_FILE)) {
+        const data = JSON.parse(fs.readFileSync(DB_FILE, 'utf8'));
+        consumedTxs = new Set(data);
+    }
+} catch (e) {
+    console.error("[x402] Error loading consumed txs:", e.message);
+}
+
+function markAsConsumed(txHash) {
+    consumedTxs.add(txHash);
+    try {
+        fs.writeFileSync(DB_FILE, JSON.stringify([...consumedTxs]), 'utf8');
+    } catch (e) {
+        console.error("[x402] Error saving consumed txs:", e.message);
+    }
+}
 
 /**
  * Vérifie si le txHash fourni correspond à un paiement valide
@@ -23,14 +47,10 @@ export async function verifyX402Payment(txHash) {
         return false;
     }
 
-    // Vérification du cache
-    if (verifiedTxs.has(txHash)) {
-        const timestamp = verifiedTxs.get(txHash);
-        if (Date.now() - timestamp < 3600000) { // Validité d'une heure
-            return true;
-        } else {
-            verifiedTxs.delete(txHash);
-        }
+    // Protection contre les Replay Attacks
+    if (consumedTxs.has(txHash)) {
+        console.warn(`[x402] Replay attack blocked: txHash ${txHash} has already been consumed.`);
+        return false;
     }
 
     try {
@@ -61,9 +81,9 @@ export async function verifyX402Payment(txHash) {
             }
         }
 
-        // Si c'est valide, on ajoute au cache
+        // Si c'est valide, on ajoute au registre des consommés
         if (isValidPayment) {
-            verifiedTxs.set(txHash, Date.now());
+            markAsConsumed(txHash);
             return true;
         }
 

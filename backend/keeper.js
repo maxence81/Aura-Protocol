@@ -1,7 +1,7 @@
 require('dotenv').config();
 const ethers = require('ethers');
 
-const provider = new ethers.JsonRpcProvider(); provider.pollingInterval = 15000;
+const provider = new ethers.JsonRpcProvider(process.env.RPC_URL || process.env.ROBINHOOD_ALCHEMY_RPC || "https://rpc.testnet.chain.robinhood.com"); provider.pollingInterval = 15000;
 const privateKey = process.env.PRIVATE_KEY;
 const wallet = new ethers.Wallet(privateKey, provider);
 

@@ -3,7 +3,7 @@ const { ethers } = require("ethers");
 const { Client } = require("pg");
 
 const RPC_URL = process.env.RPC_URL || "https://rpc.testnet.chain.robinhood.com";
-const provider = new ethers.JsonRpcProvider(); provider.pollingInterval = 15000;
+const provider = new ethers.JsonRpcProvider(process.env.RPC_URL || process.env.ROBINHOOD_ALCHEMY_RPC || "https://rpc.testnet.chain.robinhood.com"); provider.pollingInterval = 15000;
 
 const PERPS_ADDRESS = "0xc12A0864095b2F4Dc0D1aF0169B760c53D59Cb42";
 const PERPS_ABI = [

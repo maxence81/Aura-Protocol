@@ -4,7 +4,7 @@ const { computeHealth } = require("./healthFactor");
 
 const RPC_URL = "https://rpc.testnet.chain.robinhood.com";
 const PRIVATE_KEY = process.env.PRIVATE_KEY; 
-const provider = new ethers.JsonRpcProvider(); provider.pollingInterval = 15000;
+const provider = new ethers.JsonRpcProvider(process.env.RPC_URL || process.env.ROBINHOOD_ALCHEMY_RPC || "https://rpc.testnet.chain.robinhood.com"); provider.pollingInterval = 15000;
 const wallet = new ethers.Wallet(PRIVATE_KEY, provider);
 
 const PERPS_ADDRESS = "0xc12A0864095b2F4Dc0D1aF0169B760c53D59Cb42";
