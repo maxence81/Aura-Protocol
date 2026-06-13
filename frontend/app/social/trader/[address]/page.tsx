@@ -572,7 +572,7 @@ function TraderProfileContent() {
       if (!initialFetchDone.current) setLoading(true);
 
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 5000);
+      const timeoutId = setTimeout(() => controller.abort(), 15000);
 
       const [profileRes, historyRes] = await Promise.all([
         fetch(`${API_URL}/api/social/trader/${address}`, { signal: controller.signal }),

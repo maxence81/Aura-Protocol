@@ -176,23 +176,29 @@ async function getLeaderProfile(req, res) {
 
         const followers = await contract.getLeaderFollowers(address);
 
-        // Get follower details
+        // Get follower details in parallel batches to prevent timeouts
         const followerDetails = [];
-        for (const follower of followers) {
-            const alloc = await contract.allocations(address, follower);
-            if (alloc.isActive) {
-                const openPosCount = await contract.getFollowerOpenPositionCount(address, follower);
-                followerDetails.push({
-                    address: follower,
-                    capitalDeposited: parseFloat(ethers.formatEther(alloc.capitalDeposited)),
-                    capitalInPositions: parseFloat(ethers.formatEther(alloc.capitalInPositions)),
-                    availableBalance: parseFloat(ethers.formatEther(alloc.capitalDeposited - alloc.capitalInPositions)),
-                    scaleFactor: Number(alloc.scaleFactor) / 10000,
-                    maxSlippageBps: Number(alloc.maxSlippageBps),
-                    openPositions: Number(openPosCount),
-                    joinedAt: Number(alloc.joinedAt),
-                });
-            }
+        const batchSize = 10;
+        for (let i = 0; i < followers.length; i += batchSize) {
+            const batch = followers.slice(i, i + batchSize);
+            const batchResults = await Promise.all(batch.map(async (follower) => {
+                const alloc = await contract.allocations(address, follower);
+                if (alloc.isActive) {
+                    const openPosCount = await contract.getFollowerOpenPositionCount(address, follower);
+                    return {
+                        address: follower,
+                        capitalDeposited: parseFloat(ethers.formatEther(alloc.capitalDeposited)),
+                        capitalInPositions: parseFloat(ethers.formatEther(alloc.capitalInPositions)),
+                        availableBalance: parseFloat(ethers.formatEther(alloc.capitalDeposited - alloc.capitalInPositions)),
+                        scaleFactor: Number(alloc.scaleFactor) / 10000,
+                        maxSlippageBps: Number(alloc.maxSlippageBps),
+                        openPositions: Number(openPosCount),
+                        joinedAt: Number(alloc.joinedAt),
+                    };
+                }
+                return null;
+            }));
+            followerDetails.push(...batchResults.filter(Boolean));
         }
 
         const pendingFees = await contract.pendingFees(address);
