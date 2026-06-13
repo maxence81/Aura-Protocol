@@ -781,62 +781,19 @@ export default function SocialPage() {
     try {
       setRefreshing(true);
       setError(null);
-      
-      const copyTradingContract = getContract({
-        client,
-        chain: robinhoodChain,
-        address: CONTRACT_ADDRESSES.AURA_COPY_TRADING_V2,
-        abi: AURA_COPY_TRADING_V2_ABI as any,
+      const params = new URLSearchParams({
+        sortBy,
+        order: "desc",
+        search,
+        limit: "20",
+        offset: "0",
+        timeframe,
       });
-
-      const leaderData = await readContract({
-        contract: copyTradingContract,
-        method: "getActiveLeaders",
-        params: [0n, 100n],
-      });
-
-      const addrs = (leaderData as any)[0] as string[];
-      const profilesRaw = (leaderData as any)[1] as any[];
-
-      let parsedLeaders = addrs.map((addr, i) => {
-        const raw = profilesRaw[i];
-        const realizedPnlNum = parseFloat(formatEther(raw.totalRealizedPnl));
-        const pnlValue = raw.isPnlPositive ? realizedPnlNum : -realizedPnlNum;
-        const copiedCapNum = parseFloat(formatEther(raw.totalCopiedCapital));
-        const executed = Number(raw.tradesExecuted);
-        const won = Number(raw.tradesWon);
-        const winRate = executed > 0 ? (won / executed) * 100 : 0;
-        const roi = copiedCapNum > 0 ? (pnlValue / copiedCapNum) * 100 : 0;
-
-        return {
-          address: addr,
-          totalPnl: pnlValue,
-          roi: roi,
-          winRate: winRate,
-          totalFollowers: Number(raw.totalFollowers),
-          totalCopiedCapital: copiedCapNum,
-          tradesExecuted: executed,
-          ageDays: Math.max(1, Math.floor((Date.now() - Number(raw.createdAt) * 1000) / 86400000)),
-          rank: 0,
-          maxDrawdown: 0,
-        };
-      });
-
-      // Search filter
-      if (search) {
-        parsedLeaders = parsedLeaders.filter(l => l.address.toLowerCase().includes(search.toLowerCase()));
-      }
-
-      // Sort
-      const validSortFields = ["totalPnl", "roi", "winRate", "totalFollowers", "totalCopiedCapital", "tradesExecuted", "ageDays"];
-      const field = validSortFields.includes(sortBy) ? sortBy : "totalPnl";
-      parsedLeaders.sort((a, b) => ((b as any)[field] - (a as any)[field]));
-
-      // Add rank
-      parsedLeaders.forEach((l, i) => { (l as any).rank = i + 1; });
-
-      setTraders(parsedLeaders);
-      setTotal(parsedLeaders.length);
+      const res = await fetch(`${API_URL}/api/social/leaderboard?${params}`);
+      if (!res.ok) throw new Error(`API returned ${res.status}`);
+      const data = await res.json();
+      setTraders(data.leaders || []);
+      setTotal(data.total || 0);
     } catch (err: any) {
       console.error(err);
       setTraders([]);
