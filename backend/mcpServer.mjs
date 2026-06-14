@@ -14,6 +14,7 @@
 import { config } from "dotenv";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
+import { existsSync, readFileSync, writeFileSync } from "fs";
 import { ethers } from "ethers";
 import { z } from "zod";
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
@@ -689,16 +690,20 @@ if (args.includes("--http")) {
   const AUTH_DB_FILE = join(__dirname, '.authenticated_accounts.json');
   const authenticatedAccounts = new Map(); // apiKey -> auraAccountAddress
   try {
-    if (import("fs").then(fs => fs.existsSync(AUTH_DB_FILE))) {
-      import("fs").then(fs => {
-        const data = JSON.parse(fs.readFileSync(AUTH_DB_FILE, 'utf8'));
-        for (const [k, v] of Object.entries(data)) authenticatedAccounts.set(k, v);
-      });
+    if (existsSync(AUTH_DB_FILE)) {
+      const data = JSON.parse(readFileSync(AUTH_DB_FILE, 'utf8'));
+      for (const [k, v] of Object.entries(data)) authenticatedAccounts.set(k, v);
     }
-  } catch (e) {}
+  } catch (e) {
+    console.warn("[MCP] Could not load auth db:", e.message);
+  }
 
   function saveAuthDb() {
-    import("fs").then(fs => fs.writeFileSync(AUTH_DB_FILE, JSON.stringify(Object.fromEntries(authenticatedAccounts)), 'utf8')).catch(()=>{});
+    try {
+      writeFileSync(AUTH_DB_FILE, JSON.stringify(Object.fromEntries(authenticatedAccounts)), 'utf8');
+    } catch (e) {
+      console.warn("[MCP] Could not save auth db:", e.message);
+    }
   }
 
   // Factory: create a fresh McpServer per session
