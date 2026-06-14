@@ -823,10 +823,38 @@ if (args.includes("--http")) {
       if (sessionAccount) manageable.add(sessionAccount.toLowerCase());
       if (sessionOwnerWallet) manageable.add(sessionOwnerWallet.toLowerCase());
       if (manageable.size === 0) manageable.add(agentWallet.address.toLowerCase()); // fallback only if no session
-      // Scan from most recent to oldest, limit scan to 500 positions max to avoid timeout
-      let scanned = 0;
-      for (let i = nextId - 1; i >= 0 && positions.length < 30 && scanned < 500; i--) { scanned++; try { const pos = await perps.positions(i); if (pos.isOpen && manageable.has(pos.owner.toLowerCase())) { const price = await fetchPythPrice(pos.asset); positions.push({ id: i, owner: pos.owner, asset: pos.asset, side: pos.isLong ? "LONG" : "SHORT", collateral: Number(ethers.formatUnits(pos.collateralAmount, 18)), leverage: Number(pos.leverage), entryPrice: Number(ethers.formatUnits(pos.entryPrice, 18)), currentPrice: price }); } } catch { continue; } }
-      return { content: [{ type: "text", text: JSON.stringify({ account: sessionAccount || "agent", ownerWallet: sessionOwnerWallet, positions, count: positions.length }, null, 2) }] };
+      
+      const multicallAddress = "0xca11bde05977b3631167028862be2a173976ca11";
+      const multicallAbi = ["function aggregate(tuple(address target, bytes callData)[] calls) view returns (uint256 blockNumber, bytes[] returnData)"];
+      const multicall = new ethers.Contract(multicallAddress, multicallAbi, robinhoodProvider);
+
+      const calls = [];
+      for (let i = 0; i < nextId; i++) {
+        calls.push({ target: AURA_PERPS_ADDRESS, callData: perpsIface.encodeFunctionData("positions", [i]) });
+      }
+
+      const chunkSize = 500;
+      for (let i = 0; i < nextId; i += chunkSize) {
+        const chunk = calls.slice(i, i + chunkSize);
+        try {
+          const { returnData } = await multicall.aggregate(chunk);
+          for (let j = 0; j < returnData.length; j++) {
+            if (returnData[j] !== "0x") {
+              const posId = i + j;
+              const pos = perpsIface.decodeFunctionResult("positions", returnData[j]);
+              if (pos.isOpen && manageable.has(pos.owner.toLowerCase())) {
+                const price = await fetchPythPrice(pos.asset) || 0;
+                positions.push({ 
+                  id: posId, owner: pos.owner, asset: pos.asset, side: pos.isLong ? "LONG" : "SHORT", 
+                  collateral: Number(ethers.formatUnits(pos.collateralAmount, 18)), leverage: Number(pos.leverage), 
+                  entryPrice: Number(ethers.formatUnits(pos.entryPrice, 18)), currentPrice: price 
+                });
+              }
+            }
+          }
+        } catch (e) { console.error("MCP fetch error chunk", i, e.message); }
+      }
+      return { content: [{ type: "text", text: JSON.stringify({ account: sessionAccount || "agent", ownerWallet: sessionOwnerWallet, positions: positions.reverse(), count: positions.length }, null, 2) }] };
     });
 
     s.registerTool("close_position", { description: "Close a position by ID", inputSchema: z.object({ position_id: z.number() }) }, async ({ position_id }) => {
