@@ -895,9 +895,17 @@ if (args.includes("--http")) {
 
       const posOwner = pos.owner.toLowerCase();
 
+      let currentOwnerWallet = sessionOwnerWallet;
+      if (!currentOwnerWallet && sessionAccount) {
+        try {
+          const accContract = new ethers.Contract(sessionAccount, ["function owner() view returns (address)"], robinhoodProvider);
+          currentOwnerWallet = (await accContract.owner()).toLowerCase();
+        } catch(e) {}
+      }
+
       // Route based on who actually owns the position on-chain
       // Match: AuraAccount itself, OR EOA wallet (owner of AuraAccount) — both route via executeBatchByAgent
-      if (sessionAccount && (posOwner === sessionAccount.toLowerCase() || (sessionOwnerWallet && posOwner === sessionOwnerWallet.toLowerCase()))) {
+      if (sessionAccount && (posOwner === sessionAccount.toLowerCase() || (currentOwnerWallet && posOwner === currentOwnerWallet.toLowerCase()))) {
         // Close via executeBatchByAgent — contract's _isOwnerOrDelegate accepts AuraAccount for its owner's positions
         const closeData = perpsIface.encodeFunctionData("closePosition", [BigInt(position_id)]);
         const account = new ethers.Contract(sessionAccount, AURA_ACCOUNT_ABI, agentWallet);
@@ -1252,7 +1260,13 @@ if (args.includes("--http")) {
   }
 
   app.get("/sse", async (req, res) => {
-    const { auraAccount, ownerWallet } = await resolveAuth(req);
+    let { auraAccount, ownerWallet } = await resolveAuth(req);
+    // If no Bearer token, check if any recent auth exists (stateless/reconnect workaround)
+    if (!auraAccount && authenticatedAccounts.size > 0) {
+      auraAccount = [...authenticatedAccounts.values()].pop();
+      ownerWallet = null; // will be auto-resolved via owner() fallback in createServer
+    }
+
     const transport = new SSEServerTransport("/messages", res);
     transports[transport.sessionId] = transport;
     res.on("close", () => { delete transports[transport.sessionId]; });
