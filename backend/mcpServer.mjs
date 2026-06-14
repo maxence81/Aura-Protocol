@@ -685,8 +685,21 @@ if (args.includes("--http")) {
 
   const transports = {};
 
-  // Global store for authenticated sessions (persists across stateless /mcp requests)
+  // Global store for authenticated sessions (persists across stateless /mcp requests and restarts)
+  const AUTH_DB_FILE = join(__dirname, '.authenticated_accounts.json');
   const authenticatedAccounts = new Map(); // apiKey -> auraAccountAddress
+  try {
+    if (import("fs").then(fs => fs.existsSync(AUTH_DB_FILE))) {
+      import("fs").then(fs => {
+        const data = JSON.parse(fs.readFileSync(AUTH_DB_FILE, 'utf8'));
+        for (const [k, v] of Object.entries(data)) authenticatedAccounts.set(k, v);
+      });
+    }
+  } catch (e) {}
+
+  function saveAuthDb() {
+    import("fs").then(fs => fs.writeFileSync(AUTH_DB_FILE, JSON.stringify(Object.fromEntries(authenticatedAccounts)), 'utf8')).catch(()=>{});
+  }
 
   // Factory: create a fresh McpServer per session
   // If auraAccount is provided, write operations go through executeBatchByAgent
@@ -732,6 +745,7 @@ if (args.includes("--http")) {
           } catch (e) { console.warn("[MCP] Could not resolve owner from AuraAccount:", e.message); }
         }
         authenticatedAccounts.set(api_key, data.auraAccount); // persist globally
+        saveAuthDb();
         return { content: [{ type: "text", text: `Authenticated! Trading on AuraAccount ${sessionAccount}. All trades will execute via your account.` }] };
       } catch (e) { return { content: [{ type: "text", text: `Auth failed: ${e.message}` }] }; }
     }));
@@ -815,14 +829,24 @@ if (args.includes("--http")) {
     });
 
     s.registerTool("get_positions", { description: "Get your open positions from AuraPerps (positions owned by your AuraAccount)", inputSchema: z.object({}) }, async () => {
+      // Ensure ownerWallet is resolved so EOA positions are found
+      let currentOwnerWallet = sessionOwnerWallet;
+      if (!currentOwnerWallet && sessionAccount) {
+        try {
+          const accContract = new ethers.Contract(sessionAccount, ["function owner() view returns (address)"], robinhoodProvider);
+          currentOwnerWallet = (await accContract.owner()).toLowerCase();
+        } catch(e) {}
+      }
+
       const perps = new ethers.Contract(AURA_PERPS_ADDRESS, PERPS_ABI, robinhoodProvider);
       const nextId = Number(await perps.nextPositionId());
       const positions = [];
       // Include both AuraAccount and EOA owner wallet to find all user positions
       const manageable = new Set();
       if (sessionAccount) manageable.add(sessionAccount.toLowerCase());
-      if (sessionOwnerWallet) manageable.add(sessionOwnerWallet.toLowerCase());
+      if (currentOwnerWallet) manageable.add(currentOwnerWallet.toLowerCase());
       if (manageable.size === 0) manageable.add(agentWallet.address.toLowerCase()); // fallback only if no session
+
       
       const multicallAddress = "0xca11bde05977b3631167028862be2a173976ca11";
       const multicallAbi = ["function aggregate(tuple(address target, bytes callData)[] calls) view returns (uint256 blockNumber, bytes[] returnData)"];
@@ -854,7 +878,7 @@ if (args.includes("--http")) {
           }
         } catch (e) { console.error("MCP fetch error chunk", i, e.message); }
       }
-      return { content: [{ type: "text", text: JSON.stringify({ account: sessionAccount || "agent", ownerWallet: sessionOwnerWallet, positions: positions.reverse(), count: positions.length }, null, 2) }] };
+      return { content: [{ type: "text", text: JSON.stringify({ account: sessionAccount || "agent", ownerWallet: currentOwnerWallet, positions: positions.reverse(), count: positions.length }, null, 2) }] };
     });
 
     s.registerTool("close_position", { description: "Close a position by ID", inputSchema: z.object({ position_id: z.number() }) }, async ({ position_id }) => {
