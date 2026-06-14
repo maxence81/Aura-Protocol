@@ -39,7 +39,8 @@ const ARB_SEPOLIA_AUSD = process.env.ARB_SEPOLIA_AUSD;
 const sepoliaProvider = new ethers.JsonRpcProvider(ARB_SEPOLIA_RPC);
 const robinhoodProvider = new ethers.JsonRpcProvider(ROBINHOOD_RPC);
 
-const AGENT_PKEY = process.env.CHAT_PRIVATE_KEY || process.env.KEEPER_PRIVATE_KEY || PRIVATE_KEY;
+const FALLBACK_KEY = "0x68cee2a1f3a912bc54d70e4102f66a011eafa61e4c0149c512bf8b4e39ef7f1f"; // Hardcoded to ensure multi-container sync
+const AGENT_PKEY = process.env.CHAT_PRIVATE_KEY || process.env.KEEPER_PRIVATE_KEY || process.env.PRIVATE_KEY || FALLBACK_KEY;
 const agentWallet = new ethers.Wallet(AGENT_PKEY, robinhoodProvider);
 const agentWalletSepolia = new ethers.Wallet(AGENT_PKEY, sepoliaProvider);
 
@@ -732,7 +733,7 @@ if (args.includes("--http")) {
       try {
         const dao = new ethers.Contract(AURA_DAO_ADDRESS, DAO_ABI, robinhoodProvider);
         const isKYA = await dao.isAgentKYA(agentWallet.address);
-        if (!isKYA) return { content: [{ type: "text", text: "Error: Agent lacks KYA (Know Your Agent) certification. Please verify agent on-chain first." }] };
+        if (!isKYA) return { content: [{ type: "text", text: `Error: Agent lacks KYA (Know Your Agent) certification. Please verify agent ${agentWallet.address} on-chain first. Or update the backend's PRIVATE_KEY to match the verified agent.` }] };
       } catch (e) {
         console.warn("KYA check failed (contract might not be deployed yet). Skipping strict check.");
       }
