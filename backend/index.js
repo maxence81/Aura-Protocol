@@ -54,12 +54,18 @@ const path = require("path");
 
 // Configuration de l'identité de l'Agent (Stable & Sécurisée)
 let agentWallet;
-const FALLBACK_KEY = "0x68cee2a1f3a912bc54d70e4102f66a011eafa61e4c0149c512bf8b4e39ef7f1f"; // Hardcoded to ensure multi-container sync
+const AGENT_KEY_FILE = path.join(__dirname, ".aura_agent_key");
 
 if (process.env.PRIVATE_KEY) {
     agentWallet = new ethers.Wallet(process.env.PRIVATE_KEY);
+} else if (fs.existsSync(AGENT_KEY_FILE)) {
+    const savedKey = fs.readFileSync(AGENT_KEY_FILE, "utf8").trim();
+    agentWallet = new ethers.Wallet(savedKey);
 } else {
-    agentWallet = new ethers.Wallet(FALLBACK_KEY);
+    // Génération d'une nouvelle clé si rien n'existe
+    agentWallet = ethers.Wallet.createRandom();
+    fs.writeFileSync(AGENT_KEY_FILE, agentWallet.privateKey, { mode: 0o600 });
+    console.log(" New Secure Agent Key generated and saved locally.");
 }
 
 // Dedicated wallet for Oracle updates — uses separate nonce stream to avoid collisions
