@@ -39,8 +39,9 @@ const ARB_SEPOLIA_AUSD = process.env.ARB_SEPOLIA_AUSD;
 const sepoliaProvider = new ethers.JsonRpcProvider(ARB_SEPOLIA_RPC);
 const robinhoodProvider = new ethers.JsonRpcProvider(ROBINHOOD_RPC);
 
-const agentWallet = new ethers.Wallet(PRIVATE_KEY, robinhoodProvider);
-const agentWalletSepolia = new ethers.Wallet(PRIVATE_KEY, sepoliaProvider);
+const AGENT_PKEY = process.env.CHAT_PRIVATE_KEY || process.env.KEEPER_PRIVATE_KEY || PRIVATE_KEY;
+const agentWallet = new ethers.Wallet(AGENT_PKEY, robinhoodProvider);
+const agentWalletSepolia = new ethers.Wallet(AGENT_PKEY, sepoliaProvider);
 
 let txQueue = Promise.resolve();
 
