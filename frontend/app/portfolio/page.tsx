@@ -64,13 +64,20 @@ export default function PortfolioPage() {
         abi: AURA_PERPS_ABI as any, functionName: "nextPositionId",
       }) as bigint;
       const count = Number(nextId);
-      const calls = Array.from({ length: count }, (_, i) =>
-        publicClient.readContract({
-          address: CONTRACT_ADDRESSES.AURA_PERPS as `0x${string}`,
-          abi: AURA_PERPS_ABI as any, functionName: "positions", args: [BigInt(i)],
-        })
-      );
-      const results = await Promise.all(calls);
+      const calls = Array.from({ length: count }, (_, i) => ({
+        address: CONTRACT_ADDRESSES.AURA_PERPS as `0x${string}`,
+        abi: AURA_PERPS_ABI as any, functionName: "positions", args: [BigInt(i)],
+      }));
+      const results = [];
+      const chunkSize = 500;
+      for (let i = 0; i < count; i += chunkSize) {
+        const chunk = calls.slice(i, i + chunkSize);
+        const chunkResults = await publicClient.multicall({ 
+          contracts: chunk,
+          multicallAddress: "0xca11bde05977b3631167028862be2a173976ca11" as `0x${string}`
+        });
+        results.push(...chunkResults.map(r => r.status === 'success' ? r.result : null));
+      }
       const open: Position[] = [];
       const ownerLower = account.address.toLowerCase();
       for (let i = 0; i < count; i++) {
